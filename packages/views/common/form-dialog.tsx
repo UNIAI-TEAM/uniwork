@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
@@ -197,12 +198,18 @@ export function ConfirmDialog({
   tone = destructive ? "destructive" : "info",
   solid = false,
   cancelVariant,
+  error,
   className,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /**
+   * The last confirm failed in a way the same press can fix (a dropped
+   * connection, a wait): said inside the dialog, which stays open on it.
+   */
+  error?: string | null;
   confirmLabel: string;
   /** When the action itself is a "cancel" (a subscription), dismissing must not read the same. */
   cancelLabel?: string;
@@ -231,6 +238,11 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
+        {error ? (
+          <Alert variant="destructiveSoft" role="alert">
+            <AlertDescription className="text-pretty">{error}</AlertDescription>
+          </Alert>
+        ) : null}
         <AlertDialogFooter>
           {/* aria-disabled, not disabled: both stay in the tab order while the
               action runs (see FormDialogFooter); Button blocks the press. */}

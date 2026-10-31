@@ -636,7 +636,7 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     // desktop/download capability is off by construction.
     expect(init.capabilities).toMatchObject({
       save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false,
-      attachments: false, images: false, ai: false, uniworkAi: false,
+      attachments: false, images: false, uniworkAi: false,
       desktopOpen: false, download: false,
       print: true,
     });

@@ -309,6 +309,16 @@ type ChatCatchUpSDO struct {
 	Usage          AiUsageDTO                 `json:"usage"`
 }
 
+// ChatTaskDraftSDO is POST /api/v1/workspaces/{workspaceID}/ai/chat/task-draft.
+type ChatTaskDraftSDO struct {
+	Title        string     `json:"title" example:"Gửi bản nháp cho An"`
+	Description  string     `json:"description" example:"An nhờ gửi bản nháp spec trước thứ Sáu."`
+	Priority     string     `json:"priority" example:"medium"`
+	DueDate      string     `json:"due_date,omitempty" description:"YYYY-MM-DD khi tin nêu hạn; trống nếu không có" example:"2026-10-29"`
+	MessageCount int        `json:"message_count" example:"3"`
+	Usage        AiUsageDTO `json:"usage"`
+}
+
 // AiProposalChangeDTO is one field a proposal changed, as an applied row reports it.
 type AiProposalChangeDTO struct {
 	Field string `json:"field" description:"Tên trường đã đổi" example:"status"`

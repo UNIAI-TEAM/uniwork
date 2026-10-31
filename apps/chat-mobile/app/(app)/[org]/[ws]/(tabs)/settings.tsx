@@ -1,6 +1,7 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/more/settings.tsx. The
 // settings tab: the account (read only), the workspace and a way to switch it,
-// push for this device, message text in notifications, app lock and screen security, the signed-in devices, theme, language, Privacy &
+// how the account signs in (password, Google, Apple), push for this device, message text in notifications, app lock
+// and screen security, the signed-in devices, theme, language, Privacy &
 // legal (policy, AI processing, support, licenses), About (the build, its
 // channel and update), sign out, and deleting the account.
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +20,7 @@ import { DevicesSection } from "@/components/settings/devices-section";
 import { PrivacySection } from "@/components/settings/privacy-section";
 import { PushPreviewsRow } from "@/components/settings/push-previews-row";
 import { PushSection } from "@/components/settings/push-section";
+import { SignInMethodsSection } from "@/components/settings/sign-in-methods-section";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
@@ -101,6 +103,7 @@ export default function SettingsTab() {
           </Pressable>
         </SettingsSection>
 
+        <SignInMethodsSection />
         <PushSection />
         <PrivacySection>
           <PushPreviewsRow orgSlug={org} />

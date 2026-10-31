@@ -3,6 +3,7 @@ package service
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -35,4 +36,87 @@ func foldForSearch(s string) string {
 // the caller reaching for the filter first.
 func buildSearchText(displayName, email, title, departmentName string) string {
 	return foldForSearch(strings.Join([]string{displayName, email, title, departmentName}, " "))
+}
+
+// documentSnippetRunes caps a search hit's excerpt, the SQL left(content_text, N) included.
+const documentSnippetRunes = 160
+
+// snippetLeadRunes is how much text a snippet shows before the match.
+const snippetLeadRunes = 40
+
+// matchSnippet shows the part of a file's text a search matched. sqlSnippet is
+// the excerpt SQL already chose: empty means the caller may not read the body
+// (DOC-05) or there is none, and it stays empty. When the folded query is not in
+// the text (a title match) the SQL excerpt stands.
+func matchSnippet(contentText, query, sqlSnippet string) string {
+	q := foldForSearch(query)
+	if q == "" || sqlSnippet == "" {
+		return sqlSnippet
+	}
+	// search_text covers only the first maxSearchContentRunes runes, so a body
+	// match always lies there: cut the text at that window plus one snippet's
+	// reach, without converting the whole file to runes.
+	cut, n := len(contentText), 0
+	for i := range contentText {
+		if n == maxSearchContentRunes+documentSnippetRunes {
+			cut = i
+			break
+		}
+		n++
+	}
+	orig := []rune(contentText[:cut])
+	truncated := cut < len(contentText)
+	window := min(len(orig), maxSearchContentRunes)
+	// Fold rune by rune the way foldForSearch does, remembering which original
+	// rune each folded rune came from.
+	var folded strings.Builder
+	folded.Grow(window)
+	from := make([]int, 0, window)
+	space := false
+	for i, r := range orig[:window] {
+		if unicode.IsSpace(r) {
+			space = folded.Len() > 0
+			continue
+		}
+		if r < utf8.RuneSelf { // ASCII has no marks to strip
+			if space {
+				folded.WriteByte(' ')
+				from = append(from, i)
+				space = false
+			}
+			folded.WriteRune(unicode.ToLower(r))
+			from = append(from, i)
+			continue
+		}
+		for _, f := range norm.NFD.String(strings.ToLower(string(r))) {
+			switch {
+			case unicode.Is(unicode.Mn, f):
+				continue
+			case f == 'đ':
+				f = 'd'
+			}
+			if space {
+				folded.WriteRune(' ')
+				from = append(from, i)
+				space = false
+			}
+			folded.WriteRune(f)
+			from = append(from, i)
+		}
+	}
+	at := strings.Index(folded.String(), q)
+	if at < 0 {
+		return sqlSnippet
+	}
+	first := from[utf8.RuneCountInString(folded.String()[:at])]
+	start := max(first-snippetLeadRunes, 0)
+	room, lead, tail := documentSnippetRunes, "", ""
+	if start > 0 {
+		lead, room = "…", room-1
+	}
+	end := start + room
+	if end < len(orig) || truncated {
+		tail, end = "…", end-1
+	}
+	return lead + string(orig[start:min(end, len(orig))]) + tail
 }

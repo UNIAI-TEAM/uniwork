@@ -19,11 +19,13 @@ export type ChatMessageSelectionBarState = {
   count: number;
   canForward: boolean;
   canDelete: boolean;
+  canCreateTask: boolean;
   busy: boolean;
   clear: () => void;
   copy: () => void;
   forward: () => void;
   deleteSelected: () => void;
+  createTask: () => void;
 };
 
 function messageCopyText(message: { body: string }): string {
@@ -41,6 +43,8 @@ export function useChatMessageSelectionActions({
   messages,
   selection,
   mayForward,
+  mayCreateTask = false,
+  onCreateTaskFromMessages,
 }: {
   workspaceId: string;
   roomId: string;
@@ -48,6 +52,8 @@ export function useChatMessageSelectionActions({
   messages: ChatMessage[];
   selection: ChatMessageSelection;
   mayForward: boolean;
+  mayCreateTask?: boolean;
+  onCreateTaskFromMessages?: (messages: ChatMessage[]) => void;
 }): {
   selectionUi: ChatMessageSelectionUi | null;
   bar: ChatMessageSelectionBarState | null;
@@ -71,6 +77,7 @@ export function useChatMessageSelectionActions({
 
   const canForwardSelected = mayForward && selectedMessages.some(isForwardableChatMessage);
   const canDeleteSelected = selectedMessages.some((message) => message.sender === currentUserId);
+  const canCreateTaskSelected = mayCreateTask && selectedMessages.length > 0;
 
   const copySelected = useCallback(() => {
     const text = joinSelectedChatMessageText(selectedMessages, selection.selectedIds, messageCopyText);
@@ -98,6 +105,12 @@ export function useChatMessageSelectionActions({
     if (own.length === 0) return;
     setDeletingSelected(own);
   }, [currentUserId, selectedMessages]);
+
+  const createTaskSelected = useCallback(() => {
+    if (!canCreateTaskSelected || !onCreateTaskFromMessages) return;
+    onCreateTaskFromMessages(selectedMessages);
+    selection.clear();
+  }, [canCreateTaskSelected, onCreateTaskFromMessages, selectedMessages, selection]);
 
   const confirmDeleteSelected = useCallback(async () => {
     const targets = deletingSelected;
@@ -136,8 +149,10 @@ export function useChatMessageSelectionActions({
         copySelected,
         forwardSelected,
         deleteSelected,
+        createTaskSelected,
         canForwardSelected: false,
         canDeleteSelected: false,
+        canCreateTaskSelected: false,
       };
     }
     return {
@@ -149,13 +164,17 @@ export function useChatMessageSelectionActions({
       copySelected,
       forwardSelected,
       deleteSelected,
+      createTaskSelected,
       canForwardSelected,
       canDeleteSelected,
+      canCreateTaskSelected,
     };
   }, [
+    canCreateTaskSelected,
     canDeleteSelected,
     canForwardSelected,
     copySelected,
+    createTaskSelected,
     deleteSelected,
     enter,
     forwardSelected,
@@ -172,17 +191,21 @@ export function useChatMessageSelectionActions({
       count: selection.selectedIds.size,
       canForward: canForwardSelected,
       canDelete: canDeleteSelected,
+      canCreateTask: canCreateTaskSelected,
       busy: busy || deleteMessage.isPending,
       clear: selection.clear,
       copy: copySelected,
       forward: forwardSelected,
       deleteSelected,
+      createTask: createTaskSelected,
     };
   }, [
     busy,
+    canCreateTaskSelected,
     canDeleteSelected,
     canForwardSelected,
     copySelected,
+    createTaskSelected,
     deleteMessage.isPending,
     deleteSelected,
     forwardSelected,

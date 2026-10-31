@@ -33,17 +33,35 @@ func sessionRevoked(userID, sessionID string) audit.Event {
 	return audit.Event{Topic: "session.revoked", Payload: map[string]string{"user_id": userID, "session_id": sessionID}}
 }
 
-// RevokeOtherSessions keeps only the caller's current session alive.
+// RevokeOtherSessions keeps only the caller's current session alive: every
+// other browser session and every device session outside the caller's
+// family (the phone and desktop apps, with their pushes and offline leases),
+// through revokeOtherUserSessions. It answers how many sessions it ended.
 func (s *AuthService) RevokeOtherSessions(ctx context.Context, userID, currentSessionID string) (int64, error) {
-	n, err := s.q.RevokeOtherSessionsForUser(ctx, db.RevokeOtherSessionsForUserParams{UserID: userID, SessionID: currentSessionID})
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
-	if n > 0 {
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	tokens, devices, leases, err := revokeOtherUserSessions(ctx, q, userID, currentSessionID)
+	if err != nil {
+		return 0, err
+	}
+	if tokens > 0 || devices > 0 {
 		// The ended sessions are not named here, so every socket closes; the
 		// caller's own reconnects once it has refreshed.
-		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, userID, map[string]any{"scope": "others", "count": n},
-			sessionRevoked(userID, ""))
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
+			Action: audit.ActionAuthSessionRevoked, ResourceType: "user", ResourceID: userID,
+			Metadata: map[string]any{"scope": "others", "count": tokens, "device_sessions": devices},
+		}, sessionRevoked(userID, "")); err != nil {
+			return 0, err
+		}
 	}
-	return n, nil
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
+	return tokens, nil
 }

@@ -325,6 +325,10 @@ type CreateFileDocumentInput struct {
 	// (document_sources.go); set only inside the service, recorded on the
 	// audit row as provenance.
 	sourceFileID string
+	// fromTemplate makes the new document from a marked template's current
+	// file (document_from_template.go): the file id is reused, not uploaded;
+	// set only inside the service.
+	fromTemplate *templateFileSource
 }
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
@@ -392,13 +396,23 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, err
 	}
 	scope := documentScope(orgID, workspaceID)
-	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, scope,
-		fileUploadKey("documents.create", workspaceID, in.IdempotencyKey), DocumentUploadInput{Filename: in.Filename, Body: in.Body})
+	var staged files.File
+	fpChecksum := ""
+	if in.fromTemplate != nil {
+		staged, err = resolveUpload(ctx, fs, scope, in.fromTemplate.version.FileID.String)
+		// The template joins the fingerprint: two templates may share bytes.
+		fpChecksum = "template:" + in.fromTemplate.doc.ID + ":"
+	} else {
+		var up files.Upload
+		up, _, err = s.uploadChecked(ctx, fs, actor, files.DocumentFile, scope,
+			fileUploadKey("documents.create", workspaceID, in.IdempotencyKey), DocumentUploadInput{Filename: in.Filename, Body: in.Body})
+		staged = up.File
+	}
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
 	opts := IdempotencyOptions{
-		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination, in.Template),
+		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, fpChecksum+staged.ChecksumSHA256, in.Visibility, in.Destination, in.Template),
 		RequireFingerprint: true,
 	}
 
@@ -421,13 +435,20 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
+	if in.fromTemplate != nil {
+		// The template may have lost its mark, or the reader's access, since
+		// the pre-flight: the transaction's own read decides.
+		if err := s.recheckTemplateInTx(ctx, q, actor, workspaceID, in.fromTemplate); err != nil {
+			return DocumentFileResult{}, err
+		}
+	}
 	// FS-C1 §5.4: the files rows lock before this module's own rows - the
 	// claim comes first, then the workspace tree lock and the parent row
 	// lock follow (the idempotency ledger claim still precedes everything,
 	// N-01). A retried key replays above without ever touching the parent:
 	// losing access to it after the commit does not strand the replay.
 	claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
-		Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{up.File.ID},
+		Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{staged.ID},
 	})
 	if err != nil {
 		return DocumentFileResult{}, documentFileError(err)
@@ -464,8 +485,12 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		// whole workspace to open, edit and copy.
 		visibility, workspaceLevel = documentVisibilityWorkspace, string(DocumentLevelEdit)
 	}
-	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
-		return DocumentFileResult{}, err
+	// A template's file is already held by the template: FileService counts a
+	// file id once, so a file made from it adds no bytes (as CopyDocument).
+	if in.fromTemplate == nil {
+		if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	docID, versionID := util.NewID(), util.NewID()
 	params := db.InsertDocumentParams{
@@ -488,11 +513,20 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		UpdatedByKind:  string(actor.Kind),
 		LastVersionAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
+	if in.fromTemplate != nil {
+		// Provenance as a copy writes it; conversion_reason stays NULL.
+		params.SourceDocumentID = pgtype.Text{String: in.fromTemplate.doc.ID, Valid: true}
+		params.SourceVersionID = pgtype.Text{String: in.fromTemplate.version.ID, Valid: true}
+		params.SourceRevision = pgtype.Int8{Int64: in.fromTemplate.doc.Revision, Valid: true}
+		params.SourceFormat = in.fromTemplate.version.MimeType
+		params.TargetFormat = in.fromTemplate.version.MimeType
+		params.SourceChecksumSha256 = in.fromTemplate.version.ChecksumSha256
+	}
 	doc, err := q.InsertDocument(ctx, params)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
+	version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -501,6 +535,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	}
 	if in.sourceFileID != "" {
 		created["source_file_id"] = in.sourceFileID
+	}
+	if in.fromTemplate != nil {
+		created["source_document_id"] = in.fromTemplate.doc.ID
+		created["source_version_id"] = in.fromTemplate.version.ID
+		created["reason"] = "template"
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
@@ -629,6 +668,52 @@ func fileVersionParams(doc db.Document, id string, version int32, reason string,
 		CreatedBy:       actor.ID,
 		CreatedByKind:   string(actor.Kind),
 	}
+}
+
+// TopicDocumentTextIndexRequested asks the slow lane to extract a file
+// version's text into documents.content_text.
+const TopicDocumentTextIndexRequested = "document.text_index_requested"
+
+// insertFileVersion inserts a file version and requests its text index in the
+// caller's transaction; every file version goes through it.
+func insertFileVersion(ctx context.Context, q *db.Queries, actor Actor, params db.InsertDocumentVersionParams) (db.DocumentVersion, error) {
+	version, err := q.InsertDocumentVersion(ctx, params)
+	if err != nil {
+		return db.DocumentVersion{}, err
+	}
+	if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+		Topic:          TopicDocumentTextIndexRequested,
+		OrganizationID: version.OrganizationID,
+		WorkspaceID:    version.WorkspaceID,
+		Payload: map[string]string{
+			"document_id": version.DocumentID, "version_id": version.ID,
+			"organization_id": version.OrganizationID, "workspace_id": version.WorkspaceID,
+		},
+	}); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	return version, nil
+}
+
+// RequestFileTextIndex requests the text index of each row's current file
+// version in the caller's transaction, as the system actor of the
+// document-text-reindex command.
+func RequestFileTextIndex(ctx context.Context, q *db.Queries, rows []db.ListFileDocumentsForTextIndexRow) error {
+	actor := audit.System("document-text-reindex")
+	for _, d := range rows {
+		if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+			Topic:          TopicDocumentTextIndexRequested,
+			OrganizationID: d.OrganizationID,
+			WorkspaceID:    d.WorkspaceID,
+			Payload: map[string]string{
+				"document_id": d.ID, "version_id": d.FileVersionID.String,
+				"organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UploadDocumentAsset stores an image pasted into a page (C-01 §3.3 as

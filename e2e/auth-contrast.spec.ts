@@ -29,7 +29,7 @@ for (const mode of ["light", "dark"] as const) {
     await page.getByLabel("Email").fill(`khong-ton-tai-${Date.now()}@example.com`);
     await page.getByLabel("Mật khẩu", { exact: true }).fill("saibetnhe123");
     await page.getByRole("button", { name: "Đăng nhập" }).click();
-    await page.getByText("Email hoặc mật khẩu không đúng").waitFor();
+    await page.getByText("Email hoặc mật khẩu chưa đúng.").waitFor();
     await setMode(page, mode);
 
     const failed = await auditText(page);
@@ -61,7 +61,7 @@ for (const mode of ["light", "dark"] as const) {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
     await page.getByRole("button", { name: "Đăng ký" }).click();
-    await page.getByText("Email đã được đăng ký").waitFor();
+    await page.getByText("Email này đã có tài khoản. Đăng nhập, hoặc đặt lại mật khẩu nếu bạn quên.").waitFor();
     await setMode(page, mode);
 
     const failed = await auditText(page);

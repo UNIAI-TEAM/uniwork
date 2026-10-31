@@ -67,7 +67,7 @@ export async function signIn(page, webOrigin, seed, { hydrateTimeoutMs = HYDRATE
   try {
     await page.getByLabel("Email").fill(seed.email);
     await page.getByLabel(/^(Mật khẩu|Password)$/).fill(seed.password);
-    await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
+    await page.getByRole("button", { name: /^(Đăng nhập|Sign in|Log in)$/ }).click();
     await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: loginTimeoutMs });
   } catch (error) {
     const what = String(error.message).split("\n")[0].replaceAll(seed.password, "<password>");

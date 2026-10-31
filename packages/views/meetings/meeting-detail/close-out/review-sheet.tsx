@@ -39,7 +39,7 @@ const CHEV = "[&>svg:last-child]:size-3 [&>svg:last-child]:text-faint-foreground
  * row with its owner, due date and priority, editable in place, grouped by
  * who receives it; guessed due dates flagged twice. [Giao n việc] is the only
  * way a task is made (ADR 0010: agents propose, humans confirm). A refusal
- * stays in the sheet; success closes it with a toast that has no undo.
+ * stays in the sheet; success closes it and hands the new tasks to the dock, with its undo.
  */
 export function ReviewSheet({
   closeOut,
@@ -91,7 +91,6 @@ export function ReviewSheet({
         priority: v.priority,
       });
     });
-    const count = items.length;
     convert.mutate(
       { items, locale: i18n.language.startsWith("en") ? "en" : "vi" },
       {
@@ -99,7 +98,8 @@ export function ReviewSheet({
           close(false);
           closeOut.clear();
           onAssigned();
-          if (result) toast.success(t("meetings.actionItemsSection.assignedStatus", { count }), { position: "bottom-center" });
+          // The dock says it, with Hoàn tác for the ids the server made tasks of.
+          if (result) closeOut.markAssigned(result.links.map((l) => l.action_item_id));
           else toast.warning(t("meetings.summaryAi.createdUnknown"), { position: "bottom-center" });
         },
         onError: (err) => setError({ text: summaryErrorText(err, t, "tasks", { items: allItems }), link: duplicateLinkTarget(err) ?? undefined }),

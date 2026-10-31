@@ -69,7 +69,7 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await controls.getByRole('button', { name: vi.meetings.devices, exact: true }).click();
   await expect(page.getByRole('dialog').getByLabel(vi.meetings.deviceMic, { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await controls.getByRole('button', { name: vi.meetings.record, exact: true }).click();
+  await controls.getByRole('button', { name: vi.meetings.recordVideo, exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: vi.meetings.confirmStartRecording, exact: true }).click();
   await expect(manual.locator('.product-meeting-recording')).toBeVisible();
   await controls.getByRole('button', { name: vi.meetings.stopRecording, exact: true }).click();

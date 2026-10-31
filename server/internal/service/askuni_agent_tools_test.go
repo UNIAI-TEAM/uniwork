@@ -15,11 +15,12 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 var agentToolOrder = []string{
 	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
-	"get_project", "get_document", "list_documents", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
+	"get_project", "get_document", "list_documents", "list_templates", "list_attachments", "get_attachment", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
 // newAgentWorld is the MCP tool world with Ask UNI's read tools wired to it,
@@ -196,6 +197,27 @@ func TestAskAgentToolsStayInTheAskedWorkspace(t *testing.T) {
 	if items := runAgentTool(t, s, tc, "get_meeting", `{"meeting_id":"`+meeting2.ID+`"}`); !isError(items, "not_found") {
 		t.Errorf("get_meeting of workspace two = %+v", items)
 	}
+	// A template of workspace two is not in workspace one's list.
+	tpl2, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), v2.Workspace.ID, CreateFileDocumentInput{Filename: "mau-mat-hai.docx", Body: bytes.NewReader(docxBody(t, util.NewID())), Template: true, IdempotencyKey: util.NewID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); slices.ContainsFunc(items, func(it agentItem) bool { return it.ID == tpl2.Document.ID }) {
+		t.Errorf("list_templates in workspace one listed workspace two's template: %+v", items)
+	}
+	// A file attached to a task of workspace two or of organization B reads as absent.
+	aw := wireSources(t, x, s, tc)
+	for name, id := range map[string]string{
+		"workspace two":  aw.rawAttachment(t, x.w.OrganizationID, v2.Workspace.ID, task2.ID, x.ua.ID, "mat-hai.docx", 10),
+		"organization B": aw.rawAttachment(t, wsB.OrganizationID, wsB.ID, taskB.ID, x.ub.ID, "mat-b.docx", 10),
+	} {
+		if items := aw.run(t, tc, "get_attachment", `{"attachment_id":"`+id+`"}`); !isError(items, "not_found") {
+			t.Errorf("get_attachment of %s = %+v; want error: not_found", name, items)
+		}
+	}
+	if items := aw.run(t, tc, "get_attachment", `{"attachment_id":"`+aw.rawAttachment(t, x.w.OrganizationID, x.w.ID, own.ID, x.ua.ID, "cua-toi.docx", 10)+`"}`); len(items) != 1 || items[0].Title != "cua-toi.docx" {
+		t.Fatalf("get_attachment control = %+v", items)
+	}
 	// The control: the asker's own task reads under its own workspace.
 	if items := runAgentTool(t, s, tc, "get_task", `{"task":"`+own.ID+`"}`); len(items) != 1 || items[0].Title != own.Title || !strings.Contains(items[0].Text, "Ref: ") {
 		t.Fatalf("get_task of workspace one = %+v", items)
@@ -237,6 +259,14 @@ func TestAskAgentToolsRespectVisibility(t *testing.T) {
 	}
 	if items := get(open.Document.ID); len(items) != 1 || items[0].Title != "Kế hoạch công khai" || !strings.Contains(items[0].Text, "Mục tiêu") {
 		t.Fatalf("control: member reads the open page: %+v", items)
+	}
+	aw := wireSources(t, x, s, ai.ToolContext{ActorID: x.ua.ID, OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID})
+	_, private := aw.chatFile(t, member.UserID, "rieng-tu.pdf", member.UserID)
+	if items := aw.run(t, aw.tc, "get_attachment", `{"attachment_id":"`+private+`"}`); !isError(items, "not_found") {
+		t.Errorf("get_attachment of a private room's file = %+v", items)
+	}
+	if items := aw.run(t, tcB, "get_attachment", `{"attachment_id":"`+private+`"}`); len(items) != 1 || items[0].Title != "rieng-tu.pdf" {
+		t.Errorf("control: a room member reads the file: %+v", items)
 	}
 	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
 	if items := get(open.Document.ID); !isError(items, "documents_unavailable") {
@@ -471,7 +501,7 @@ func TestAskAgentListsSayWhenCut(t *testing.T) {
 // Without SetReadTools a tool that reads through the connector is a server
 // fault, never a panic and never an answer the model could act on.
 func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
-	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_documents", "list_members"}
+	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_documents", "list_templates", "list_members"}
 	for _, tool := range (&AskUNIService{}).agentTools() {
 		if !slices.Contains(needs, tool.Name) {
 			continue
@@ -641,5 +671,72 @@ func TestAgentListDocuments(t *testing.T) {
 	}
 	if items := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"`+folder2.Document.ID+`","cursor":""}`); len(items) != 0 {
 		t.Errorf("a folder of workspace two listed %+v", items)
+	}
+}
+
+// list_templates lists the workspace's Templates section as the asker sees it:
+// by format, without a template the asker cannot read, closed with the
+// documents switch.
+func TestAskAgentListTemplates(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	docs := x.docs(t)
+	mk := func(name string, body []byte) db.Document {
+		t.Helper()
+		res, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{Filename: name, Body: bytes.NewReader(body), Template: true, IdempotencyKey: util.NewID()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Document
+	}
+	d1 := mk("bao-gia.docx", docxBody(t, util.NewID()))
+	d2 := mk("hop-dong.docx", docxBody(t, util.NewID()))
+	px := mk("gioi-thieu.pptx", officeFile(t, map[string]string{"ppt/presentation.xml": `<p:presentation/>`, "ppt/slides/slide1.xml": `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree/></p:cSld></p:sld>`}))
+	plain, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{Filename: "khong-phai-mau.docx", Body: bytes.NewReader(docxBody(t, util.NewID())), IdempotencyKey: util.NewID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A template only its owner reads: marked, then closed to the workspace.
+	hidden := mk("mau-rieng.docx", docxBody(t, util.NewID()))
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, hidden.ID); err != nil {
+		t.Fatal(err)
+	}
+	member := x.member(t)
+	tcB := ai.ToolContext{ActorID: member.UserID, OrganizationID: member.OrganizationID, WorkspaceID: x.w.ID}
+
+	if all := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); len(all) != 4 {
+		t.Fatalf("every format for the owner = %+v; want 4 templates", all)
+	}
+	forMember := runAgentTool(t, s, tcB, "list_templates", `{"format":"","cursor":""}`)
+	if len(forMember) != 3 {
+		t.Fatalf("every format for a member = %+v; want 3 templates", forMember)
+	}
+	for _, it := range forMember {
+		if it.Kind != "document" || it.ID == plain.Document.ID || it.ID == hidden.ID {
+			t.Errorf("member's row = %+v", it)
+		}
+		format := "docx"
+		if it.ID == px.ID {
+			format = "pptx"
+		}
+		if !strings.Contains(it.Text, "ID: "+it.ID) || !strings.Contains(it.Text, "Format: "+format) {
+			t.Errorf("row text = %q; want ID and Format: %s", it.Text, format)
+		}
+	}
+	for _, id := range []string{d1.ID, d2.ID, px.ID} {
+		if !slices.ContainsFunc(forMember, func(it agentItem) bool { return it.ID == id }) {
+			t.Errorf("member's templates miss %s: %+v", id, forMember)
+		}
+	}
+	if only := runAgentTool(t, s, tc, "list_templates", `{"format":"pptx","cursor":""}`); len(only) != 1 || only[0].ID != px.ID {
+		t.Errorf("pptx filter = %+v", only)
+	}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"txt","cursor":""}`); len(items) != 1 || !strings.HasPrefix(items[0].Text, "error: invalid_args") {
+		t.Errorf("a bad format = %+v; want invalid_args", items)
+	}
+
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); !isError(items, "documents_unavailable") {
+		t.Errorf("documents off: %+v", items)
 	}
 }

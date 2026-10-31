@@ -16,6 +16,7 @@ vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => lk.room,
   useParticipants: () => [],
   useRemoteParticipants: () => lk.remote,
+  useConnectionState: () => ConnectionState.Connected,
 }));
 
 class FakeRoom extends EventEmitter {
@@ -346,3 +347,30 @@ describe("ScribeAnnouncer", () => {
     expect(live).toHaveTextContent("Thư ký UNI gặp sự cố nên không ghi lời thoại");
   });
 });
+
+describe("MeetingStageHeader remaining time (UNI-2285 E)", () => {
+  it("remaining time renders through NumberFlow", () => {
+    vi.setSystemTime(new Date("2026-10-29T10:00:00Z"));
+    const meeting = {
+      id: "m1",
+      workspace_id: "w1",
+      title: "Standup",
+      description: "",
+      starts_at: "2026-10-29T09:30:00Z",
+      ends_at: "2026-10-29T10:59:41Z",
+      room_name: "uw_mtg_m1",
+      created_by: "u1",
+      status: "IN_PROGRESS" as const,
+    };
+    render(wrapWithNav(<MeetingStageHeader meeting={meeting} />));
+    const chip = screen.getByTestId("meeting-remaining-time");
+    // Hours, minutes and seconds each roll on their own.
+    expect(chip.querySelectorAll("number-flow-react")).toHaveLength(3);
+    expect(chip).toHaveTextContent("00:59:41 còn lại");
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(chip).toHaveTextContent("00:59:40 còn lại");
+  });
+});
+

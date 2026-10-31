@@ -71,7 +71,7 @@ export function EmailHubThreadListItem({
   const hasActions = spamAction || aiAction;
 
   return (
-    <li
+    <div
       className={cn(
         "group/row relative border-b border-border/70 transition-colors duration-(--duration-fast)",
         checked ? "bg-brand-subtle/60" : "hover:bg-muted/60 focus-within:bg-muted/60",
@@ -260,6 +260,6 @@ export function EmailHubThreadListItem({
       </div>
 
       <EmailHubListAiSummary analyzing={analyzing} listSummary={listSummary} />
-    </li>
+    </div>
   );
 }

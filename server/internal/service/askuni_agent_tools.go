@@ -180,13 +180,20 @@ func (s *AskUNIService) agentTools() []agentTool {
 			}, s.needsReads(s.agentListProjects)),
 		readTool("get_project", "One project with its description; its first 20 tasks follow as their own sources.",
 			map[string]agentProp{"project_id": strArg("The project's id.")}, s.needsReads(s.agentGetProject)),
-		readTool("get_document", "One document: a page as Markdown; a text file's text; a docx, xlsx, pptx, odt or csv file's text read paragraph by paragraph, slide by slide or row by row (no formatting); any other file's name and type.",
+		readTool("get_document", "One document: a page as Markdown; a text file's text; a docx, xlsx, pptx, odt or csv file's text read paragraph by paragraph, slide by slide or row by row (no formatting); a pdf's text layer page by page (a scan has none); any other file's name and type.",
 			map[string]agentProp{"document_id": strArg("The document's id.")}, s.needsReads(s.agentGetDocument)),
 		readTool("list_documents", "Pages, files and folders directly under one folder or page of the workspace (the top level when parent_id is \"\"), in the order of the document tree, 50 at a time. Use it to browse a folder; open a row with get_document.",
 			map[string]agentProp{
 				"parent_id": strArg("A folder or page id from list_documents or search; \"\" for the top level."),
 				"cursor":    strArg("The cursor a previous list_documents call gave; \"\" for the first page."),
 			}, s.needsReads(s.agentListDocuments)),
+		readTool("list_templates", "Templates in this workspace's Templates section (Mẫu văn bản), newest first. Use it before create_office_document to find the template the asker means. Filter by format, or pass an empty string for every format.",
+			map[string]agentProp{
+				"format": strArg("docx, xlsx, pptx, pdf, md or html; an empty string lists every format"),
+				"cursor": strArg("The cursor a previous list_templates call gave; \"\" for the first page."),
+			}, s.needsReads(s.agentListTemplates)),
+		s.listAttachmentsTool(),
+		s.getAttachmentTool(),
 		readTool("list_chat_rooms", "Chat rooms the user belongs to in the workspace: name, type and last activity.", nil, s.agentListChatRooms),
 		readTool("read_chat_room", "The latest 30 messages of one chat room the user may read.",
 			map[string]agentProp{
@@ -560,6 +567,47 @@ func (s *AskUNIService) agentListDocuments(ctx context.Context, tc ai.ToolContex
 	}
 	if l.NextCursor != "" {
 		out = append(out, moreNote("More documents follow; call list_documents again with cursor "+l.NextCursor+"."))
+	}
+	return out, nil
+}
+
+// agentListTemplates lists the Templates section the asker may read. The
+// document service does not check the `documents` switch, so it is checked
+// here exactly as list_documents answers it.
+func (s *AskUNIService) agentListTemplates(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
+	var a struct {
+		Format string `json:"format"`
+		Cursor string `json:"cursor"`
+	}
+	if err := agentArgs(raw, &a); err != nil {
+		return nil, err
+	}
+	if !s.reads.documentsOn(ctx, principalOf(tc)) {
+		return nil, errMcpDocumentsUnavailable
+	}
+	if a.Format != "" && !slices.Contains(askOfficeFormats, a.Format) {
+		return nil, McpInvalidArgs{Msg: "format must be docx, xlsx, pptx, pdf, md, html or empty"}
+	}
+	if _, err := decodeDocumentCursor(a.Cursor); err != nil {
+		return nil, McpInvalidArgs{Msg: "cursor must be a cursor that list_templates returned"}
+	}
+	// Through the read path's document service, like list_documents.
+	page, err := s.reads.docs.ListTemplateDocuments(ctx, Human(tc.ActorID), tc.WorkspaceID, ListDocumentsInput{Format: a.Format, Cursor: a.Cursor, Limit: mcpMaxList})
+	if err != nil {
+		return nil, hidden(err)
+	}
+	base, err := s.reads.ask.base(ctx, tc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]agentItem, 0, len(page.Items)+1)
+	for _, it := range page.Items {
+		d := s.reads.docOf(base, it.Document)
+		h := s.href(d.URL)
+		out = append(out, agentItem{Kind: "document", ID: d.ID, Key: h, Href: h, Title: d.Title, Text: "ID: " + d.ID + "\nFormat: " + it.Facts.Format})
+	}
+	if page.NextCursor != "" {
+		out = append(out, moreNote("More templates follow; call list_templates again with cursor "+page.NextCursor+"."))
 	}
 	return out, nil
 }

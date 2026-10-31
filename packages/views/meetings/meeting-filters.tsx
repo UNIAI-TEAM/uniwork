@@ -1,8 +1,11 @@
 "use client";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import type { MeetingStatistics } from "@uniwork/core/types/meeting";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
+import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
+import { cn } from "@uniwork/ui/lib/utils";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 
 /**
@@ -13,6 +16,12 @@ import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 export const MEETING_FILTERS = ["", "SCHEDULED", "IN_PROGRESS", "ENDED", "MISSED", "CANCELED"] as const;
 /** A toggle item needs a non-empty value; "all" stands in for "". */
 const ALL = "all";
+
+/**
+ * The pressed chip's raised surface is one pill that slides between the chips
+ * (`status-pill`), so the chip itself stays flat when pressed.
+ */
+const FILTER_CHIP = cn(MEETING_TOGGLE_CHIP, "relative isolate aria-pressed:border-transparent aria-pressed:bg-transparent aria-pressed:shadow-none");
 
 /**
  * The badge each chip's rows can wear. The row badge shows the status as the
@@ -61,6 +70,7 @@ export function MeetingFilters({
   onQuery: (q: string) => void;
 }) {
   const { t } = useTranslation();
+  const reduce = useReducedMotion() ?? false;
   // The statistics count the whole workspace; beside a search they would
   // promise rows the search does not return.
   const showCounts = !query.trim();
@@ -89,12 +99,21 @@ export function MeetingFilters({
         aria-label={t("meetings.status")}
         spacing={1}
         // Wraps rather than scrolls: a clipped chip row gives no cue that more chips exist.
-        className="-mx-1 w-full min-w-0 flex-wrap px-1 py-1 lg:w-auto"
+        className="w-full min-w-0 flex-wrap rounded-[10px] bg-muted p-[3px] lg:w-auto"
       >
         {MEETING_FILTERS.map((value) => {
           const count = showCounts ? countFor(stats, value) : undefined;
           return (
-            <ToggleGroupItem key={value || ALL} value={value || ALL} className={MEETING_TOGGLE_CHIP}>
+            <ToggleGroupItem key={value || ALL} value={value || ALL} className={FILTER_CHIP}>
+              {(status || ALL) === (value || ALL) ? (
+                <motion.span
+                  aria-hidden
+                  data-slot="status-pill"
+                  layoutId="meeting-status-pill"
+                  transition={reduce ? { duration: 0 } : { duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}
+                  className="absolute inset-0 -z-10 rounded-md border border-border bg-surface shadow-[var(--surface-shadow)]"
+                />
+              ) : null}
               {label(value)}
               {count ? (
                 <>

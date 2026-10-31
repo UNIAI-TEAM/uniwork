@@ -35,5 +35,5 @@ func (h *handlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	h.sessionResponse(w, sess)
+	h.signedIn(w, sess, in.KeepSignInTicket)
 }

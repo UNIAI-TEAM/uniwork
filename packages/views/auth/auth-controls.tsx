@@ -15,6 +15,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 export const AUTH_LINK =
   "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
 
+/**
+ * The pattern of a code's six boxes. input-otp tests each new value against
+ * it whole, and an unanchored `[0-9]*` matches any string: letters got in,
+ * and the sixth character sent a typo as a wrong guess against the code's
+ * budget. `inputMode="numeric"` alone only picks the phone's keyboard.
+ */
+export const DIGITS_ONLY = "^[0-9]+$";
+
 export const AUTH_INPUT = "h-11 rounded-xl text-body pointer-coarse:h-11";
 
 /**
@@ -25,6 +33,14 @@ export const AUTH_INPUT = "h-11 rounded-xl text-body pointer-coarse:h-11";
  */
 export const AUTH_PILL =
   "h-12 w-full rounded-full text-body-lg transition-transform duration-(--duration-standard) ease-out-quart active:scale-[0.98] aria-disabled:cursor-progress aria-disabled:opacity-100 motion-reduce:transition-none pointer-coarse:h-12";
+
+/**
+ * A pill held back by a wait (a resend's cooldown, the server's Retry-After)
+ * rather than busy: it dims like any unavailable action and the cursor says
+ * "not now", where AUTH_PILL's full-strength busy look would invite a press
+ * that does nothing. Add it only while held and not pending.
+ */
+export const AUTH_PILL_HELD = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 /**
  * The primary action of a credential screen: label on the left, the arrow
@@ -42,18 +58,30 @@ export function AuthSubmit({
   pendingLabel: string;
   children: ReactNode;
 }) {
+  // Held back by the caller (a wait the server set), not busy: the pill's
+  // full-strength busy look would invite a press that does nothing, so it
+  // dims like any unavailable action and the arrow stops answering hover.
+  const blocked = !pending && Boolean(props["aria-disabled"]);
   return (
     <Button
       type="submit"
       size="lg"
       {...props}
-      className={cn(AUTH_PILL, "group/submit justify-between pl-6 pr-1.5", className)}
+      className={cn(
+        AUTH_PILL,
+        "group/submit justify-between pl-6 pr-1.5",
+        blocked && AUTH_PILL_HELD,
+        className,
+      )}
       aria-disabled={pending || props["aria-disabled"] || undefined}
     >
       <span>{pending ? pendingLabel : children}</span>
       <span
         aria-hidden
-        className="flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart group-hover/submit:translate-x-0.5 motion-reduce:transition-none"
+        className={cn(
+          "flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart motion-reduce:transition-none",
+          !blocked && "group-hover/submit:translate-x-0.5",
+        )}
       >
         {pending ? (
           <Spinner strokeWidth={1.75} />

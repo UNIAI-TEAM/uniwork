@@ -27,7 +27,10 @@ const (
 	// A meeting whose scribe run was open at its end waits for the agent's
 	// /agent/finished (its last lines), at most this long.
 	autoSummaryAgentWait = 90 * time.Second
-	autoSummaryTick      = 5 * time.Second
+	// A meeting with a recording part still being transcribed waits this
+	// long between checks: the summary reads every part, once.
+	autoSummaryTranscriptionWait = 30 * time.Second
+	autoSummaryTick              = 5 * time.Second
 	// Summaries in flight per node: one long meeting never holds up the rest.
 	autoSummaryConcurrency = 4
 	// A row claimed this many times without settling (its node died each
@@ -173,7 +176,16 @@ func (s *MeetingService) runAutoSummary(ctx context.Context, row db.MeetingAutoS
 	case row.Attempts > autoSummaryMaxAttempts:
 		err = errAutoSummaryAttempts
 	default:
-		_, err = s.summarizeAuto(ctx, m)
+		var open int64
+		if open, err = s.q.CountOpenMeetingTranscriptions(ctx, m.ID); err == nil && open > 0 {
+			// A recording part is still being transcribed: the summary waits
+			// to read every part, and the wait is not an attempt.
+			row.Attempts--
+			return s.deferAutoSummary(ctx, row, autoSummaryTranscriptionWait)
+		}
+		if err == nil {
+			_, err = s.summarizeAuto(ctx, m)
+		}
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -241,13 +253,14 @@ func autoSummaryRetry(err error, attempts int32) (time.Duration, bool) {
 	return min(wait, autoSummaryMaxBackoff), true
 }
 
-// deferAutoSummary gives a claimed row back, due again after wait.
+// deferAutoSummary gives a claimed row back, due again after wait, with
+// row.Attempts as its count.
 func (s *MeetingService) deferAutoSummary(ctx context.Context, row db.MeetingAutoSummary, wait time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancel()
 	_, err := s.q.DeferMeetingAutoSummary(ctx, db.DeferMeetingAutoSummaryParams{
 		OrganizationID: row.OrganizationID, MeetingID: row.MeetingID, LeaseUntil: row.LeaseUntil,
-		AfterSeconds: int32(wait / time.Second),
+		AfterSeconds: int32(wait / time.Second), Attempts: row.Attempts,
 	})
 	return err // no row: the lease lapsed and another node holds it now
 }

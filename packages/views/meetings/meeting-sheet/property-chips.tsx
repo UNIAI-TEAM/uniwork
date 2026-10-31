@@ -18,7 +18,7 @@ const NO_PROJECT = "__none__";
 /**
  * The chip row under the agenda (create brief §2.6): Dự án and Vào phòng,
  * each a muted key and its value; a menu edits it. The project chip shows
- * only where the workspace offers projects.
+ * only where the workspace offers projects, Vào phòng only for a meeting held online.
  */
 export function PropertyChips({
   workspaceId,
@@ -26,6 +26,7 @@ export function PropertyChips({
   onProject,
   allowJoin,
   onAllowJoin,
+  showJoin = true,
   readOnly,
   className,
 }: {
@@ -34,6 +35,8 @@ export function PropertyChips({
   onProject: (id: string) => void;
   allowJoin: boolean;
   onAllowJoin: (allow: boolean) => void;
+  /** An in-person meeting has no room to join. */
+  showJoin?: boolean;
   readOnly?: boolean;
   className?: string;
 }) {
@@ -73,33 +76,35 @@ export function PropertyChips({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          disabled={readOnly}
-          className={PROPERTY_CHIP}
-          aria-label={t("meetings.sheet.chipAria", { key: t("meetings.sheet.joinKey"), value: joinLabel })}
-        >
-          <DoorOpen aria-hidden />
-          <span className="text-muted-foreground">{t("meetings.sheet.joinKey")}</span>
-          <span className="truncate">{joinLabel}</span>
-          <ChevronDown aria-hidden className="size-3! text-muted-foreground" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-90 max-w-[calc(100vw-2rem)]">
-          <DropdownMenuRadioGroup value={allowJoin ? "yes" : "no"} onValueChange={(v: string) => onAllowJoin(v === "yes")}>
-            {(["no", "yes"] as const).map((v) => (
-              <DropdownMenuRadioItem key={v} value={v} className={cn(MENU_ITEM_LEFT_CHECK, "h-auto items-start py-2 [&>[data-slot=dropdown-menu-radio-item-indicator]]:top-2.5")}>
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-body">{t(v === "yes" ? "meetings.sheet.joinRequest" : "meetings.sheet.joinInvited")}</span>
-                  <span className="text-caption text-muted-foreground">
-                    {t(v === "yes" ? "meetings.sheet.joinRequestHint" : "meetings.sheet.joinInvitedHint")}
+      {showJoin ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={readOnly}
+            className={PROPERTY_CHIP}
+            aria-label={t("meetings.sheet.chipAria", { key: t("meetings.sheet.joinKey"), value: joinLabel })}
+          >
+            <DoorOpen aria-hidden />
+            <span className="text-muted-foreground">{t("meetings.sheet.joinKey")}</span>
+            <span className="truncate">{joinLabel}</span>
+            <ChevronDown aria-hidden className="size-3! text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-90 max-w-[calc(100vw-2rem)]">
+            <DropdownMenuRadioGroup value={allowJoin ? "yes" : "no"} onValueChange={(v: string) => onAllowJoin(v === "yes")}>
+              {(["no", "yes"] as const).map((v) => (
+                <DropdownMenuRadioItem key={v} value={v} className={cn(MENU_ITEM_LEFT_CHECK, "h-auto items-start py-2 [&>[data-slot=dropdown-menu-radio-item-indicator]]:top-2.5")}>
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-body">{t(v === "yes" ? "meetings.sheet.joinRequest" : "meetings.sheet.joinInvited")}</span>
+                    <span className="text-caption text-muted-foreground">
+                      {t(v === "yes" ? "meetings.sheet.joinRequestHint" : "meetings.sheet.joinInvitedHint")}
+                    </span>
                   </span>
-                </span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <p className="mt-1 border-t border-border px-2 pt-2 pb-1 text-caption text-muted-foreground">{t("meetings.sheet.joinGuestsNote")}</p>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <p className="mt-1 border-t border-border px-2 pt-2 pb-1 text-caption text-muted-foreground">{t("meetings.sheet.joinGuestsNote")}</p>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   );
 }

@@ -156,8 +156,10 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 		// internal/notification is a worker on the service tier: it reads
 		// committed events and its jobs act as "system" (F-07). No request
 		// reaches it, which is what the rule protects against.
+		// cmd/document-text-reindex is the same: an operator runs it by
+		// hand, it serves no request, and its requests act as "system".
 		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") ||
-			strings.Contains(slash, "internal/notification/") {
+			strings.Contains(slash, "internal/notification/") || strings.Contains(slash, "cmd/document-text-reindex/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -561,6 +563,8 @@ func TestOnlyBrowserFlowsRedirect(t *testing.T) {
 	redirect := regexp.MustCompile(`http\.Redirect\(|http\.Status(MovedPermanently|Found|SeeOther|TemporaryRedirect|PermanentRedirect)\b|Header\(\)\.Set\("Location"`)
 	allowed := map[string]bool{
 		"handler/google.go":         true,
+		"handler/apple_web.go":      true,
+		"handler/web_sign_in.go":    true,
 		"handler/mcp_oauth.go":      true,
 		"handler/router/openapi.go": true,
 	}
@@ -668,5 +672,38 @@ func TestDriveContentOnlyFromDriveContent(t *testing.T) {
 	}
 	if !sawCall {
 		t.Fatal("internal/service/drive_content.go makes no driveExportFile/driveDownloadMedia references; the guard is stale")
+	}
+}
+
+// Every file version is inserted through insertFileVersion, which asks the
+// slow lane to index the version's text; a direct insert would leave the
+// version unsearchable by content. InsertDocumentVersion( may appear only in
+// the files below, and in document_files.go only once, inside insertFileVersion.
+func TestFileVersionsInsertThroughInsertFileVersion(t *testing.T) {
+	allowedFiles := map[string]string{
+		"document_files.go":    "holds insertFileVersion, the one file-version insert",
+		"document_workers.go":  "inserts page versions, which have no file text",
+		"document_versions.go": "inserts page versions, which have no file text",
+	}
+	files, err := filepath.Glob("service/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := strings.Count(string(src), "InsertDocumentVersion(")
+		base := filepath.Base(path)
+		if _, ok := allowedFiles[base]; !ok && n > 0 {
+			t.Errorf("%s calls InsertDocumentVersion; insert file versions through insertFileVersion", path)
+		}
+		if base == "document_files.go" && n != 1 {
+			t.Errorf("%s calls InsertDocumentVersion %d times; only insertFileVersion may, once", path, n)
+		}
 	}
 }

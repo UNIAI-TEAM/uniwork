@@ -155,6 +155,10 @@ describe("chat-sidebar-preview", () => {
     expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tin nhắn thoại");
     expect(formatChatSidebarPreviewText({ ...base, body: "IMG_0042.JPG", kind: "file" }, options)).toBe("Ảnh");
     expect(formatChatSidebarPreviewText({ ...base, body: "bao-gia.pdf", kind: "file" }, options)).toBe("bao-gia.pdf");
+    expect(formatChatSidebarPreviewText({ ...base, body: "Kế hoạch", kind: "document" }, options)).toBe("Kế hoạch");
+    expect(formatChatSidebarPreviewText({ ...base, body: "Kế hoạch", kind: "document_version" }, options)).toBe("Kế hoạch");
+    expect(formatChatSidebarPreviewText({ ...base, body: "  ", kind: "document" }, options)).toBeNull();
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "document" }, { ...options, fileMessageLabel: "Tệp" })).toBe("Tệp");
   });
 
   it("prefixes a group line with the sender's given name and splits it back off", () => {

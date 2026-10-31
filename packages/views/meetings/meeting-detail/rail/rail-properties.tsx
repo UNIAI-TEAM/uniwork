@@ -1,9 +1,10 @@
 "use client";
 import { Fragment, useState } from "react";
-import { Crown, FileText, FolderKanban, Link, PenLine, Users } from "lucide-react";
+import { Crown, FileText, FolderKanban, Link, PenLine, Users, UsersRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { inviteLinkStatus, useInviteLinks } from "@uniwork/core/meetings";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { useMeetingAttendance } from "@uniwork/core/meetings/attendance";
 import { useMeetingMinutes } from "@uniwork/core/meetings/minutes";
 import { paths } from "@uniwork/core/paths";
@@ -212,7 +213,7 @@ function MinutesRow() {
 }
 
 /**
- * The rail's property rows (kit `.props`), by status and viewer: Chủ trì,
+ * The rail's property rows (kit `.props`), by status and viewer: Hình thức (in person only), Chủ trì,
  * Thư ký, Người dự (or Điểm danh + Lời mời while live), Khách, Dự án,
  * Thư ký UNI, Biên bản, Gọi vào. A row with nothing to say is not drawn.
  */
@@ -230,6 +231,9 @@ export function RailProperties() {
 
   return (
     <div className="flex flex-col">
+      {meetingVenue(meeting) === "in_person" ? (
+        <RailProp icon={UsersRound} label={t("meetings.detail.rail.venue")} value={t("meetings.venue.inPerson")} />
+      ) : null}
       {hostName ? (
         <RailProp icon={Crown} label={t("meetings.detail.rail.host")} value={<Person userId={meeting.host_user_id} name={hostName} />} />
       ) : null}

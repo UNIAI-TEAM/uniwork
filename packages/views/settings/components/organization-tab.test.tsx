@@ -354,9 +354,18 @@ describe("OrganizationTab", () => {
         role = "admin";
         return Promise.resolve({ member: { user_id: "u2", role: "owner" } });
       }
+      if (path === "/api/v1/me/sign-in-methods") return Promise.resolve({ proofs: ["password"] });
+      if (path === "/api/v1/me/step-up") {
+        return Promise.resolve({
+          step_up_token: "sut-1",
+          expires_at: new Date(Date.now() + 600_000).toISOString(),
+          method: "password",
+        });
+      }
       return Promise.resolve({});
     });
-    renderTab();
+    // The proof dialog links "Quên mật khẩu?", so this one renders inside navigation.
+    renderTabWithNav();
     fireEvent.click(await screen.findByRole("button", { name: "Chuyển quyền" }));
     const dialog = await screen.findByRole("dialog", { name: "Chuyển quyền sở hữu Acme?" });
     const combobox = within(dialog).getByRole("combobox", { name: "Chủ sở hữu mới" });
@@ -366,8 +375,11 @@ describe("OrganizationTab", () => {
     fireEvent.click(option);
     await waitFor(() => expect(combobox).toHaveTextContent("Nguyễn Văn An"));
     fireEvent.change(within(dialog).getByLabelText("Gõ tên tổ chức để xác nhận"), { target: { value: "Acme" } });
-    fireEvent.change(within(dialog).getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "pw" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển quyền" }));
+    // Who the owner is, the shared proof dialog asks, nested in this one.
+    const proof = within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }));
+    fireEvent.change(await proof.findByLabelText("Mật khẩu hiện tại"), { target: { value: "pw" } });
+    fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), { timeout: 3000 });
     // The owner's rows are gone with the role; focus waits on the heading of
     // the zone that changed, and the Leave row now lets the admin go.

@@ -612,3 +612,107 @@ func TestAutoSummaryRechecksAClerkSummaryInsideTheLease(t *testing.T) {
 		t.Fatal("the auto run paid the model over a clerk's summary")
 	}
 }
+
+// A meeting recorded in parts is summarized once every part is transcribed:
+// the run that finds a part still open waits, without counting an attempt.
+func TestAutoSummaryWaitsForOpenTranscriptions(t *testing.T) {
+	e, m, calls, _ := heldWithUploads(t)
+	s, ctx := e.s, context.Background()
+	request := func(name string) db.MeetingTranscription {
+		t.Helper()
+		tr, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: e.uploadFor(t, m, e.host.ID, name, mp3(60, util.NewID())), Consent: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tr
+	}
+	finish := func(id string) {
+		t.Helper()
+		for range 2 { // submit, then the poll that completes it
+			if _, err := s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET next_attempt_at = CASE WHEN id = $1
+				THEN now() - interval '1 second' ELSE now() + interval '1 hour' END WHERE meeting_id = $2`, id, m.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.runTranscriptions(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := transcription(t, s, id); got.Status != TranscriptionComplete {
+			t.Fatalf("part %s is %s", id, got.Status)
+		}
+	}
+	first, second := request("phan-1.mp3"), request("phan-2.mp3")
+	finish(first.ID)
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("summarized with a part still queued: %d calls", calls.Load())
+	}
+	if _, err := s.q.GetLatestMeetingSummary(ctx, m.ID); err == nil {
+		t.Fatal("a summary exists before every part is in")
+	}
+	due, ok := autoQueue(t, s, m.ID)
+	if !ok || due <= autoSummaryWait || due > autoSummaryTranscriptionWait {
+		t.Fatalf("waiting row due in %v (queued %v), want about %v", due, ok, autoSummaryTranscriptionWait)
+	}
+	if n := countWhere(t, s, `SELECT attempts FROM meeting_auto_summaries WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("the wait counted as an attempt: attempts = %d", n)
+	}
+	finish(second.ID)
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.GetLatestMeetingSummary(ctx, m.ID); err != nil || calls.Load() != 1 {
+		t.Fatalf("summary after both parts: %v, calls %d", err, calls.Load())
+	}
+	if _, queued := autoQueue(t, s, m.ID); queued {
+		t.Fatal("the row outlived the summary")
+	}
+}
+
+// An in-app recording records the meeting held before its parts are uploaded:
+// summarizing then would read the notes alone and keep the recording out for
+// good, so RecordHeldNow queues nothing and the transcribed part queues it.
+func TestRecordHeldNowLeavesTheSummaryToTheRecording(t *testing.T) {
+	e := transcriptionFixture(t)
+	s, ctx := e.s, context.Background()
+	calls := &atomic.Int32{}
+	s.AI = ai.NewGateway(s.q, autoSummaryReply(calls), NewAIQuota(s.ent), nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: e.vendor}})
+	m := inPersonMeeting(t, s, e.host.ID, e.m.WorkspaceID)
+	if _, err := s.AddNote(ctx, e.host.ID, m.ID, "Chốt ngân sách quý."); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.RecordHeldNow(ctx, e.host.ID, m.ID, 42*time.Minute, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, queued := autoQueue(t, s, m.ID); queued {
+		t.Fatal("record-held queued a summary before the recording was uploaded")
+	}
+	tr, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: e.uploadFor(t, m, e.host.ID, "phan-1.mp3", mp3(60, util.NewID())), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // submit, then the poll that completes it
+		due(t, s, m.ID)
+		if err := s.runTranscriptions(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := transcription(t, s, tr.ID); got.Status != TranscriptionComplete {
+		t.Fatalf("part is %s", got.Status)
+	}
+	if _, queued := autoQueue(t, s, m.ID); !queued {
+		t.Fatal("the transcribed part queued no summary")
+	}
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summaries WHERE meeting_id = $1`, m.ID); n != 1 || calls.Load() != 1 {
+		t.Fatalf("summaries = %d, model calls %d; want one of each", n, calls.Load())
+	}
+}

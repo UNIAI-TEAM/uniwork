@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -73,6 +74,9 @@ func NewDesktopAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenM
 	if len(cfg.DesktopAuthDeploymentIDs) == 0 {
 		cfg.DesktopAuthDeploymentIDs = []string{"default"}
 	}
+	if len(cfg.NativeSignInClients) == 0 {
+		cfg.NativeSignInClients = []string{"uniwork-chat-mobile"}
+	}
 	if cfg.DesktopAuthCodeTTL <= 0 {
 		cfg.DesktopAuthCodeTTL = 120 * time.Second
 	}
@@ -92,6 +96,15 @@ type DesktopStartInput struct {
 	DeviceLabel         string
 	Platform            string
 	Build               string
+	// Provider is the optional sign-in the app's button asked for (google or
+	// apple, spec §3.5): the web page sends a signed-out person straight to
+	// that provider instead of the login form. Empty for older clients.
+	Provider string
+	// Intent is sign_up when that button is the register screen's: the web
+	// starts the provider with intent=sign_up, so an identity with no account
+	// opens one at once instead of the choice screen, as on the web's own
+	// register page. Only with a provider; empty or sign_in otherwise.
+	Intent string
 }
 
 type DesktopAttempt struct {
@@ -171,8 +184,16 @@ func (s *DesktopAuthService) Start(ctx context.Context, in DesktopStartInput) (D
 		return DesktopAttempt{}, err
 	}
 	// The attempt id is opaque and cannot approve or redeem anything. State and
-	// verifier stay in the native host; neither is copied into this URL.
-	return DesktopAttempt{ID: id, AuthorizationURL: strings.TrimRight(s.cfg.FrontendOrigin, "/") + "/auth/desktop/authorize?attempt_id=" + url.QueryEscape(id), ExpiresAt: expires}, nil
+	// verifier stay in the native host; neither is copied into this URL. The
+	// provider hint only picks the first screen; it grants nothing.
+	params := url.Values{"attempt_id": {id}}
+	if in.Provider != "" {
+		params.Set("provider", in.Provider)
+		if in.Intent == SignInIntentSignUp {
+			params.Set("intent", SignInIntentSignUp)
+		}
+	}
+	return DesktopAttempt{ID: id, AuthorizationURL: strings.TrimRight(s.cfg.FrontendOrigin, "/") + "/auth/desktop/authorize?" + params.Encode(), ExpiresAt: expires}, nil
 }
 
 func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID string) (DesktopConsent, error) {
@@ -219,9 +240,18 @@ func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID stri
 		Build: row.Build, CSRFToken: raw}, nil
 }
 
+// Approve issues the one-time code for an attempt the caller claimed. A
+// browser token older than the account's last credential change, and a token
+// whose session has ended, are refused (requireLiveBearer): approving opens a
+// device session, which is exactly what a reclaimed account's previous
+// holder, or whoever held a session its owner just signed out, must not get.
 func (s *DesktopAuthService) Approve(ctx context.Context, userID, attemptID, csrf string) (string, string, error) {
 	if userID == "" || attemptID == "" || csrf == "" {
 		return "", "", desktopCSRFError()
+	}
+	signedIn, err := requireLiveBearer(ctx, s.q)
+	if err != nil {
+		return "", "", err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -245,8 +275,9 @@ func (s *DesktopAuthService) Approve(ctx context.Context, userID, attemptID, csr
 	}
 	approved, err := q.ApproveDesktopAuthAttempt(ctx, db.ApproveDesktopAuthAttemptParams{
 		ID: attemptID, UserID: pgtype.Text{String: userID, Valid: true},
-		CodeDigest:    pgtype.Text{String: digest(code), Valid: true},
-		CodeExpiresAt: pgtype.Timestamptz{Time: s.now().Add(s.cfg.DesktopAuthCodeTTL), Valid: true},
+		CodeDigest:         pgtype.Text{String: digest(code), Valid: true},
+		CodeExpiresAt:      pgtype.Timestamptz{Time: s.now().Add(s.cfg.DesktopAuthCodeTTL), Valid: true},
+		ApproverSignedInAt: pgtype.Timestamptz{Time: signedIn, Valid: !signedIn.IsZero()},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", desktopAuthCodeInvalid()
@@ -334,8 +365,11 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	if err != nil {
 		return DesktopSession{}, err
 	}
+	// The device session signed in when the browser session that approved
+	// it did, not now: a consent is no sign-in of its own.
 	sess, err := s.issueDeviceSession(ctx, q, user.ID, nativeDevice{
 		ClientID: row.ClientID, DeploymentID: row.DeploymentID, Label: row.DeviceLabel, Platform: row.Platform, Build: row.Build,
+		SignedInAt: row.ApproverSignedInAt.Time,
 	})
 	if err != nil {
 		return DesktopSession{}, err
@@ -348,8 +382,12 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 
 // nativeDevice is what a new device session records about the app that asked
 // for it: the PKCE attempt's fields, or a native Sign in with Apple's.
+// SignedInAt is when the person behind it last proved a credential (the
+// app's own sign-in, or the approving browser session's start); zero when
+// nothing says, which no sign-in ticket takes for one.
 type nativeDevice struct {
 	ClientID, DeploymentID, Label, Platform, Build string
+	SignedInAt                                     time.Time
 }
 
 // issueDeviceSession opens a device session of its own family for userID in
@@ -378,7 +416,7 @@ func (s *DesktopAuthService) issueDeviceSession(ctx context.Context, q *db.Queri
 		ID: deviceID, UserID: userID, SessionFamilyID: deviceID, ClientID: d.ClientID,
 		DeploymentID: d.DeploymentID, DeviceLabel: d.Label, Platform: d.Platform,
 		Build: d.Build, RefreshTokenDigest: hashToken(refresh), ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true},
-		CreatedByKind: string(audit.KindHuman),
+		CreatedByKind: string(audit.KindHuman), SignedInAt: pgtype.Timestamptz{Time: d.SignedInAt, Valid: !d.SignedInAt.IsZero()},
 	}); err != nil {
 		return DesktopSession{}, err
 	}
@@ -741,6 +779,45 @@ func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) (i
 	return revokeOfficeLeasesForUser(ctx, q, userID)
 }
 
+// revokeOtherUserSessions is revokeAllUserSessions minus the caller's own
+// session, in the same order and so with the same deadlock freedom: the
+// device rows outside the kept family first (in id order), then the refresh
+// tokens of every other session, the pushes those devices registered, then
+// the offline leases those devices hold. keepSessionID is the caller's
+// session as its token names it: a browser session id, or a device id, whose
+// family is kept whole (its refresh chain and siblings share the family id).
+// POST /me/sessions/revoke-others and, with the sign-in methods, a password
+// change or an unlink go through here. It returns how many refresh tokens
+// (every other session's, browser or device) and device sessions it ended,
+// and the leases it revoked for the caller to count after its commit
+// (observeOfficeLeaseRevokes).
+func revokeOtherUserSessions(ctx context.Context, q *db.Queries, userID, keepSessionID string) (tokens, devices int64, leases int, err error) {
+	keep := keepSessionID
+	if keepSessionID != "" {
+		// Browser sessions share the sid namespace and have no device row.
+		d, lookupErr := q.GetDeviceSession(ctx, keepSessionID)
+		switch {
+		case lookupErr == nil && d.UserID == userID:
+			keep = d.SessionFamilyID
+		case lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows):
+			return 0, 0, 0, lookupErr
+		}
+	}
+	if devices, err = q.RevokeOtherDeviceSessions(ctx, db.RevokeOtherDeviceSessionsParams{UserID: userID, KeepFamilyID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if tokens, err = q.RevokeOtherSessionsForUser(ctx, db.RevokeOtherSessionsForUserParams{UserID: userID, SessionID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if err = q.RevokeOtherDevicePushSubscriptionsForUser(ctx, db.RevokeOtherDevicePushSubscriptionsForUserParams{UserID: userID, KeepFamilyID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if leases, err = revokeOfficeLeasesForOtherFamilies(ctx, q, userID, keep); err != nil {
+		return 0, 0, 0, err
+	}
+	return tokens, devices, leases, nil
+}
+
 func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -767,7 +844,17 @@ func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {
 	if !s.allowed(in.ClientID, in.RedirectURI, in.DeploymentID) || in.State == "" || in.CodeChallengeMethod != desktopPKCEChallengeMethod || !validChallenge(in.CodeChallenge) {
 		return Invalid("invalid desktop authorization request")
 	}
-	return nil
+	switch in.Provider {
+	case "", ProviderGoogle, ProviderApple:
+	default:
+		return Invalid("provider must be google or apple")
+	}
+	switch in.Intent {
+	case "", SignInIntentSignIn, SignInIntentSignUp:
+		return nil
+	default:
+		return Invalid("intent must be sign_in or sign_up")
+	}
 }
 
 // allowed reports whether clientID is a configured client, redirectURI is one
@@ -792,11 +879,14 @@ func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string)
 	return false
 }
 
-// clientAllowed is allowed without a redirect: a native sign-in that never
-// leaves the app (Sign in with Apple) names a configured client and an
-// allowlisted deployment.
-func (s *DesktopAuthService) clientAllowed(clientID, deploymentID string) bool {
-	if clientID == "" || !s.deploymentAllowed(deploymentID) {
+// nativeClientAllowed is allowed without a redirect: a sign-in that never
+// leaves the app (its own sign-in screen, the iPhone's Sign in with Apple)
+// names one of the native sign-in clients (NATIVE_SIGN_IN_CLIENTS, ADR 0049
+// §8) that is also a configured client, and an allowlisted deployment. The
+// desktop apps and Office are configured clients too, but sign in through
+// the web page, never these doors.
+func (s *DesktopAuthService) nativeClientAllowed(clientID, deploymentID string) bool {
+	if clientID == "" || !s.deploymentAllowed(deploymentID) || !slices.Contains(s.cfg.NativeSignInClients, clientID) {
 		return false
 	}
 	for _, c := range s.cfg.DesktopClients() {

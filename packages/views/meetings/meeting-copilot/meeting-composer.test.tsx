@@ -59,7 +59,16 @@ function Room({ notesCount = 0, hasTranscript = false, hasItems }: { notesCount?
   const suggestions = useMeetingSuggestions(hasItems ?? false);
   return (
     <>
-      {ask ? <AskAnswerCard {...ask} canShare={false} meetingId="m1" workspaceId="w1" /> : null}
+      {ask?.exchanges.map((x) => (
+        <AskAnswerCard
+          key={x.answer?.id ?? "pending"}
+          {...x}
+          conversationId={ask.conversationId}
+          canShare={false}
+          meetingId="m1"
+          workspaceId="w1"
+        />
+      ))}
       <MeetingComposer
         workspaceId="w1"
         meetingId="m1"
@@ -196,6 +205,32 @@ describe("MeetingComposer — asking UNI", () => {
 
     await ask("Ai làm?");
     await waitFor(() => expect(askBody()).toMatchObject({ question: "Ai làm?", conversation_id: "c1" }));
+  });
+
+  // UNI-2243: a follow-up replaced the first question and its answer.
+  it("keeps every earlier question and answer on screen while a follow-up runs and after it lands", async () => {
+    const answerNow = holdAsk();
+    const history = [{ id: "q1", role: "user", content: "Đã chốt gì?", citations: [] }, answer.message];
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: Init) =>
+      String(path).endsWith("/ai/conversations/c1/messages") ? Promise.resolve({ messages: history }) : base(path, init),
+    );
+    useAiPanelStore.setState({ conversationByMeeting: { m1: "c1" } });
+    render(wrapWithNav(<Room />));
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
+
+    await ask("Ai làm việc gì?");
+    expect(await screen.findByText("Ai làm việc gì?")).toBeInTheDocument();
+    expect(screen.getByText("Đã chốt gì?")).toBeInTheDocument();
+    expect(screen.getByText("Demo vào thứ Sáu.")).toBeInTheDocument();
+
+    const second = { id: "a2", role: "assistant", content: "Kiều viết test.", notice: "", citations: [], created_at: "2026-10-21T02:05:00Z" };
+    history.push({ id: "q2", role: "user", content: "Ai làm việc gì?", citations: [] }, second);
+    answerNow({ conversation_id: "c1", message: second });
+    expect(await screen.findByText("Kiều viết test.")).toBeInTheDocument();
+    expect(screen.getAllByTestId("meeting-ask-uni")).toHaveLength(2);
+    expect(screen.getByText("Đã chốt gì?")).toBeInTheDocument();
+    expect(screen.getByText("Demo vào thứ Sáu.")).toBeInTheDocument();
   });
 
   it("keeps an answer that lands after the composer unmounted (a tab switch while UNI answers)", async () => {

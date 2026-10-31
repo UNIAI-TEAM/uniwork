@@ -157,15 +157,18 @@ function liveKitIdentityForParticipant(participantId: string): string {
   return PARTICIPANT_IDENTITY_PREFIX + participantId;
 }
 
-/** LiveKit identities allowed to send mute_request (meeting host). */
+/**
+ * LiveKit identities allowed to send mute_request: the host's seats. A guest has no meeting to read
+ * `host_user_id` from, so it goes by the list's `is_host`; without either nobody is the host.
+ */
 export function muteRequesterIdentities(
   hostUserId: string | undefined,
-  participants: readonly { id: string; user_id?: string; role: string }[],
+  participants: readonly { id: string; user_id?: string; is_host?: boolean }[],
 ): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const p of participants) {
-    if (p.role !== "HOST" && p.user_id !== hostUserId) continue;
+    if (!p.is_host && !(hostUserId && p.user_id === hostUserId)) continue;
     const identity = liveKitIdentityForParticipant(p.id);
     if (seen.has(identity)) continue;
     seen.add(identity);

@@ -24,6 +24,7 @@ var meetingLobbyEventTypes = map[string]struct{}{
 	"participant.invited":      {},
 	"participant.removed":      {},
 	"participant.updated":      {},
+	"host.transferred":         {},
 	"motion.created":           {},
 	"motion.updated":           {},
 	"motion.deleted":           {},

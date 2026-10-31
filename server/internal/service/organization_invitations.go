@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -271,9 +270,11 @@ func (s *OrganizationMemberService) RevokeInvitation(ctx context.Context, actorI
 // move in one transaction, taken FOR UPDATE in a fixed order, so a concurrent
 // transfer cannot leave the organization with two owners or none.
 //
-// The current owner re-enters their password (OPEN_QUESTIONS P2): this is the
-// one action they cannot undo alone afterwards.
-func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actorID, orgID, targetID, password string) (db.OrganizationMember, error) {
+// The current owner proves it is them (OPEN_QUESTIONS P2, ADR 0049 §5): this
+// is the one action they cannot undo alone afterwards. The proof is a
+// step-up token, or the password shipped apps send (proveOwner); an owner
+// who signs in only with Google or Apple proves it with a mailed code.
+func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actorID, orgID, targetID string, proof OwnerProof) (db.OrganizationMember, error) {
 	actor, err := s.orgs.RequireMember(ctx, orgID, actorID)
 	if err != nil {
 		return db.OrganizationMember{}, err
@@ -284,7 +285,7 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 	if actorID == targetID {
 		return db.OrganizationMember{}, Invalid("bạn đã là chủ sở hữu")
 	}
-	if err := checkOwnerPassword(ctx, s.q, actorID, password); err != nil {
+	if err := s.stepUp.proveOwner(ctx, actorID, proof); err != nil {
 		return db.OrganizationMember{}, err
 	}
 	target, err := s.member(ctx, orgID, targetID)
@@ -311,26 +312,7 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 	return updated, nil
 }
 
-// checkOwnerPassword is the password an owner re-enters to hand the
-// organization over (OPEN_QUESTIONS P2): TransferOwnership and the invitation
-// switch both ask for it before their transaction. A mismatch is 403
-// password_incorrect, never the login's 401 (see ErrPasswordIncorrect).
-func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password string) error {
-	me, err := q.GetUserByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !me.PasswordHash.Valid {
-		return coded(http.StatusForbidden, "password_required",
-			"tài khoản chưa có mật khẩu; đặt mật khẩu trước khi chuyển quyền chủ sở hữu")
-	}
-	if !auth.CheckPassword(me.PasswordHash.String, password) {
-		return errPasswordIncorrect()
-	}
-	return nil
-}
-
-// transferOwnershipQ is TransferOwnership's transaction body: the password and
+// transferOwnershipQ is TransferOwnership's transaction body: the proof and
 // the first reads are the caller's job, and everything they decided is checked
 // again here under the row locks, because a Leave or another transfer may have
 // committed in between.

@@ -25,9 +25,10 @@ func (h *handlers) createTaskFromChatMessage(w http.ResponseWriter, r *http.Requ
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "messageID"),
 		service.CreateTaskFromMessageInput{
-			Title: in.Title, ProjectID: in.ProjectID, AssigneeID: in.AssigneeID,
-			AssigneeKind: in.AssigneeKind, DueDate: in.DueDate, SyncThread: in.SyncThread,
-			Priority: in.Priority,
+			Title: in.Title, Description: in.Description, Status: in.Status,
+			ProjectID: in.ProjectID, AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind,
+			StartDate: in.StartDate, DueDate: in.DueDate, LabelIDs: in.LabelIDs,
+			SyncThread: in.SyncThread, Priority: in.Priority,
 		},
 	)
 	if err != nil {

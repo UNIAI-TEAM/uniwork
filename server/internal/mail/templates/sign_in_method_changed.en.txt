@@ -1,0 +1,18 @@
+Subject: {{template "subject" .}}
+
+{{template "headline" .}}
+
+{{template "body" .}}
+{{if or .Data.Device .Data.IP}}
+{{if .Data.Device}}    Device: {{.Data.Device}}
+{{end}}{{if .Data.IP}}    IP address: {{.Data.IP}}
+{{end}}    When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
+{{else}}
+    When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
+{{end}}
+Review security: {{.Data.SecurityURL}}
+
+Not you? Reset your password: {{.Data.ResetURL}}
+{{- define "subject"}}{{if eq .Data.Change "linked"}}{{.Data.MethodName}} was linked to your UniWork account{{else if eq .Data.Change "unlinked"}}{{.Data.MethodName}} was unlinked from your UniWork account{{else if eq .Data.Change "reclaimed"}}You took back your UniWork account{{else if eq .Data.Change "moved"}}{{if .Data.MovedAway}}{{.Data.MethodName}} was moved to another UniWork account{{else}}{{.Data.MethodName}} was moved into your UniWork account{{end}}{{else if eq .Data.Change "password_set"}}A password was set for your UniWork account{{else if eq .Data.Change "password_changed"}}Your UniWork password was changed{{else}}UniWork sign-in verification is paused{{end}}{{end}}
+{{- define "headline"}}{{if eq .Data.Change "linked"}}{{.Data.MethodName}} linked{{else if eq .Data.Change "unlinked"}}{{.Data.MethodName}} unlinked{{else if eq .Data.Change "reclaimed"}}Account taken back{{else if eq .Data.Change "moved"}}{{if .Data.MovedAway}}{{.Data.MethodName}} moved to another account{{else}}{{.Data.MethodName}} moved to this account{{end}}{{else if eq .Data.Change "password_set"}}Password set{{else if eq .Data.Change "password_changed"}}Password changed{{else}}Verification paused{{end}}{{end}}
+{{- define "body"}}{{if eq .Data.Change "linked"}}You can now sign in to UniWork with {{.Data.MethodName}}.{{else if eq .Data.Change "unlinked"}}{{.Data.MethodName}} no longer opens your UniWork account. Your other devices were signed out.{{else if eq .Data.Change "reclaimed"}}The UniWork account with this email address was registered before the address was verified. You just proved you hold the mailbox with {{if eq .Data.Method "password"}}a password reset link{{else}}{{.Data.MethodName}}{{end}}, so the account is yours: the password, two-step verification, sign-in links and every session left by whoever registered it were removed.{{else if eq .Data.Change "moved"}}{{if .Data.MovedAway}}Signing in with {{.Data.MethodName}} used to open this empty UniWork account. As whoever just signed in asked, it now opens another account, and this empty account was deleted.{{else}}Signing in with {{.Data.MethodName}} used to open an empty UniWork account. As you asked, it now opens this account, and the empty one was deleted.{{end}}{{else if eq .Data.Change "password_set"}}You can now sign in to UniWork with your email address and password.{{else if eq .Data.Change "password_changed"}}Your UniWork password was just changed. Your other devices were signed out.{{else}}Too many wrong two-step verification or confirmation codes were entered for your account in a row, so that step is paused for {{expires .Data.LockedFor .Locale}}.{{end}}{{end}}

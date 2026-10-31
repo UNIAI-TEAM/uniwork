@@ -9,10 +9,11 @@
 
 ## Kiểm tra
 
-1. `UniworkAiLatencyP95High` cùng lúc? Upstream chậm làm run dài.
-2. `run_limit_reached` (409, `fields.limit`) tăng: run chạm trần lượt/vòng.
-3. Lượt cuối của run = độ dài run; gần 0 liên tục (ngược lại) là client mở run mới mỗi lượt (xem [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)).
-4. Không đọc nội dung hội thoại để tìm nguyên nhân; chỉ dùng id, đếm và thời lượng.
+1. Route viết trước tiên: run có lời gọi viết (UNI-2276, mỗi lời gọi tới 300 giây) dài vài phút là bình thường. Xem `sum(increase(uniwork_ai_calls_total{capability="office_uniwork_writer"}[30m]))` có tăng cùng lúc không.
+2. `UniworkAiLatencyP95High` cùng lúc? Upstream chậm làm run dài.
+3. `run_limit_reached` (409, `fields.limit`) tăng: run chạm trần lượt/vòng.
+4. Lượt cuối của run = độ dài run; gần 0 liên tục (ngược lại) là client mở run mới mỗi lượt (xem [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)).
+5. Không đọc nội dung hội thoại để tìm nguyên nhân; chỉ dùng id, đếm và thời lượng.
 
 ## Khắc phục
 

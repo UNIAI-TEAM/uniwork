@@ -105,6 +105,19 @@ SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now
 WHERE user_id = sqlc.arg(user_id) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id;
 
+-- name: RevokeOfficeOfflineLeasesForOtherFamilies :many
+-- tenant: self
+-- Every lease of the user held by a device outside the kept family, in every
+-- organization (revokeOtherUserSessions).
+UPDATE office_offline_leases l
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
+WHERE l.user_id = sqlc.arg(user_id) AND l.revoked_at IS NULL
+  AND l.device_session_id NOT IN (
+    SELECT d.id FROM device_sessions d
+    WHERE d.user_id = sqlc.arg(user_id) AND d.session_family_id = sqlc.arg(keep_family_id)
+  )
+RETURNING l.id, l.organization_id, l.workspace_id, l.document_id, l.user_id;
+
 -- name: RevokeOfficeOfflineLeasesForUserInOrganization :many
 UPDATE office_offline_leases
 SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()

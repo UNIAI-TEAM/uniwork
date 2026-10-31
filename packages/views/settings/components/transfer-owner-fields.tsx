@@ -4,11 +4,10 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { SettingsFieldError, SettingsLoadError } from "./settings-layout";
+import { SettingsLoadError } from "./settings-layout";
 
 /** A member's display name, or their email when they have none. */
 const nameOf = (m: OrgMember) => m.display_name || m.email;
@@ -108,41 +107,6 @@ export function TransferCandidateField({
       ) : empty ? (
         <FieldDescription role="status">{empty}</FieldDescription>
       ) : null}
-    </Field>
-  );
-}
-
-/**
- * The owner's current password, re-entered because handing the organization
- * over is the one change they cannot undo alone (OPEN_QUESTIONS P2).
- */
-export function TransferPasswordField({
-  id,
-  value,
-  onValueChange,
-  error,
-}: {
-  id: string;
-  value: string;
-  onValueChange: (password: string) => void;
-  /** The server refused the password; shown under the field and announced. */
-  error?: string;
-}) {
-  const { t } = useTranslation();
-  const errorId = `${id}-error`;
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{t("org.transfer.password_label")}</FieldLabel>
-      <Input
-        id={id}
-        type="password"
-        value={value}
-        onChange={(e) => onValueChange(e.target.value)}
-        autoComplete="current-password"
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
-      />
-      <SettingsFieldError id={errorId}>{error ?? null}</SettingsFieldError>
     </Field>
   );
 }

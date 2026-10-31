@@ -13,7 +13,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { CreateTaskDialog } from "../tasks/create-task-dialog";
-import { answerPlainText } from "./ask-uni-text";
+import { answerPlainText, questionPlainText } from "./ask-uni-text";
 
 const REASONS = ["wrong_facts", "missing_sources", "not_helpful", "other"] as const;
 const NOTE_MAX = 500;
@@ -106,6 +106,7 @@ export function AskUniActions({
   messageId,
   wsId,
   content,
+  question = "",
   proposals = [],
   sources,
   transient = false,
@@ -117,6 +118,8 @@ export function AskUniActions({
   messageId: string;
   wsId: string;
   content: string;
+  /** The question this answer replies to (markdown): a task made from it is titled so, not by the conversation's first question. */
+  question?: string;
   proposals?: AiProposal[];
   sources: Map<string, AiCitation>;
   transient?: boolean;
@@ -227,7 +230,10 @@ export function AskUniActions({
           open
           onOpenChange={setTaskOpen}
           showTrigger={false}
-          defaults={{ title: Array.from(convTitle).slice(0, TITLE_MAX).join(""), description: answerPlainText(content, sources) }}
+          defaults={{
+            title: Array.from(questionPlainText(question) || convTitle).slice(0, TITLE_MAX).join(""),
+            description: answerPlainText(content, sources),
+          }}
         />
       ) : null}
     </div>

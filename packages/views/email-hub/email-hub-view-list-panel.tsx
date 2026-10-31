@@ -1,19 +1,25 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CalendarClock, Inbox, RefreshCw, SearchX, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { emailHubEmptyFolderKey, type EmailHubFolderKey, type EmailHubMailFolderKey } from "./email-hub-folders";
 import { EmailHubListHeader, type EmailHubListHeaderProps } from "./email-hub-list-header";
 import { EmailHubReconnectBanner } from "./email-hub-reconnect-banner";
 import { EmailHubScheduledListItem } from "./email-hub-scheduled-list-item";
 import { EmailHubThreadListItem } from "./email-hub-thread-list-item";
 import { EmailHubEmptyState } from "./email-hub-view-parts";
+
+/** Past this, only visible rows stay in the DOM (UNI-2268). */
+const EMAIL_HUB_VIRTUALIZE_AFTER = 40;
+const EMAIL_HUB_ROW_ESTIMATE_PX = 68;
 
 export interface EmailHubListBodyState {
   folder: EmailHubFolderKey;
@@ -98,9 +104,112 @@ function LoadMore({ fetching, onLoadMore }: { fetching: boolean; onLoadMore: () 
   );
 }
 
-function ListBody({ state, handlers }: { state: EmailHubListBodyState; handlers: EmailHubListRowHandlers }) {
+function ThreadRow({
+  row,
+  state,
+  handlers,
+  selectionMode,
+}: {
+  row: EmailHubThread;
+  state: EmailHubListBodyState;
+  handlers: EmailHubListRowHandlers;
+  selectionMode: boolean;
+}) {
+  return (
+    <EmailHubThreadListItem
+      row={row}
+      listFolder={state.mailFolder}
+      checked={handlers.checkedIds.has(row.id)}
+      selectionMode={selectionMode}
+      onCheckedChange={(checked) => handlers.onCheckedChange(row.id, checked)}
+      onSelect={() => handlers.onSelectThread(row.id)}
+      onPrefetch={() => handlers.onPrefetch(row.id)}
+      onToggleStar={() => handlers.onToggleStar(row.id, row.is_starred)}
+      aiEnabled={handlers.aiEnabled}
+      analyzing={handlers.analyzingThreadId === row.id}
+      listSummary={handlers.threadAiSummaries[row.id]?.summary}
+      onAnalyze={() => handlers.onAnalyze(row.id)}
+      onNotSpam={state.mailFolder === "SPAM" ? () => handlers.onNotSpam(row.id) : undefined}
+    />
+  );
+}
+
+function ThreadList({
+  state,
+  handlers,
+  scrollParent,
+  virtuosoRef,
+}: {
+  state: EmailHubListBodyState;
+  handlers: EmailHubListRowHandlers;
+  scrollParent: HTMLElement | null;
+  virtuosoRef: RefObject<VirtuosoHandle | null>;
+}) {
   const { t } = useTranslation();
   const selectionMode = handlers.checkedIds.size > 0;
+  const showLoadMore = state.hasNextPage && state.folder !== "STARRED";
+  const virtualize = state.rows.length > EMAIL_HUB_VIRTUALIZE_AFTER && !!scrollParent;
+
+  if (!virtualize) {
+    return (
+      <>
+        <ul aria-label={t("email_hub.list_label")}>
+          {state.rows.map((row) => (
+            <li key={row.id}>
+              <ThreadRow row={row} state={state} handlers={handlers} selectionMode={selectionMode} />
+            </li>
+          ))}
+        </ul>
+        {showLoadMore ? <LoadMore fetching={state.fetchingNextPage} onLoadMore={state.onLoadMore} /> : null}
+      </>
+    );
+  }
+
+  return (
+    <Virtuoso
+      ref={virtuosoRef}
+      customScrollParent={scrollParent}
+      data={state.rows}
+      computeItemKey={(_index, row) => row.id}
+      defaultItemHeight={EMAIL_HUB_ROW_ESTIMATE_PX}
+      increaseViewportBy={{ top: 360, bottom: 360 }}
+      components={{
+        List: ({ style, children, ...props }) => (
+          <div {...props} style={style} role="list" aria-label={t("email_hub.list_label")}>
+            {children}
+          </div>
+        ),
+        Item: ({ children, ...props }) => (
+          <div {...props} role="listitem">
+            {children}
+          </div>
+        ),
+        Footer: showLoadMore
+          ? () => <LoadMore fetching={state.fetchingNextPage} onLoadMore={state.onLoadMore} />
+          : undefined,
+      }}
+      endReached={() => {
+        if (showLoadMore && !state.fetchingNextPage) state.onLoadMore();
+      }}
+      itemContent={(_index, row) => (
+        <ThreadRow row={row} state={state} handlers={handlers} selectionMode={selectionMode} />
+      )}
+    />
+  );
+}
+
+function ListBody({
+  state,
+  handlers,
+  scrollParent,
+  virtuosoRef,
+}: {
+  state: EmailHubListBodyState;
+  handlers: EmailHubListRowHandlers;
+  scrollParent: HTMLElement | null;
+  virtuosoRef: RefObject<VirtuosoHandle | null>;
+}) {
+  const { t } = useTranslation();
 
   if (state.isScheduledFolder) {
     if (state.loading && state.scheduledRows.length === 0) return <ListSkeleton rows={4} />;
@@ -185,40 +294,17 @@ function ListBody({ state, handlers }: { state: EmailHubListBodyState; handlers:
   }
 
   return (
-    <>
-      <ul aria-label={t("email_hub.list_label")}>
-        {state.rows.map((row) => (
-          <EmailHubThreadListItem
-            key={row.id}
-            row={row}
-            listFolder={state.mailFolder}
-            checked={handlers.checkedIds.has(row.id)}
-            selectionMode={selectionMode}
-            onCheckedChange={(checked) => handlers.onCheckedChange(row.id, checked)}
-            onSelect={() => handlers.onSelectThread(row.id)}
-            onPrefetch={() => handlers.onPrefetch(row.id)}
-            onToggleStar={() => handlers.onToggleStar(row.id, row.is_starred)}
-            aiEnabled={handlers.aiEnabled}
-            analyzing={handlers.analyzingThreadId === row.id}
-            listSummary={handlers.threadAiSummaries[row.id]?.summary}
-            onAnalyze={() => handlers.onAnalyze(row.id)}
-            onNotSpam={state.mailFolder === "SPAM" ? () => handlers.onNotSpam(row.id) : undefined}
-          />
-        ))}
-      </ul>
-      {state.hasNextPage && state.folder !== "STARRED" ? (
-        <LoadMore fetching={state.fetchingNextPage} onLoadMore={state.onLoadMore} />
-      ) : null}
-    </>
+    <ThreadList state={state} handlers={handlers} scrollParent={scrollParent} virtuosoRef={virtuosoRef} />
   );
 }
 
-/** The list pane: full width while no email is open, hidden while one is. */
+/** The list pane: full width while no email is open; stays mounted (hidden) while reading. */
 export function EmailHubViewListPanel({
   header,
   state,
   handlers,
   returnFocusId,
+  readingEmail,
   reconnect,
 }: {
   header: EmailHubListHeaderProps;
@@ -226,24 +312,42 @@ export function EmailHubViewListPanel({
   handlers: EmailHubListRowHandlers;
   /** The email just closed: its row takes focus back, so Esc returns you to your place in the list. */
   returnFocusId: string | null;
+  /** When true the pane stays in the tree but is not shown (avoids remounting 50+ rows). */
+  readingEmail: boolean;
   /** Set while the mailbox's login is refused: a banner over the cached list offers to reconnect it. */
   reconnect?: () => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle | null>(null);
+  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (!returnFocusId) return;
-    const row = document.querySelector<HTMLElement>(`[data-thread-row="${CSS.escape(returnFocusId)}"]`);
-    row?.focus({ preventScroll: true });
-    row?.scrollIntoView({ block: "nearest" });
-    // Only on mount: the list is re-created each time the reading pane closes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setScrollParent(scrollRef.current);
   }, []);
 
+  useEffect(() => {
+    if (readingEmail || !returnFocusId) return;
+    const row = document.querySelector<HTMLElement>(`[data-thread-row="${CSS.escape(returnFocusId)}"]`);
+    if (row) {
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    const index = state.rows.findIndex((r) => r.id === returnFocusId);
+    if (index >= 0) {
+      virtuosoRef.current?.scrollIntoView({ index, align: "center" });
+    }
+  }, [readingEmail, returnFocusId, state.rows]);
+
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+    <section
+      className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background", readingEmail && "hidden")}
+      aria-hidden={readingEmail || undefined}
+    >
       <EmailHubListHeader {...header} />
       {reconnect ? <EmailHubReconnectBanner onReconnect={reconnect} /> : null}
-      <div className="@container min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <ListBody state={state} handlers={handlers} />
+      <div ref={scrollRef} className="@container min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <ListBody state={state} handlers={handlers} scrollParent={scrollParent} virtuosoRef={virtuosoRef} />
       </div>
     </section>
   );

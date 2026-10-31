@@ -12,7 +12,7 @@ import type { GuideContent } from "./guide-content";
  */
 const vi: GuideContent = {
   introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào.",
-  effective: { dateTime: "2026-10-27", text: "27/10/2026" },
+  effective: { dateTime: "2026-10-28", text: "28/10/2026" },
   sections: [
     { title: "Ai chịu trách nhiệm về dữ liệu", paragraphs: [
       `UniWork, UniOffice và UniChat do ${legalEntity.nameVi} (mã số doanh nghiệp ${legalEntity.enterpriseCode}, trụ sở: ${legalEntity.addressVi}) vận hành. Liên hệ về dữ liệu cá nhân: ${legalEntity.email}.`,
@@ -21,7 +21,7 @@ const vi: GuideContent = {
     { title: "Dữ liệu chúng tôi thu thập", paragraphs: [
       "Chúng tôi chỉ thu thập dữ liệu cần để bạn đăng nhập, làm việc và trò chuyện với đồng nghiệp. Ứng dụng không đọc danh bạ, vị trí hay tin nhắn SMS của bạn.",
     ], table: { caption: "Loại dữ liệu và mục đích", columns: ["Loại dữ liệu", "Gồm những gì", "Để làm gì"], rows: [
-      ["Tài khoản", "Email, tên hiển thị, ảnh đại diện, mật khẩu (chỉ lưu dạng băm), mã tài khoản Google nếu bạn đăng nhập bằng Google, mã tài khoản Apple nếu bạn đăng nhập bằng Apple, ngôn ngữ, múi giờ, cài đặt xác thực hai lớp", "Đăng nhập, nhận diện bạn và bảo vệ tài khoản"],
+      ["Tài khoản", "Email, tên hiển thị, ảnh đại diện, mật khẩu (chỉ lưu dạng băm), mã tài khoản và email của tài khoản Google hay Apple bạn đã liên kết (kèm ngày liên kết), ngôn ngữ, múi giờ, cài đặt xác thực hai lớp", "Đăng nhập, nhận diện bạn và bảo vệ tài khoản"],
       ["Hồ sơ trong tổ chức", "Chức danh, mã nhân viên, số điện thoại (mặc định ẩn), nơi làm việc, giới thiệu — do bạn hoặc quản trị viên nhập", "Giúp đồng nghiệp biết bạn là ai"],
       ["Nội dung", "Tin nhắn, ảnh, tệp, tin thoại, công việc, tài liệu và các phiên bản của chúng, nội dung và phụ đề cuộc họp, email khi tổ chức kết nối hộp thư", "Cung cấp chính tính năng bạn dùng"],
       ["Cuộc gọi", "Âm thanh và video được truyền trực tiếp giữa người tham gia qua máy chủ cuộc gọi; chỉ được ghi lại khi một người trong cuộc gọi chủ động bật ghi", "Gọi thoại và gọi video"],
@@ -42,6 +42,7 @@ const vi: GuideContent = {
     ] },
     { title: "Chúng tôi dùng dữ liệu để làm gì", paragraphs: [
       "Để cung cấp và bảo vệ dịch vụ: đăng nhập, đồng bộ nội dung giữa các thiết bị, gửi thông báo, chống lạm dụng và khắc phục sự cố.",
+      "Đăng nhập bằng Google hoặc Apple: bạn đăng nhập với chính Google hay Apple, nên chúng tôi không bao giờ thấy mật khẩu của tài khoản đó. Google cho chúng tôi biết mã tài khoản Google, email, tên và ảnh đại diện; Apple cho biết mã tài khoản Apple, email (có thể là email ẩn của Apple nếu bạn chọn Ẩn địa chỉ email) và tên ở lần đầu nếu bạn chia sẻ. Chúng tôi không xin gì khác trong tài khoản Google hay Apple của bạn. Mã (token) mà Google hay Apple cấp cho một lần đăng nhập chỉ dùng để xác nhận đó là bạn và không được chia sẻ với ai; riêng mã của Apple được mã hóa và giữ lại để chúng tôi báo Apple thu hồi khi bạn xóa tài khoản. Mật khẩu UniWork bạn gõ trong ứng dụng UniChat đi thẳng tới máy chủ qua kết nối mã hóa và không được lưu trên máy.",
       "Chúng tôi không bán dữ liệu cá nhân, không dùng dữ liệu để quảng cáo và không cài công cụ quảng cáo hay phân tích của bên thứ ba trong ứng dụng UniChat và UniOffice. Chúng tôi không dùng nội dung của bạn để huấn luyện mô hình AI.",
       "Thống kê sử dụng ẩn danh: ứng dụng UniChat cho Android và iPhone gửi về chính máy chủ UniWork các bộ đếm — lần mở ứng dụng, thời gian màn hình đầu tiên hiện ra, tin gửi được hay hỏng hẳn và thời gian gửi, lần mở từ thông báo (tin nhắn hay cuộc gọi), cuộc gọi nối được hay không và thời gian nối, lần chạy trước có bị tắt đột ngột không và bản cập nhật của ứng dụng có khởi động được không. Máy chủ chỉ cộng chúng theo hệ điều hành và phiên bản ứng dụng: không gắn với bạn, tổ chức, cuộc trò chuyện hay nội dung nào, và không gửi cho bên thứ ba. Tính năng bật sẵn; bạn tắt được ở Cài đặt → Quyền riêng tư và bảo mật → Gửi thống kê sử dụng ẩn danh, và khi tắt thì những gì chưa gửi bị bỏ.",
       "Báo cáo lỗi: khi ứng dụng UniChat cho Android và iPhone gặp lỗi, ứng dụng gửi báo cáo lỗi tới Sentry, nhà cung cấp dịch vụ xử lý thay chúng tôi. Báo cáo gồm diễn biến lỗi, kiểu máy, hệ điều hành, phiên bản ứng dụng và mã người dùng UniWork. Ứng dụng không đưa nội dung tin nhắn hay tên của ai vào báo cáo; trước khi gửi, ứng dụng còn lọc bỏ email, mã đăng nhập, tham số trong địa chỉ, mọi đoạn nằm trong dấu ngoặc kép và lời báo lỗi do máy chủ trả về. Không chụp màn hình và không ghi lại phiên dùng.",
@@ -55,7 +56,7 @@ const vi: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice cho máy tính mở và lưu tệp ngay trên máy của bạn. Tệp trên máy chỉ được tải lên UniWork khi bạn chọn lưu nó vào một workspace; khi đó mỗi lần lưu tạo một phiên bản mới thay vì ghi đè. Bạn đăng nhập qua trình duyệt, và có thể xem hoặc thu hồi từng máy đã đăng nhập.",
       "Khi bạn mở hoặc xuất PDF, bảng tính hay định dạng cũ trên web, tệp được xử lý trên máy chủ chuyển đổi của chúng tôi trong cùng hạ tầng. Tệp chỉ nằm trong bộ nhớ tạm của lượt xử lý, bị xóa ngay khi xong và không được gửi cho bên thứ ba.",
-      "Khóa API AI riêng: khóa bạn lưu trên UniWork được mã hóa và không bao giờ gửi về trình duyệt hay máy tính; yêu cầu đi qua máy chủ UniWork tới nhà cung cấp bạn chọn, và chúng tôi chỉ ghi số liệu sử dụng (nhà cung cấp, mô hình, số token), không ghi nội dung. Khóa bạn nhập trực tiếp trong UniOffice cho máy tính được lưu trên máy đó và ứng dụng gọi thẳng nhà cung cấp; UniWork không thấy khóa hay nội dung. Trong cả hai trường hợp, nội dung được xử lý theo điều khoản của nhà cung cấp bạn chọn, có thể ở ngoài Việt Nam.",
+      "Khi bạn nhập khóa API AI trực tiếp trong UniOffice cho máy tính, khóa được lưu trên máy đó và ứng dụng gọi thẳng nhà cung cấp; UniWork không nhận khóa hay nội dung. Nội dung được xử lý theo điều khoản của nhà cung cấp bạn chọn, có thể ở ngoài Việt Nam.",
       "Liên kết chia sẻ công khai chỉ cho xem, hết hạn sau 7 ngày theo mặc định (tối đa 90 ngày) và có thể thu hồi; lượt xem được đếm mà không ghi địa chỉ của người xem. Máy chủ MCP cục bộ của UniOffice cho máy tính mặc định tắt; khi bạn bật, các chương trình trên cùng máy tính có thể điều khiển tài liệu đang mở.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [
@@ -74,9 +75,9 @@ const vi: GuideContent = {
       ["Expo (650 Industries)", "Chuyển thông báo đẩy tới điện thoại; phân phối bản cập nhật ứng dụng di động", "Hoa Kỳ"],
       ["Sentry (Functional Software)", "Nhận báo cáo lỗi và số đo hiệu năng của ứng dụng UniChat cho Android và iPhone", "Hoa Kỳ"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Đưa thông báo đẩy tới máy Android và iPhone", "Theo hạ tầng của Google và Apple"],
-      ["Google", "Đăng nhập bằng Google (khi bạn chọn); gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
+      ["Google", "Đăng nhập bằng Google (khi bạn chọn) trên web, máy tính và trong ứng dụng UniChat qua thư viện đăng nhập của Google: Google cho chúng tôi biết mã tài khoản Google, email, tên và ảnh đại diện; gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
       ["Google (Google Drive)", "Khi bạn kết nối Google Drive: cửa sổ chọn tệp, thông tin và nội dung của các tệp bạn đã chọn", "Theo hạ tầng của Google"],
-      ["Apple", "Đăng nhập bằng Apple trên iPhone (khi bạn chọn): Apple cho chúng tôi biết mã tài khoản Apple, email (có thể là địa chỉ chuyển tiếp của Apple nếu bạn chọn ẩn email) và tên ở lần đầu nếu bạn chia sẻ", "Theo hạ tầng của Apple"],
+      ["Apple", "Đăng nhập bằng Apple (khi bạn chọn) trên web, máy tính, Android và iPhone: Apple cho chúng tôi biết mã tài khoản Apple, email (có thể là email ẩn của Apple nếu bạn chọn Ẩn địa chỉ email) và tên ở lần đầu nếu bạn chia sẻ; thư chúng tôi gửi tới email ẩn đi qua Apple để tới hộp thư của bạn", "Theo hạ tầng của Apple"],
       ["GitHub", "Lưu bản cài và bản cập nhật UniChat, UniOffice cho máy tính", "Theo hạ tầng của GitHub"],
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Lưu giữ và xóa dữ liệu", paragraphs: [
@@ -90,7 +91,7 @@ const vi: GuideContent = {
       "Với nội dung thuộc workspace của tổ chức, chúng tôi có thể chuyển yêu cầu tới quản trị viên của tổ chức đó, vì họ quản lý nội dung này.",
     ] },
     { title: "Bảo mật", paragraphs: [
-      "Dữ liệu được mã hóa khi truyền (HTTPS, WSS). Mật khẩu chỉ lưu dạng băm; khóa xác thực hai lớp, khóa API AI riêng và lịch sử hội thoại AI được mã hóa khi lưu. Quyền truy cập được kiểm tra theo tổ chức và workspace ở mọi yêu cầu, và mọi thay đổi dữ liệu được ghi vào nhật ký hoạt động không sửa được.",
+      "Dữ liệu được mã hóa khi truyền (HTTPS, WSS). Mật khẩu chỉ lưu dạng băm; khóa xác thực hai lớp và lịch sử hội thoại AI được mã hóa khi lưu. Quyền truy cập được kiểm tra theo tổ chức và workspace ở mọi yêu cầu, và mọi thay đổi dữ liệu được ghi vào nhật ký hoạt động không sửa được.",
       "Ứng dụng UniChat trên Android và iPhone giữ một bản trên điện thoại để dùng được khi mất mạng: danh sách cuộc trò chuyện, số tin chưa đọc, danh bạ của workspace, các tin mới nhất của những cuộc trò chuyện gần đây, và tin, lượt đọc, biểu cảm, bình chọn bạn đã gửi khi chưa có mạng. Bản này được mã hóa trên máy bằng khóa giữ trong Keychain hoặc Keystore của điện thoại; khóa không rời máy nên bản sao lưu hay máy khác không đọc được bản này. Ảnh và tệp chờ gửi nằm trong thư mục riêng của ứng dụng và bị xóa khi đã gửi. Mọi thứ bị xóa khi bạn đăng xuất hoặc xóa tài khoản.",
     ] },
     { title: "Độ tuổi", paragraphs: [
@@ -105,7 +106,7 @@ const vi: GuideContent = {
 
 const en: GuideContent = {
   introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it.",
-  effective: { dateTime: "2026-10-27", text: "27 October 2026" },
+  effective: { dateTime: "2026-10-28", text: "28 October 2026" },
   sections: [
     { title: "Who is responsible for your data", paragraphs: [
       `UniWork, UniOffice and UniChat are operated by ${legalEntity.nameEn} (enterprise code ${legalEntity.enterpriseCode}, registered office: ${legalEntity.addressEn}). Personal data contact: ${legalEntity.email}.`,
@@ -114,7 +115,7 @@ const en: GuideContent = {
     { title: "Data we collect", paragraphs: [
       "We collect only what is needed for you to sign in, work and talk with colleagues. The apps do not read your contacts, location or SMS messages.",
     ], table: { caption: "Data types and purposes", columns: ["Data type", "What it includes", "Why"], rows: [
-      ["Account", "Email, display name, profile photo, password (stored only as a hash), Google account id if you sign in with Google, Apple account id if you sign in with Apple, language, time zone, two-factor settings", "Sign-in, identifying you and protecting your account"],
+      ["Account", "Email, display name, profile photo, password (stored only as a hash), the account id and email of the Google or Apple account you linked (with the date you linked it), language, time zone, two-factor settings", "Sign-in, identifying you and protecting your account"],
       ["Organization profile", "Job title, employee code, phone number (hidden by default), location, bio — entered by you or an administrator", "Letting colleagues know who you are"],
       ["Content", "Messages, photos, files, voice messages, tasks, documents and their versions, meeting content and captions, email when the organization connects a mailbox", "Providing the feature you use"],
       ["Calls", "Audio and video relayed live between participants through the call server; recorded only when a participant explicitly starts a recording", "Voice and video calls"],
@@ -135,6 +136,7 @@ const en: GuideContent = {
     ] },
     { title: "How we use data", paragraphs: [
       "To provide and protect the service: sign-in, syncing content across devices, notifications, abuse prevention and troubleshooting.",
+      "Signing in with Google or Apple: you sign in with Google or Apple themselves, so we never see that account's password. Google tells us your Google account id, email, name and profile photo; Apple tells us your Apple account id, your email (Apple's hidden email if you choose Hide My Email) and, the first time, your name if you share it. We ask for nothing else in your Google or Apple account. The token Google or Apple issues for a sign-in is used only to confirm it is you and is never shared with anyone; Apple's alone is encrypted and kept, so that we can ask Apple to revoke it when you delete your account. The UniWork password you type in the UniChat app goes straight to our servers over an encrypted connection and is never stored on the device.",
       "We do not sell personal data, do not use it for advertising and do not include third-party advertising or analytics tools in the UniChat and UniOffice apps. We do not use your content to train AI models.",
       "Anonymous usage statistics: the UniChat apps for Android and iPhone send counters to UniWork's own server — app opens, how long the first screen takes to appear, whether a message was sent or failed for good and how long it took, opens from a notification (a message or a call), whether a call connected and how long it took, whether the previous run ended in a crash and whether an app update could start. The server only adds them up by operating system and app version: they are not linked to you, your organization, a conversation or any content, and are not shared with third parties. This is on by default; you can turn it off in Settings → Privacy & security → Share anonymous usage statistics, and anything not yet sent is then dropped.",
       "Error reports: when the UniChat app for Android or iPhone hits an error, it sends an error report to Sentry, a service provider acting on our behalf. A report includes what led to the error, the device model, operating system, app version and your UniWork user id. The app does not put message content or anyone's name into a report, and before sending it also strips email addresses, sign-in tokens, URL parameters, anything in quotation marks and the text of error messages returned by the server. No screenshots or session recordings are taken.",
@@ -148,7 +150,7 @@ const en: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice for desktop opens and saves files on your computer. A local file is uploaded to UniWork only when you choose to save it to a workspace; each save then creates a new version instead of overwriting the last one. You sign in through your browser and can review or revoke each signed-in computer.",
       "When you open or export a PDF, spreadsheet or legacy format on the web, the file is processed by our conversion server in the same infrastructure. The file exists only in the job's temporary storage, is deleted as soon as the job ends and is not sent to any third party.",
-      "Your own AI API key: a key you save on UniWork is encrypted and never sent back to a browser or computer; requests pass through the UniWork server to the provider you chose, and we record only usage figures (provider, model, token counts), never content. A key you enter directly in UniOffice for desktop is stored on that computer and the app calls the provider directly; UniWork sees neither the key nor the content. Either way, content is processed under the terms of the provider you chose, which may be outside Vietnam.",
+      "If you enter an AI API key directly in UniOffice for desktop, the key is stored on that computer and the app calls the provider directly; UniWork receives neither the key nor the content. The content is processed under the terms of the provider you chose, which may be outside Vietnam.",
       "Public share links are view-only, expire after 7 days by default (90 at most) and can be revoked; views are counted without recording the viewer's address. UniOffice for desktop's local MCP server is off by default; once you turn it on, programs on the same computer can control the open document.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [
@@ -167,9 +169,9 @@ const en: GuideContent = {
       ["Expo (650 Industries)", "Relaying push notifications to phones; delivering mobile app updates", "United States"],
       ["Sentry (Functional Software)", "Receiving error reports and performance measurements from the UniChat apps for Android and iPhone", "United States"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Delivering push notifications to Android phones and iPhones", "Google's and Apple's infrastructure"],
-      ["Google", "Sign in with Google (when you choose it); sending system email such as verification codes", "Google's infrastructure"],
+      ["Google", "Sign in with Google (when you choose it) on the web, desktop and in the UniChat app through Google's sign-in library: Google tells us your Google account id, email, name and profile photo; sending system email such as verification codes", "Google's infrastructure"],
       ["Google (Google Drive)", "When you connect Google Drive: the file picker, and the details and content of the files you picked", "Google's infrastructure"],
-      ["Apple", "Sign in with Apple on iPhone (when you choose it): Apple tells us your Apple account id, your email (which may be an Apple relay address if you choose to hide yours) and, the first time, your name if you share it", "Apple's infrastructure"],
+      ["Apple", "Sign in with Apple (when you choose it) on the web, desktop, Android and iPhone: Apple tells us your Apple account id, your email (Apple's hidden email if you choose Hide My Email) and, the first time, your name if you share it; email we send to a hidden address passes through Apple to reach your inbox", "Apple's infrastructure"],
       ["GitHub", "Hosting UniChat and UniOffice desktop installers and updates", "GitHub's infrastructure"],
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Retention and deletion", paragraphs: [
@@ -183,7 +185,7 @@ const en: GuideContent = {
       "For content that belongs to an organization's workspace, we may refer your request to that organization's administrators, since they manage it.",
     ] },
     { title: "Security", paragraphs: [
-      "Data is encrypted in transit (HTTPS, WSS). Passwords are stored only as hashes; two-factor secrets, your own AI API keys and AI conversation history are encrypted at rest. Access is checked against the organization and workspace on every request, and every data change is written to an activity log that cannot be altered.",
+      "Data is encrypted in transit (HTTPS, WSS). Passwords are stored only as hashes; two-factor secrets and AI conversation history are encrypted at rest. Access is checked against the organization and workspace on every request, and every data change is written to an activity log that cannot be altered.",
       "The UniChat apps for Android and iPhone keep a copy on the phone so they work without a connection: your conversation list, unread counts, the workspace's people, the latest messages of recent conversations, and the messages, reads, reactions and votes you made while offline. That copy is encrypted on the phone with a key held in the phone's Keychain or Keystore; the key never leaves the phone, so a backup or another device cannot read the copy. Photos and files waiting to be sent sit in the app's private folder and are deleted once sent. All of it is erased when you sign out or delete your account.",
     ] },
     { title: "Age", paragraphs: [

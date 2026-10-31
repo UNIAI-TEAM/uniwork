@@ -160,3 +160,49 @@ func TestDesktopRefreshTokenUserAgentNamesTheClient(t *testing.T) {
 		}
 	}
 }
+
+// The app's provider button rides the authorization URL (spec §3.5) so the
+// web page can send a signed-out person straight to that provider. Only the
+// two providers are taken; without one the URL is what older apps got.
+func TestDesktopStartCarriesTheProviderHint(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	minter := auth.TokenMinter{Secret: []byte("desktop-test"), TTL: time.Minute}
+	cfg := config.Config{FrontendOrigin: "http://localhost:13380", DesktopAuthClientID: "uniwork-office", DesktopAuthRedirectURIs: []string{"uniwork-office://auth/callback"}, DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthCodeTTL: 120 * time.Second, DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour}
+	svc := NewDesktopAuthService(pool, q, minter, cfg)
+	sum := sha256.Sum256([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"))
+	start := func(provider string) (DesktopAttempt, error) {
+		return svc.Start(context.Background(), DesktopStartInput{ClientID: "uniwork-office", CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256", State: "s-" + provider, RedirectURI: "uniwork-office://auth/callback", DeploymentID: "default", Provider: provider})
+	}
+	for _, provider := range []string{ProviderGoogle, ProviderApple} {
+		a, err := start(provider)
+		if err != nil || a.AuthorizationURL != "http://localhost:13380/auth/desktop/authorize?attempt_id="+a.ID+"&provider="+provider {
+			t.Fatalf("%s: %+v %v", provider, a, err)
+		}
+	}
+	if a, err := start(""); err != nil || a.AuthorizationURL != "http://localhost:13380/auth/desktop/authorize?attempt_id="+a.ID {
+		t.Fatalf("no hint: %+v %v", a, err)
+	}
+	for _, bad := range []string{"github", "Apple", "google&x=1"} {
+		if _, err := start(bad); !errors.As(err, new(ValidationError)) {
+			t.Fatalf("provider %q: %v", bad, err)
+		}
+	}
+	// The register screen's button: the provider starts with intent=sign_up;
+	// without a provider there is nothing to start, so nothing is forwarded.
+	withIntent := func(provider, intent string) (DesktopAttempt, error) {
+		return svc.Start(context.Background(), DesktopStartInput{ClientID: "uniwork-office", CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256", State: "i-" + provider + intent, RedirectURI: "uniwork-office://auth/callback", DeploymentID: "default", Provider: provider, Intent: intent})
+	}
+	if a, err := withIntent(ProviderApple, SignInIntentSignUp); err != nil || a.AuthorizationURL != "http://localhost:13380/auth/desktop/authorize?attempt_id="+a.ID+"&intent=sign_up&provider=apple" {
+		t.Fatalf("sign_up: %+v %v", a, err)
+	}
+	if a, err := withIntent(ProviderGoogle, SignInIntentSignIn); err != nil || strings.Contains(a.AuthorizationURL, "intent") {
+		t.Fatalf("sign_in is the default and stays out: %+v %v", a, err)
+	}
+	if a, err := withIntent("", SignInIntentSignUp); err != nil || strings.Contains(a.AuthorizationURL, "intent") {
+		t.Fatalf("no provider: %+v %v", a, err)
+	}
+	if _, err := withIntent(ProviderApple, "register"); !errors.As(err, new(ValidationError)) {
+		t.Fatalf("intent register: %v", err)
+	}
+}

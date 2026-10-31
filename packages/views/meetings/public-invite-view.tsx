@@ -44,6 +44,16 @@ function meetingInviteLoginUrl(linkId: string): string {
   return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
 }
 
+/**
+ * The lobby retry has to run below MeetingLobbyWSProvider: called in the view
+ * itself it saw no socket, missed the host's approval and only found out on
+ * the 10s/20s/30s/60s backoff poll.
+ */
+function LobbyJoinRetry(props: Parameters<typeof useLobbyJoinRetry>[0]) {
+  useLobbyJoinRetry(props);
+  return null;
+}
+
 export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; secret: string }) {
   const { t } = useTranslation();
   const nav = useNavigation();
@@ -220,16 +230,6 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     setJoinFailure(undefined);
   }, [joinRequestId, linkId, lobbyDecision, resetJoin]);
 
-  useLobbyJoinRetry({
-    meetingId,
-    decision: lobbyDecision,
-    admitted: false,
-    hasJoinError: joinFailure !== undefined,
-    joinError: joinFailure,
-    joinRequestId,
-    onRetry: runJoin,
-  });
-
   useEffect(() => {
     if (state !== "ok" || authStatus !== "authed" || !meetingId || joinOnce.current) return;
     joinOnce.current = true;
@@ -268,8 +268,26 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     document.title = documentTitle;
   }, [documentTitle]);
 
+  // Opened only once /join has answered: the server lets a guest's lobby socket
+  // in only while it holds a pending request (or a seat), so a socket opened on
+  // the name form was refused and backed off for up to 30s.
   const wrapLobby = (node: ReactNode) =>
-    meetingId ? <MeetingLobbyWSProvider meetingId={meetingId}>{node}</MeetingLobbyWSProvider> : node;
+    meetingId ? (
+      <MeetingLobbyWSProvider meetingId={meetingId}>
+        <LobbyJoinRetry
+          meetingId={meetingId}
+          decision={lobbyDecision}
+          admitted={false}
+          hasJoinError={joinFailure !== undefined}
+          joinError={joinFailure}
+          joinRequestId={joinRequestId}
+          onRetry={runJoin}
+        />
+        {node}
+      </MeetingLobbyWSProvider>
+    ) : (
+      node
+    );
 
   if (view === "loading") {
     return <MeetingInvitePageSkeleton />;
@@ -316,7 +334,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   }
 
   if (isGuest) {
-    return wrapLobby(
+    return (
       <MeetingPublicInviteForm
         title={title}
         startsAt={startsAt}
@@ -327,11 +345,11 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
         scribeNoticeFor={scribe && meetingId ? meetingId : undefined}
         onJoin={(choice) => runJoin(choice)}
         onLogin={() => nav.push(loginHref)}
-      />,
+      />
     );
   }
 
-  return wrapLobby(
+  return (
     <MeetingInviteShell className="items-center justify-center">
       <div className="flex w-full max-w-md flex-col items-center gap-4 text-center">
         <h1 className="text-balance text-display-sm font-semibold tracking-tight text-foreground">
@@ -348,6 +366,6 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           {t("meetings.publicInviteJoin")}
         </Button>
       </div>
-    </MeetingInviteShell>,
+    </MeetingInviteShell>
   );
 }

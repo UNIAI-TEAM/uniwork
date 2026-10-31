@@ -26,10 +26,10 @@ export function frameInstallState(pins = readPins(), root = FRAME_ROOT) {
   );
 }
 
-/** The AI grant of a frame-token answer (`ai.ai`, `ai.uniwork_ai`); an absent or drifted field reads as off, as the host reads it. */
+/** The AI grant of a frame-token answer (`ai.uniwork_ai`); an absent or drifted field reads as off, as the host reads it. */
 export function frameGrantFromToken(body) {
   const grant = body && typeof body === "object" ? body.ai : null;
-  return { ai: grant?.ai === true, uniworkAi: grant?.uniwork_ai === true };
+  return { uniworkAi: grant?.uniwork_ai === true };
 }
 
 const FRAME_TOKEN_URL = /\/documents\/([^/?#]+)\/office\/frame-token(?:[?#]|$)/;
@@ -42,7 +42,7 @@ const FRAME_TOKEN_URL = /\/documents\/([^/?#]+)\/office\/frame-token(?:[?#]|$)/;
  * @param {{ on: (event: string, handler: (response: any) => void) => void }} page
  */
 export function trackFrameGrants(page) {
-  /** @type {Map<string, { ai: boolean, uniworkAi: boolean }>} */
+  /** @type {Map<string, { uniworkAi: boolean }>} */
   const grants = new Map();
   const pending = [];
   page.on("response", (response) => {

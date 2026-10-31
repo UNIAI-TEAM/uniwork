@@ -15,25 +15,35 @@ vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
 const { officeModuleCapabilities, lockAwareSave } = await import("./docs-frame-session-model");
 
 const api = {} as DocsFrameApi;
-const all = { ai: true, web_search: true, image_search: true, image_generation: true, uniwork_ai: true };
+const all = { web_search: true, image_search: true, image_generation: true, uniwork_ai: true };
 
 describe("officeModuleCapabilities AI grant", () => {
-  it("reads uniworkAi apart from ai, and gives the cloud tools to either", () => {
-    expect(officeModuleCapabilities("docs", false, api, { ai: false, web_search: true, image_search: false, image_generation: true, uniwork_ai: true }))
-      .toMatchObject({ ai: false, uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true });
-    expect(officeModuleCapabilities("docs", false, api, { ai: true, web_search: true, image_search: true, image_generation: false }))
-      .toMatchObject({ ai: true, uniworkAi: false, webSearch: true, imageSearch: true, imageGeneration: false });
+  it("gives the cloud tools only with uniwork_ai", () => {
+    const caps = officeModuleCapabilities("docs", false, api, { uniwork_ai: true, web_search: true, image_search: false, image_generation: true });
+    expect(caps).toMatchObject({ uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true });
+    expect(caps).not.toHaveProperty("ai");
+    expect(officeModuleCapabilities("docs", false, api, { uniwork_ai: false, web_search: true, image_search: false, image_generation: false }))
+      .toMatchObject({ uniworkAi: false, webSearch: false });
+    expect(officeModuleCapabilities("docs", false, api, { uniwork_ai: true, web_search: true, image_search: false, image_generation: false }))
+      .toMatchObject({ uniworkAi: true, webSearch: true });
   });
 
-  it("keeps uniworkAi and the cloud tools off with no grant, an absent uniwork_ai, or neither AI", () => {
-    expect(officeModuleCapabilities("docs", false, api)).toMatchObject({ ai: false, uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
-    expect(officeModuleCapabilities("docs", false, api, { ai: true, web_search: false, image_search: false, image_generation: false }).uniworkAi).toBe(false);
-    expect(officeModuleCapabilities("docs", false, api, { ai: false, web_search: true, image_search: true, image_generation: true, uniwork_ai: false }))
+  it("grants aiStart only with uniwork_ai on an editable page (UNI-2264)", () => {
+    const uw = { web_search: false, image_search: false, image_generation: false, uniwork_ai: true };
+    expect(officeModuleCapabilities("docs", false, api, uw).aiStart).toBe(true);
+    expect(officeModuleCapabilities("docs", true, api, uw).aiStart).toBe(false);
+    expect(officeModuleCapabilities("docs", false, api, { ...uw, uniwork_ai: false }).aiStart).toBe(false);
+    expect(officeModuleCapabilities("docs", false, api).aiStart).toBe(false);
+  });
+
+  it("keeps uniworkAi and the cloud tools off with no grant or an absent uniwork_ai", () => {
+    expect(officeModuleCapabilities("docs", false, api)).toMatchObject({ uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
+    expect(officeModuleCapabilities("docs", false, api, { web_search: true, image_search: true, image_generation: true }))
       .toMatchObject({ uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
   });
 
   it("grants nothing AI to a module whose spec has no AI panels", () => {
-    expect(officeModuleCapabilities("pdf", false, api, all)).toMatchObject({ ai: false, uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
+    expect(officeModuleCapabilities("pdf", false, api, all)).toMatchObject({ uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
   });
 
   it("keeps UniWork AI for a read-only viewer, who still cannot save", () => {

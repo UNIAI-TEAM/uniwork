@@ -49,9 +49,7 @@ const fakeResponse = (status, url, text) => ({
   text: async () => text,
 });
 
-const ANTHROPIC_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages';
 const OPENAI_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions';
-const GEMINI_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/gemini/generate';
 
 async function observeSseTurn(url, sseText) {
   const page = makeFakePage();
@@ -87,13 +85,10 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
 
   it('R3-1: the model route matcher and the response-body readers read every registered route', () => {
     // G708-R4-2: the matcher pins the routes the server actually registers
-    // (router/office_frame_ai.go:74,79,84,126), not a shape it does not serve.
+    // (router/office_frame_ai.go), not a shape it does not serve.
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), true);
-    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
-    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages'), true);
-    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/gemini/generate'), true);
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/openai/chat/completions'), false, 'no such route is registered');
-    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/x/models'), false, '/models is a GET listing, not a model call');
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), false, 'the removed BYOK route is no model route');
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), false);
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/uploads'), false);
     assert.equal(isModelCompletionPath(undefined), false);
@@ -101,12 +96,9 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     // R4-1: each registered route is read in the shape its own handler answers with
     // (handler/ai_mount.go:71-73 -> ai/proxy.go:61-63,223-236; uniwork -> openai_facade).
     assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), 'openai');
-    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), 'openai');
-    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages'), 'anthropic');
-    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/gemini/generate'), 'gemini');
     assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/uploads'), null);
     // The broad net for R4-3: any POST under the frame's AI mount, whatever shape.
-    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
+    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), true);
     assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), true);
     assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/uploads'), false);
 
@@ -115,9 +107,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     const frameGlobs = modelCallRouteGlobs('http://web.test');
     assert.deepEqual(frameGlobs, [
       'http://web.test/api/v1/office-frame/documents/*/ai/uniwork/chat/completions',
-      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/chat/completions',
-      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/messages',
-      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/generate',
     ]);
     assert.deepEqual(modelCallRouteGlobs(''), []);
     assert.deepEqual(modelCallRouteGlobs('not a url'), []);
@@ -128,9 +117,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
       .replace(/\u0000/g, '.*')}$`);
     for (const tail of [
       '/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions',
-      '/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions',
-      '/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages',
-      '/api/v1/office-frame/documents/D1/ai/byok/gemini/generate',
     ]) {
       assert.equal(frameGlobs.some((glob) => globRe(glob).test(`http://web.test${tail}`)), true, `${tail} matches on the frame origin`);
       assert.equal(frameGlobs.some((glob) => globRe(glob).test(`http://api.test${tail}`)), false, `${tail} is not intercepted on another origin`);
@@ -143,7 +129,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     );
 
     assert.deepEqual(usageFromModelResponseBody({ usage: { prompt_tokens: 12, completion_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
-    assert.deepEqual(usageFromModelResponseBody({ usage: { input_tokens: 12, output_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 12 } }), null);
     assert.equal(usageFromModelResponseBody({}), null);
 
@@ -154,43 +139,11 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(usageFromSseText(''), null);
     assert.equal(usageFromSseText('<html>502</html>'), null);
 
-    // R4-1: the Anthropic `/messages` stream - input on message_start, output on
-    // message_delta, both cumulative (ai/proxy.go:433-441).
-    const anthropicSse = 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n';
-    assert.deepEqual(usageFromSseText(anthropicSse, 'anthropic'), { prompt_tokens: 41, completion_tokens: 9 });
-    assert.deepEqual(
-      usageFromModelResponseBody({ usage: { input_tokens: 6, output_tokens: 3 } }, 'anthropic'),
-      { prompt_tokens: 6, completion_tokens: 3 },
-    );
-    // R4-1: the Gemini `/generate` body (ai/proxy.go:426-432); thoughts count as output.
-    assert.deepEqual(
-      usageFromModelResponseBody({ usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 5, thoughtsTokenCount: 2 } }, 'gemini'),
-      { prompt_tokens: 7, completion_tokens: 7 },
-    );
-    assert.deepEqual(
-      usageFromSseText('data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4},"candidates":[{"finishReason":"STOP"}]}\n', 'gemini'),
-      { prompt_tokens: 8, completion_tokens: 4 },
-    );
-    // A shape whose own block is absent is an unknown, never 0 - the wrong-shape body
-    // must not be read as a zero-token call.
-    assert.equal(usageFromSseText('data: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n', 'anthropic'), null);
-    assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 3, completion_tokens: 1 } }, 'anthropic'), null);
-    assert.equal(usageFromModelResponseBody({ usage: { input_tokens: 3, output_tokens: 1 } }, 'gemini'), null);
-
     assert.deepEqual(
       toolCallNamesFromSseText('data: {"choices":[{"delta":{"tool_calls":[{"function":{"name":"read_range"}}]}}]}\n\ndata: [DONE]\n'),
       ['read_range'],
     );
     assert.deepEqual(toolCallNamesFromSseText('not an sse'), []);
-    // R4-1: the tool names of the other two protocols come from their own frames.
-    assert.deepEqual(
-      toolCallNamesFromSseText('data: {"type":"content_block_start","content_block":{"type":"tool_use","name":"edit_block"}}\n', 'anthropic'),
-      ['edit_block'],
-    );
-    assert.deepEqual(
-      toolCallNamesFromSseText('data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"propose_operations"}}]}}]}\n', 'gemini'),
-      ['propose_operations'],
-    );
   });
 
   it('R3-1: the wire tool surface names what the frame offered and what it executed', () => {
@@ -277,25 +230,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(wire.outputTokens, 20);
   });
 
-  it('G708-R4-1: the observer counts a BYOK vendor turn in its own shape', async () => {
-    const page = makeFakePage();
-    const requests = [];
-    const responses = [];
-    const aiPaths = [];
-    const { settle } = observeModelWire(page, { requests, responses, aiPaths });
-    const byokUrl = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages';
-    page.emit('request', fakeRequest('POST', byokUrl, '{}'));
-    page.emit('response', fakeResponse(200, byokUrl, 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n'));
-    await settle();
-
-    assert.equal(requests.length, 1, 'the registered BYOK route is matched');
-    assert.equal(responses.length, 1);
-    assert.deepEqual(responses[0].usage, { prompt_tokens: 41, completion_tokens: 9 });
-    const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
-    assert.equal(wire.unobserved, false, 'a BYOK turn is counted, not dropped');
-    assert.deepEqual({ inputTokens: wire.inputTokens, outputTokens: wire.outputTokens }, { inputTokens: 41, outputTokens: 9 });
-  });
-
   it('R3-1: a completion without usage through the injected page is BLOCKED, never counted', async () => {
     const page = makeFakePage();
     const requests = [];
@@ -372,35 +306,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(seen.usage.missingUsageCalls, 1);
   });
 
-  it('G708-R5-1 (a): Anthropic message_start only is unknown usage', async () => {
-    const { responses, wire } = await observeSseTurn(
-      ANTHROPIC_URL,
-      'data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1}}}\n',
-    );
-    assert.equal(responses[0].usage, null, 'message_start output_tokens is not a complete stream');
-    assert.ok(wire.missingUsageCalls >= 1);
-    assert.equal(wire.reason, 'missing_usage_on_model_call');
-  });
-
-  it('G708-R5-1 (b): Anthropic start + partial message_delta is unknown usage', async () => {
-    const { responses, wire } = await observeSseTurn(
-      ANTHROPIC_URL,
-      'data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1}}}\n\ndata: {"type":"message_delta","usage":{"output_tok\n',
-    );
-    assert.equal(responses[0].usage, null, 'a cut message_delta is not a complete stream');
-    assert.ok(wire.missingUsageCalls >= 1);
-  });
-
-  it('G708-R5-1 (c): Anthropic start + delta + stop is counted', async () => {
-    const { responses, wire } = await observeSseTurn(
-      ANTHROPIC_URL,
-      'data: {"type":"message_start","message":{"usage":{"input_tokens":25}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n',
-    );
-    assert.deepEqual(responses[0].usage, { prompt_tokens: 25, completion_tokens: 9 });
-    assert.equal(wire.missingUsageCalls, 0);
-    assert.equal(wire.unobserved, false);
-  });
-
   it('G708-R5-1 (d): OpenAI usage is counted only from a complete chunk before [DONE]', async () => {
     const counted = await observeSseTurn(
       OPENAI_URL,
@@ -420,23 +325,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     const noDone = await observeSseTurn(OPENAI_URL, 'data: {"usage":{"prompt_tokens":30,"completion_tokens":7}}\n');
     assert.equal(noDone.responses[0].usage, null, 'a complete usage chunk without [DONE] is still incomplete');
     assert.ok(noDone.wire.missingUsageCalls >= 1);
-  });
-
-  it('G708-R5-1 (e): Gemini usage counts only when the last usage chunk has finishReason', async () => {
-    const noFinish = await observeSseTurn(
-      GEMINI_URL,
-      'data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4}}\n',
-    );
-    assert.equal(noFinish.responses[0].usage, null, 'cumulative usage without finishReason is a cut stream');
-    assert.ok(noFinish.wire.missingUsageCalls >= 1);
-
-    const withFinish = await observeSseTurn(
-      GEMINI_URL,
-      'data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4},"candidates":[{"finishReason":"STOP"}]}\n',
-    );
-    assert.deepEqual(withFinish.responses[0].usage, { prompt_tokens: 8, completion_tokens: 4 });
-    assert.equal(withFinish.wire.missingUsageCalls, 0);
-    assert.equal(withFinish.wire.unobserved, false);
   });
 
   it('w2j: a frame-AI POST on the web origin is the expected path - its response is observed and the usage counted', async () => {

@@ -124,6 +124,10 @@ type DocumentSourceFilter struct {
 	Q      string
 	Cursor string
 	Limit  int
+	// ParentID keeps only the files held by this chat room, task (its
+	// comments' files included), meeting or email thread. Empty is no
+	// constraint. In-process only: the HTTP route does not read it.
+	ParentID string
 	// Sort is the optional column sort (UNI-2038 S3): updated is the file's
 	// sort date, name its file name, size its bytes, editor the sender or
 	// uploader. The zero value keeps today's order and cursor.
@@ -192,6 +196,7 @@ type documentSourceQuery struct {
 	includePages                 bool
 	limit                        int32
 	rowID                        pgtype.Text
+	parentID                     pgtype.Text
 	sort                         documentSortArgs
 }
 
@@ -227,6 +232,9 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		if folded := foldForSearch(q); folded != "" {
 			dq.q = pgtype.Text{String: escapeLikePattern(folded), Valid: true}
 		}
+	}
+	if p := strings.TrimSpace(f.ParentID); p != "" {
+		dq.parentID = pgtype.Text{String: p, Valid: true}
 	}
 	if f.Cursor != "" {
 		if sc, ok := decodeSortedDocumentSourceCursor(f.Cursor); ok {
@@ -447,7 +455,7 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	case DocumentSourceChat:
 		got, err := s.q.ListDocumentSourceChatFiles(ctx, db.ListDocumentSourceChatFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
-			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID,
+			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID, ParentID: dq.parentID,
 			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
 			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
@@ -458,7 +466,7 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	case DocumentSourceTask:
 		got, err := s.q.ListDocumentSourceTaskFiles(ctx, db.ListDocumentSourceTaskFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
-			RowLimit: dq.limit, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID,
+			RowLimit: dq.limit, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID, ParentID: dq.parentID,
 			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
 			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
@@ -478,6 +486,7 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 			RecordingsDisabled: !s.meetings.FileServiceEnabled(),
 			WorkspaceID:        dq.workspaceID,
 			RowID:              dq.rowID,
+			ParentID:           dq.parentID,
 			IncludePages:       includePages,
 			ViewerID:           dq.viewerID,
 			ShareLevels:        []string{},
@@ -527,7 +536,7 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	case DocumentSourceEmail:
 		got, err := s.q.ListDocumentSourceEmailFiles(ctx, db.ListDocumentSourceEmailFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
-			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, RowID: dq.rowID,
+			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, RowID: dq.rowID, ParentID: dq.parentID,
 			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
 			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})

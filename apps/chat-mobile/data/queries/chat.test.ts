@@ -19,6 +19,9 @@ import {
   roomAroundOptions,
   roomMembersOptions,
   roomSearchOptions,
+  workspaceSearchOptions,
+  documentPickOptions,
+  taskPickOptions,
   roomsOptions,
   roomTimelineOptions,
   threadTimelineOptions,
@@ -102,6 +105,23 @@ describe("chat query options", () => {
     expect(roomSearchOptions("w1", "r1", " a ").enabled).toBe(false);
     expect(roomSearchOptions("w1", "r1", "kế").queryKey).toEqual(chatKeys.roomSearch("w1", "r1", "kế"));
     expect(chatApi.listMessagesAround).toHaveBeenCalledWith("w1", "r1", "m1");
+  });
+
+  it("searches every conversation and lists documents and tasks to attach", async () => {
+    const qc = new QueryClient();
+    const search = vi.spyOn(chatApi, "searchWorkspaceMessages").mockResolvedValue([]);
+    const documents = vi.spyOn(chatApi, "listDocuments").mockResolvedValue([]);
+    const tasks = vi.spyOn(chatApi, "listTasks").mockResolvedValue([]);
+    await qc.fetchQuery(workspaceSearchOptions("w1", "  kế  ", "messages"));
+    expect(search).toHaveBeenCalledWith("w1", "kế", "messages");
+    expect(workspaceSearchOptions("w1", " a ", "workspace").enabled).toBe(false);
+    expect(workspaceSearchOptions("w1", "kế", "workspace").queryKey).toEqual(chatKeys.workspaceSearch("w1", "workspace", "kế"));
+    await qc.fetchQuery(documentPickOptions("w1", "  kế  "));
+    expect(documents).toHaveBeenCalledWith("w1", "  kế  ");
+    expect(documentPickOptions("w1", " kế ").queryKey).toEqual(chatKeys.documents("w1", "kế"));
+    await qc.fetchQuery(taskPickOptions("w1"));
+    expect(tasks).toHaveBeenCalledWith("w1");
+    expect(taskPickOptions("w1").queryKey).toEqual(chatKeys.tasks("w1"));
   });
 
   it("reads a row's preview without marking it read, and polls a live call's recording", async () => {

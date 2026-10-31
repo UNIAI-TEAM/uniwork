@@ -69,8 +69,12 @@
         "CVE-2026-93748",
         "CVE-2026-93687",
         "CVE-2026-85393",
-        "CVE-2023-54404"
+        "CVE-2023-54404",
+        "CVE-2026-118664"
       ]
+    },
+    "patchedDependencies": {
+      "@shopify/flash-list@2.0.2": "patches/@shopify__flash-list@2.0.2.patch"
     }
   },
   "scripts": {

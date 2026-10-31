@@ -44,15 +44,15 @@ func TestRunStoreRefusalNamesTheSpentCap(t *testing.T) {
 
 	if run, err := runTurnRefusal(row(func(r *db.AiUniworkRun) {
 		r.ExpiresAt = pgtype.Timestamptz{Time: now.Add(-time.Second), Valid: true}
-	}), false, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
+	}), false, UniworkRunModelCallMax, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
 		t.Fatalf("expired run = %v / %q, want ErrRunExpired with no run named", err, run.ID)
 	}
 
 	atCallCap := row(func(r *db.AiUniworkRun) { r.ModelCalls = UniworkRunModelCallMax })
-	if run, err := runTurnRefusal(atCallCap, false, now); !isRunLimit(err, UniworkRunLimitModelCalls) || run.ID != "run-1" {
+	if run, err := runTurnRefusal(atCallCap, false, UniworkRunModelCallMax, now); !isRunLimit(err, UniworkRunLimitModelCalls) || run.ID != "run-1" {
 		t.Fatalf("spent call cap = %v / %q, want run_limit_reached(model_calls) naming run-1", err, run.ID)
 	}
-	if _, err := runTurnRefusal(atCallCap, true, now); !isRunLimit(err, UniworkRunLimitModelCalls) {
+	if _, err := runTurnRefusal(atCallCap, true, UniworkRunModelCallMax, now); !isRunLimit(err, UniworkRunLimitModelCalls) {
 		t.Fatalf("a tool round at the call cap = %v, want the call cap to win", err)
 	}
 
@@ -60,11 +60,18 @@ func TestRunStoreRefusalNamesTheSpentCap(t *testing.T) {
 		r.ModelCalls = 2
 		r.ToolRounds = UniworkRunToolRoundMax
 	})
-	if run, err := runTurnRefusal(atRoundCap, true, now); !isRunLimit(err, UniworkRunLimitToolRounds) || run.ID != "run-1" {
+	if run, err := runTurnRefusal(atRoundCap, true, UniworkRunModelCallMax, now); !isRunLimit(err, UniworkRunLimitToolRounds) || run.ID != "run-1" {
 		t.Fatalf("spent round cap = %v / %q, want run_limit_reached(tool_rounds) naming run-1", err, run.ID)
 	}
 
-	if run, err := runTurnRefusal(row(nil), false, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
+	// A writer call is refused one call earlier: the last call stays for the
+	// tool round that hands the writer's result back (plan 5).
+	atWriterCap := row(func(r *db.AiUniworkRun) { r.ModelCalls = UniworkRunModelCallMax - 1 })
+	if run, err := runTurnRefusal(atWriterCap, false, UniworkRunModelCallMax-1, now); !isRunLimit(err, UniworkRunLimitModelCalls) || run.ID != "run-1" {
+		t.Fatalf("a writer call at %d calls = %v / %q, want run_limit_reached(model_calls) naming run-1", UniworkRunModelCallMax-1, err, run.ID)
+	}
+
+	if run, err := runTurnRefusal(row(nil), false, UniworkRunModelCallMax, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
 		t.Fatalf("under both caps = %v / %q, want ErrRunExpired with no run named (nothing was reserved)", err, run.ID)
 	}
 }
@@ -193,6 +200,30 @@ func runCounters(t *testing.T, pool *pgxpool.Pool, runID string) (int32, int32) 
 		t.Fatal(err)
 	}
 	return calls, rounds
+}
+
+// A writer call that names no run never opens one (plan 5): one new run per
+// call would be the cap's escape hatch. The store answers run_expired before
+// any write, whatever the service checked first.
+func TestRunStoreWriterNeverOpensARun(t *testing.T) {
+	store, _, pool := runStoreFixture(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	conv := seedRunConversation(t, pool, "org-a", "user-a", now)
+
+	run, err := store.TakeTurn(context.Background(), TakeRunTurn{
+		OrganizationID: "org-a", ConversationID: conv, Writer: true, CreatedBy: "user-a", Now: now,
+	})
+	if !errors.Is(err, ErrRunExpired) || run.ID != "" {
+		t.Fatalf("a writer take with no run id = %+v, %v; want ErrRunExpired and no run", run, err)
+	}
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM ai_uniwork_runs WHERE conversation_id = $1`, conv).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("runs of the conversation = %d, want none opened by a writer take", n)
+	}
 }
 
 // Opening a run spends the question turn that reached the Gateway; a question

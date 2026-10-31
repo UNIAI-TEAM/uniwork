@@ -38,7 +38,7 @@ func (q *Queries) FinalizeMeetingMinutes(ctx context.Context, arg FinalizeMeetin
 
 const lockMeetingForMinutes = `-- name: LockMeetingForMinutes :one
 
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id FROM meetings
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue FROM meetings
 WHERE id = $1 AND organization_id = $2
 FOR UPDATE
 `
@@ -95,6 +95,7 @@ func (q *Queries) LockMeetingForMinutes(ctx context.Context, arg LockMeetingForM
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }

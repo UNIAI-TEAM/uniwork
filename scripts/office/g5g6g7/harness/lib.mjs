@@ -57,7 +57,7 @@ export function origin(port, scheme = "http", host = "127.0.0.1") {
  * `http://localhost:port` for the web and the API a browser opens. Never
  * 127.0.0.1: Next 16 `next dev` blocks /_next/hmr from any other host
  * (allowedDevOrigins), so a page opened on 127.0.0.1 is server-rendered but never
- * hydrates and a click on "Log in" is a native GET submit (G7-06 cloud round 1).
+ * hydrates and a click on "Sign in" is a native GET submit (G7-06 cloud round 1).
  * Web and API share the host so the refresh cookie the API sets is same-site for
  * the page, as in the e2e suite (localhost:3000 against localhost:8080).
  */
@@ -76,16 +76,6 @@ export function appOrigin(port, scheme = "http") {
 export function loopbackOriginsIn(body) {
   return [...new Set(String(body).matchAll(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+/g).map((match) => match[0]))];
 }
-
-/**
- * The AES key the harness server seals saved AI provider keys with
- * (`AI_CREDENTIAL_KEY`, base64 of 32 bytes; server/internal/util/secretbox). TEST-ONLY:
- * a fixed public value that guards nothing — the harness database holds no provider
- * key, and the run never reaches the dev upstream. Since G6-05k a server without a
- * credential key answers `ai_credentials_unavailable`, the web frame token then carries
- * `ai:false`, and the web capture shows no AI chrome (RFE5-201, DOC-05 re-pin).
- */
-export const HARNESS_AI_CREDENTIAL_KEY = Buffer.from("uniwork-harness-test-only-key-32").toString("base64");
 
 /**
  * The environment the D server is started with, on the command line. Everything
@@ -132,9 +122,6 @@ export function buildServerEnv({
     DEV_VERIFICATION_CODE: verificationCode,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
-    // The run's own test-only key (HARNESS_AI_CREDENTIAL_KEY), never the VM's: a key in the VM's .env
-    // is dropped from the server's .env copy because the run owns this name (serverDotEnv).
-    AI_CREDENTIAL_KEY: HARNESS_AI_CREDENTIAL_KEY,
     DESKTOP_AUTH_DEPLOYMENT_IDS: deploymentId,
     // The fork's dev channel registers `uniwork-office-dev` and the D server
     // addresses its launch links with that client id, so the dev client must be
@@ -154,6 +141,15 @@ export function buildServerEnv({
     LIVEKIT_URL: "",
     LIVEKIT_API_KEY: "",
     LIVEKIT_API_SECRET: "",
+    // Frame tokens carry `uniwork_ai` only when UniWork AI is configured and its
+    // flags are on (ADR 0051); a run-owned fake provider and a test-only key
+    // (not a secret) give the web capture its AI chrome, as G7-08 does.
+    AI_PROVIDER: "fake",
+    AI_CONVERSATION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    FF_OFFICE_AI_UNIWORK: "true",
+    ...Object.fromEntries(
+      ["XLSX", "DOCX", "PPTX", "PDF", "MARKDOWN", "HTML"].map((f) => [`FF_OFFICE_AI_UNIWORK_${f}`, "true"]),
+    ),
   };
 }
 

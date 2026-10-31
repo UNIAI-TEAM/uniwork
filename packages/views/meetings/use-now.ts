@@ -17,7 +17,8 @@ function clockFor(intervalMs: number): Clock {
   if (!clock) {
     clock = { now: Date.now(), listeners: new Set() };
     clocks.set(intervalMs, clock);
-  } else if (!clock.stop) {
+  } else if (clock.listeners.size === 0) {
+    // An idle clock stopped ticking: a remounted countdown would first paint its old time, then roll to the real one.
     clock.now = Date.now();
   }
   return clock;

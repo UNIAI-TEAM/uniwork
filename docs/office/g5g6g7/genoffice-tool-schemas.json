@@ -2,8 +2,8 @@
   "header": {
     "kind": "genoffice-tool-schemas",
     "version": 1,
-    "rev": "47a209b9546ccd1b325d0885b211b5905e7a620e",
-    "mechanicalBlockSha256": "95759bc7364ae4ed8f1a6475613bd68113b51d94f1a86783b89f54bfeb05ec47",
+    "rev": "c4b20c542d8837773209301c2871f0ecdf5aa9b7",
+    "mechanicalBlockSha256": "ba665c9192f2933005b7e338cac0f2c1e54b6fb93e4cdf1324eda1cc08a80974",
     "counts": {
       "docs": 39,
       "sheets": 21,
@@ -3452,6 +3452,7 @@
               "enum": [
                 "highlight",
                 "underline",
+                "squiggly",
                 "strikeout"
               ],
               "description": "Only remove markups of this kind"
@@ -4012,7 +4013,7 @@
       "type": "function",
       "function": {
         "name": "markup_text",
-        "description": "Add a markup (highlight/underline/strikeout) to a text passage on the given page. text must be a verbatim fragment that actually exists on that page (confirm with read_pages or search_text first); by default only the first occurrence is marked, all=true marks every occurrence on that page.",
+        "description": "Add a markup (highlight/underline/squiggly/strikeout) to a text passage on the given page. text must be a verbatim fragment that actually exists on that page (confirm with read_pages or search_text first); by default only the first occurrence is marked, all=true marks every occurrence on that page.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -4029,6 +4030,7 @@
               "enum": [
                 "highlight",
                 "underline",
+                "squiggly",
                 "strikeout"
               ],
               "description": "Markup type"
@@ -6038,8 +6040,8 @@
       "schemaComplete": true,
       "descriptionComplete": true,
       "offered": true,
-      "inputSchemaSha256": "65dde718fc4c40634bdbbb0bb7c799b76139c8bd5b57f0671a8b3e46240172b7",
-      "tableHash": "65dde718fc4c40634bdbbb0bb7c799b76139c8bd5b57f0671a8b3e46240172b7"
+      "inputSchemaSha256": "3e1038a2a11a7f4ca918e1649d38b0fc51cd9b42abc51631cf0eb9be174228c5",
+      "tableHash": "3e1038a2a11a7f4ca918e1649d38b0fc51cd9b42abc51631cf0eb9be174228c5"
     },
     {
       "module": "pdf",
@@ -6236,8 +6238,8 @@
       "schemaComplete": true,
       "descriptionComplete": true,
       "offered": true,
-      "inputSchemaSha256": "151b7c2f778dc88011252ad826b3e33d166741195e35c954e15c4dd2f544608a",
-      "tableHash": "151b7c2f778dc88011252ad826b3e33d166741195e35c954e15c4dd2f544608a"
+      "inputSchemaSha256": "744319fa94232e8c8938930602aa900388b56fa02cffef08f517b585d51ef942",
+      "tableHash": "744319fa94232e8c8938930602aa900388b56fa02cffef08f517b585d51ef942"
     },
     {
       "module": "pdf",

@@ -65,28 +65,24 @@ describe("Office Docs frame endpoints", () => {
   });
 
   it("parses the AI grant and reads a drifted one as off", async () => {
-    const grant = { ai: true, web_search: true, image_search: false, image_generation: true };
+    const grant = { web_search: true, image_search: false, image_generation: true, uniwork_ai: true };
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: grant }, 201));
     await expect(mintOfficeFrameToken(docId)).resolves.toMatchObject({ ai: grant });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: { ai: "yes", web_search: 1 } }, 201));
-    await expect(mintOfficeFrameToken(docId)).resolves.toMatchObject({
-      token: token.token, ai: { ai: false, web_search: false, image_search: false, image_generation: false },
-    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: { web_search: 1, uniwork_ai: "yes" } }, 201));
+    const drifted = await mintOfficeFrameToken(docId);
+    expect(drifted?.ai).toMatchObject({ web_search: false, image_search: false, image_generation: false, uniwork_ai: false });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: "on" }, 201));
     const minted = await mintOfficeFrameToken(docId);
     expect(minted?.token).toBe(token.token);
     expect(minted?.ai).toBeUndefined();
   });
 
-  it("reads uniwork_ai apart from ai, and an absent or drifted one as off", async () => {
-    const grant = { ai: false, web_search: false, image_search: false, image_generation: false, uniwork_ai: true };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: grant }, 201));
-    await expect(mintOfficeFrameToken(docId)).resolves.toMatchObject({ ai: grant });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: { ...grant, uniwork_ai: "yes" } }, 201));
-    expect((await mintOfficeFrameToken(docId))?.ai?.uniwork_ai).toBe(false);
+  it("still parses an older grant that carries ai: true, and drops the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: { ai: true, web_search: true, image_search: true, image_generation: true } }, 201));
     const older = await mintOfficeFrameToken(docId);
-    expect(older?.ai?.ai).toBe(true);
+    expect(older?.ai).toBeDefined();
+    expect(older?.ai).not.toHaveProperty("ai");
+    expect(older?.ai?.web_search).toBe(true);
     expect(older?.ai?.uniwork_ai ?? false).toBe(false);
   });
 

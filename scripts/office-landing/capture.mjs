@@ -238,7 +238,7 @@ async function shoot(browser, editor, lang, theme) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel(/^(Mật khẩu|Password)$/).fill(PASSWORD);
-    await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
+    await page.getByRole("button", { name: /^(Đăng nhập|Sign in|Log in)$/ }).click();
     await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
     await page.goto(`/${account.orgSlug}/${account.wsSlug}/documents/${documentId}`);
     const host = page.locator("[data-office-docs-frame]").first();

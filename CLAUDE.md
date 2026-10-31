@@ -373,12 +373,11 @@ Every command that changes business state writes an `audit_events` row and its
   that needs a model is a request the server answers through `ai.Gateway`.
   `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
   SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
-- The signed-in desktop app uses the keys the person saved on UniWork only
-  through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
-  key, and its calls record the `office.byok_desktop` capability while web and
-  frame calls keep `office.byok`.
-  `TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability` and
-  `TestProxySurfaceCapability` hold it.
+- UniWork never stores, receives or forwards a person's own AI provider key (ADR 0051, superseding 0034 and the
+  key-store parts of 0028 and 0029): every server-side AI call goes through `ai.Gateway`, Office AI (the web frame's calls) runs on UniWork AI
+  behind `office.ai_cloud`, and the frame's cloud tools follow the `uniwork_ai` grant. There is no
+  `ai_provider_credentials` table and no proxy route. `TestNoProviderKeyRoutes`, `TestNoProviderCredentialTable`,
+  `TestOldDesktopKeyListIsNotFound` and `TestOfficeFrameCloudToolsFollowUniworkAI` hold it.
 - External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
   the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
   opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`
@@ -416,6 +415,26 @@ Every command that changes business state writes an `audit_events` row and its
   `TestDriveOfficeExtractWritesNoObject`, `TestAskUniDriveFocusIsNotPersisted`
   and `TestDriveTablesCarryNoObjectStorageColumns` (`server/migrations/lint_test.go`)
   hold it.
+- Ask UNI hands an approved job to the editor AI only through an
+  `ai_office_handoffs` package (ADR 0048): written by Apply for the document it
+  just created, usable for 24 hours by its asker only, on that document only,
+  bound to one conversation; its material always enters the turn wrapped as
+  untrusted, and the editor AI gets no tool that reads the workspace.
+  `TestOfficeHandoffLoadIsScopedToItsAskerAndDocument`,
+  `TestOfficeHandoffAdvanceBindsOneConversation`,
+  `TestAskCreateOfficeApplyWritesAHandoff`,
+  `TestAIUniworkHandoffIgnoredOutsideItsScope` and
+  `TestAIUniworkHandoffQuoteCannotCloseItsUntrustedBlock` hold it.
+- The editor AI's one-shot writers (a Word or Markdown document, an HTML page
+  and its brief, a deck's style, outline and pages) run under UniWork AI only
+  through the writer route (`POST /office-frame/documents/{documentID}/ai/uniwork/write`,
+  ADR 0050): a closed set of kinds, the system prompt kept on the server, every
+  input text wrapped as untrusted, counted against the run already open and
+  never opening a new one, and always leaving the run's last model call for
+  the tool round. `TestUniworkWriteNeverOpensARun`,
+  `TestUniworkWriteKeepsTheLastCallForTheToolRound`,
+  `TestWriterRenderWrapsInputAsUntrusted` and
+  `TestUniworkWriteRefusesAKindOfAnotherModule` hold it.
 
 ## Platform Admin and Observability
 
@@ -503,8 +522,13 @@ Frontend code must survive backend response drift.
   types narrow them, so every `switch` over a server enum carries a `default`
   and UI optional-chains server fields.
 - Every endpoint has a malformed-response test proving it degrades instead of
-  throwing. Login, register and complete-onboarding are the deliberate
-  exceptions that still fail loudly — there is no session to start without them.
+  throwing. Login, register, complete-onboarding, and the choice screen's two
+  commands that open a session (`createFromSignInTicket`,
+  `verifySignInEmailClaim` in `packages/core/api/endpoints/sign-in-ticket.ts`)
+  are the deliberate exceptions that still fail loudly — there is no session to
+  start without them; so is every door of the app's sign-in screen
+  (`packages/core/api/endpoints/sign-in-native-api.ts`), whose malformed answer
+  is null and fails closed on the phone.
 - When adding or changing an endpoint: add the function, its schema, and a
   malformed-response case in `api/endpoints/<domain>.test.ts`.
 
@@ -542,20 +566,148 @@ database and never reveal whether an id exists to a non-member.
   database, so the token is not verified there) under a
   per-address ceiling (`mcp-ip`, 1200/min):
   `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
-  `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
-  their own small budget in `server/internal/handler/router/router.go`,
-  whose tests pin all of it.
-- A bearer route never answers with a redirect: only the Google sign-in,
-  MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
+  `TestMCPAddressCeilingStopsRotatingTokens`. A guess at a secret rides a
+  named budget under a ceiling of 600/min per address
+  (`server/internal/handler/router/sign_in_budgets.go`, ADR 0049 §9):
+  `sign-in-password` (`/auth/login` and the app's `/auth/native/password`,
+  one budget for both, 20/min per address and the hashed, normalized email
+  read from the body without consuming it) and `sign-in-mfa`
+  (`/auth/mfa/verify` and `/auth/native/mfa`, 10/min per address and the
+  account of the verified challenge token), all four off the global limiter
+  so an office NAT signs in per person; `step-up` (`/me/step-up*`,
+  `PUT /me/password`, `POST /me/delete`, `POST /orgs/{org}/transfer-ownership`,
+  and the two joins whose switch takes a hand-over proof,
+  `POST /invitations/{token}/accept` and `POST /membership-invite-links/join`;
+  10/min per bearer). `TestSignInPasswordBudgetIsPerAddressAndEmail`,
+  `TestSignInMFABudgetKeysTheChallengedAccount`,
+  `TestNativePasswordSharesTheSignInPasswordBudget`,
+  `TestNativeMFASharesTheSignInMFABudget` and
+  `TestStepUpRoutesShareOneBudgetPerPerson` hold them. The other credential
+  routes carry their own small budget in
+  `server/internal/handler/router/router.go`, whose tests pin all of it.
+- A bearer route never answers with a redirect: only the browser sign-in
+  handlers (`server/internal/handler/google.go`, `server/internal/handler/apple_web.go`
+  and the finish they share, `server/internal/handler/web_sign_in.go`), MCP OAuth
+  authorize and Swagger entry handlers call `http.Redirect`
   (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
   native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
-- Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
-  Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
-  the SHA-256 of the raw nonce the app sent. An Apple identity links by `users.apple_id`, by email only when Apple's
-  address is not a private relay and the account's address is verified, never to an MFA account; account deletion
-  revokes the Apple token the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
-  `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
-  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking` and `TestDeleteAccountRevokesTheAppleToken` hold it.
+- Sign in with Apple (ADR 0041, 0049) has two doors, each with its own `auth.AppleVerifier` checking Apple's
+  signature against its JWKS, `iss`, `exp` and a `nonce` equal to the SHA-256 of the raw nonce: the iPhone's
+  `POST /api/v1/auth/apple/native`, whose `aud` is a bundle id in `APPLE_SIWA_AUDIENCES`, and the web, whose only
+  `aud` is the Services ID `APPLE_SIWA_WEB_CLIENT_ID` (on only with the Sign in with Apple key; never one of the
+  app's audiences, or the config refuses to load). The web start seals state and nonce into `uniwork_apple_state`
+  (`SameSite=None; Secure` always, since Apple answers with a cross-site `form_post`); `POST /auth/apple/callback`
+  checks the state, redeems the code with its `redirect_uri` and verifies the token, takes the address only from
+  the token (the `user` field's name is a hint), and hands the result to the same-site `GET /auth/apple/finish` in
+  a sealed two-minute cookie, which signs in or links like Google. The native route keeps the codes the shipped
+  app reads (`mfa_required`, never linking an MFA account; `apple_token_invalid`; `apple_account_conflict`). The
+  account a sign-in or link opens keeps the Apple token, sealed, with the client it was issued to (bundle id or
+  Services ID), and account deletion revokes it there; a sign-in that keeps it nowhere gives it back to Apple
+  unless the Apple ID opens an account. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  `TestWebAndNativeAppleAudiencesStayApart`, `TestAppleWebCallbackChecksStateNonceAndAudience`,
+  `TestAppleWebSignInKeepsTheConsentForTheServicesID`, `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
+  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestLegacyAppleNativeKeepsItsCodes` and
+  `TestDeleteAccountRevokesTheAppleToken` hold it.
+- Every provider sign-in (Google and Apple on the web, Google and Apple in the app) finds its account through `resolveIdentity` in
+  `server/internal/service/identity_resolve.go` (ADR 0049): the provider subject first, then the address only when
+  the provider vouches for it. An address the provider owns (Gmail or the Workspace `hd`; iCloud or Apple's relay)
+  links to a verified account, or takes back an account that never proved the address — everything its registrant
+  left goes, and their second factor is never asked; any other address, or a subject the owner unlinked, joins no
+  account by itself, and a link never verifies an address. Blobs handed to a client are sealed per purpose
+  (`SecretSealer.SealFor`); the Google web flow adds PKCE and a nonce. `TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified`,
+  `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
+  `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
+  `TestSealedBlobsDoNotCrossPurposes` hold it.
+- A provider sign-in that finds no account to sign in to creates none (ADR 0049 §2c): it answers a sign-in ticket
+  (`server/internal/service/sign_in_ticket.go`; 15 minutes, sealed for `sign_in_ticket`, nothing stored) for the
+  choice screen — the browser's only in the HttpOnly `uniwork_sign_in_ticket` cookie, an app's only in JSON with
+  the SHA-256 of its nonce — and only "Create a new account" there, or the register screen's `intent=sign_up`,
+  opens one. Linking from a ticket takes a bearer of its channel whose session signed in after the ticket (a
+  device session by its `signed_in_at`, the app's own sign-in or the start of the browser session that approved its
+  consent, never by when its row was written), or a step-up token of that session (else 403 `proof_required`); the
+  move a link from Settings leaves (`sign_in_method_movable`) also takes the browser session that started that link,
+  but only until the step-up token that started it ends, sealed into the link token and the ticket. An
+  identity another account holds moves only out of an account that never belonged to an
+  organization, and only on `move: true`. A code mailed to another address ("invited with another address") links,
+  reclaims or creates by that address, five codes and ten wrong guesses a day per address whichever tickets ask.
+  `TestProviderSignInWithoutAMatchIssuesATicketNotAnAccount`,
+  `TestSignUpIntentCreatesWithoutTheChoice`, `TestSignInTicketIsBoundToItsChannel`,
+  `TestTicketLinkNeedsASessionStartedAfterTheTicket`, `TestAppTicketLinkNeedsASignInNotAConsent`,
+  `TestASettingsMoveIsProvedByTheSessionThatStartedTheLink`,
+  `TestEmailClaimLinksCreatesOrReclaims` and `TestAProviderIdentityMovesOnlyFromAnEmptyAccount` hold it.
+- The public routes that open a session or spend a sign-in cookie (`/auth/login`, `/auth/register`,
+  `/auth/mfa/verify`, `/auth/password/reset`, `/auth/sign-in-ticket*`, and the app's `/auth/native/*`) go through
+  `mw.SameSiteJSON`: a request marked `Sec-Fetch-Site: cross-site` is 403 `cross_site_request` and a body that is
+  not `application/json` is 415, so another site cannot sign a browser in (login CSRF) or spend an address's
+  budget. Native clients send no fetch metadata and post JSON. `TestCredentialRoutesRefuseCrossSiteForms` holds it.
+- The app's own sign-in screen (ADR 0049 §8, `server/internal/service/native_sign_in.go`) is public doors under
+  `/api/v1/auth/native/*` — password, second factor, Google, Apple, register, and the choice screen's ticket
+  commands — plus the app's Settings links `POST /me/sign-in-methods/{google,apple}/native` (a device bearer with a
+  step-up; a provider token that fails is 403, never 401). The doors take only a client in `NATIVE_SIGN_IN_CLIENTS`
+  (default `uniwork-chat-mobile`, the legacy `POST /auth/apple/native` included; the desktop apps and Office sign in
+  through the web page) and answer one `NativeSignInSDO` (`signed_in`, `mfa_required`, `identity_unmatched`,
+  `link_required`): a challenge bound to the app's client and deployment, which only `/auth/native/mfa` takes, or a
+  ticket in JSON that opens only with the app's nonce. A session is a device session issued in the transaction
+  that audits `auth.login_succeeded` (`via`, `channel: native`), and an account that had any session or device before
+  hears of it, whatever the device says it is. The app's Google ID token is checked by `auth.GoogleNativeVerifier`:
+  `aud` among the web and app clients, `azp` one of `GOOGLE_NATIVE_CLIENT_IDS` (never `GOOGLE_CLIENT_ID`, or the
+  config refuses to load), `iat` at most ten minutes old and a required nonce hash; it is also the step-up's Google
+  proof. `TestWebAndNativeGoogleAudiencesStayApart`, `TestGoogleNativeNeedsANonceAndTheAppAzp`,
+  `TestNativeDoorsTakeOnlyNativeClients`, `TestNativeTicketNeedsTheNonce`, `TestNativeSecondStepIsBoundToTheApp`,
+  `TestNativeSignInAlwaysAlertsAnAccountThatHadASession` and `TestAppLinksAProviderFromSettings` hold it.
+- The second factor (ADR 0049 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
+  `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
+  rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
+  factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). A challenge dies with the
+  first factor that bought it: one issued before the account's `credentials_revoked_at`, or for a factor the
+  account no longer has, is refused, never answered with a session for no code. Every code is weighed
+  under the account's row lock in `weighSecondFactor` (`server/internal/service/second_factor.go`): the tenth wrong
+  one in a row locks the factor 15 minutes and mails the owner, and while locked nothing is checked (429
+  `second_factor_locked`, `retry_after`). An account that never verified its address cannot enrol, and a reset
+  link on such an account takes it back like a provider that owns the address. Desktop and MCP consent refuse a
+  browser token issued before `users.credentials_revoked_at`, and any token whose session has ended (401
+  `invalid_token`; the bearer middleware puts the verified token, `iat` included, on the context); a token of the
+  mark's own second passes only while its session lives, and the verified-address gate (`requireVerifiedEmail`)
+  judges the caller's browser token the same way, since a reclaim is what verifies the address. A reset link marks
+  the column and cancels the consents still open, like a reclaim. `TestMFAChallengeIsBoundToItsChannel`,
+  `TestAChallengeDiesWithTheFirstFactorItFollowed`,
+  `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
+  `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount`,
+  `TestAResetLinkEndsWhatTheOldPasswordLetIn` and `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
+- Every change to how an account signs in, and every command its owner cannot undo alone, takes a step-up token
+  (ADR 0049 §5): setting or changing the password, linking or unlinking a provider, turning the second factor on,
+  deleting the account, handing an organization over (transfer, the invitation switch). `POST /me/step-up` in
+  `server/internal/service/step_up.go`, the one place a signed-in person's proof is checked, turns one proof the
+  account takes into a ten-minute token sealed for `step_up` and bound to the bearer's session: with a second factor
+  on only that factor; otherwise the password, a six-digit code mailed for one named action (never the development
+  code; the token it buys serves that action's commands only), or on the app a fresh token of a linked provider. A wrong proof is a 403 with its own code, never 401, and
+  counts toward the second-factor lockout; a token of another session, purpose or past its ten minutes is 403
+  `proof_required`, and one whose session ended is 401; each command judges its bearer again under the account's
+  row lock, which a reclaim or credential change holds while it revokes, and a session (a sign-in, a browser
+  refresh) is opened holding that row `FOR SHARE`, refused when the credentials changed since its first factor read
+  it. The last way into an account is never removed, nor Apple
+  from an account whose address is Apple's relay; a password change or an unlink signs every other session out
+  (`revokeOtherUserSessions`, MCP grants, `credentials_revoked_at`). A link from Settings goes through the browser
+  that asked: its `link_token` is bound to the account and browser session, and the provider's start and callback
+  both check the refresh cookie opens that very session; the app links with the provider's own sheet instead. The proofs shipped apps still send in place of a token
+  (`POST /me/delete`'s password, code or typed address; an owner's password on a hand-over) are reviewed by
+  2027-01-31 with the legacy `POST /auth/apple/native` (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
+  `TestStepUpTokenDiesWithItsSession`, `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`,
+  `TestTheLastSignInMethodCannotBeRemoved`, `TestARelayAccountKeepsApple`, `TestPasswordChangeRevokesEveryOtherSession`,
+  `TestSignInMethodCommandsJudgeTheBearerUnderTheLock`, `TestSessionsOpenedDuringARevocationDoNotOutliveIt` and
+  `TestLinkStartNeedsTheSameBrowserSession` hold it.
+- On the web, every command that sends the held step-up token runs through `useStepUpGate()` in
+  `packages/views/settings/components/step-up-proof.tsx`, the one "Xác nhận là bạn" dialog: a held token is spent
+  before anyone is asked, and `proof_required` asks once more on the proofs the server names. The commands are the
+  core hooks whose body reads `stepUpToken()` or `withTransferProof()`; `packages/views/step-up-gate.test.ts` lists
+  them ("knows every command that sends the held token") and fails on a screen that calls one without calling the
+  gate itself ("stands in front of every screen that runs one"); the invite screens are the one listed exception
+  (`CARRIERS`), whose gate is `SwitchWizard`'s.
+- A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
+  take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
+  for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which
+  "sign out other sessions", a password change and an unlink use, the apps included. `TestUserWideRevokeGoesThroughOneHelper` keeps each helper
+  the only caller of its two halves; `TestRevokeOthersEndsDeviceSessions` holds the second.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

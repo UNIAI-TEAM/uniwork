@@ -943,7 +943,9 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		raw := json.RawMessage(doc.Content)
 		out.Content = &raw
 	}
-	if readable && doc.ContentText != "" {
+	// A file's content_text is its search index (up to 20,000 characters), not
+	// a field of the page body; it stays on the server.
+	if readable && doc.Kind == service.DocumentKindPage && doc.ContentText != "" {
 		out.ContentText = doc.ContentText
 	}
 	if len(view.Breadcrumbs) > 0 {

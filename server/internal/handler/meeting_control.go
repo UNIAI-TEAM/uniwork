@@ -47,14 +47,16 @@ func (h *handlers) listParticipants(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
 		return
 	}
-	ps, inRoom, err := h.Meetings.ListParticipantsInRoom(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
+	ps, inRoom, hostUserID, err := h.Meetings.ListParticipantsInRoom(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := make([]sdo.ParticipantDTO, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, toParticipantDTO(p, guestID != "", inRoom[p.ID]))
+		d := toParticipantDTO(p, guestID != "", inRoom[p.ID])
+		d.IsHost = p.UserID.Valid && p.UserID.String == hostUserID
+		out = append(out, d)
 	}
 	respondJSON(w, 200, map[string]any{"participants": out})
 }

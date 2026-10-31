@@ -21,6 +21,7 @@ export function MeetingDeviceField({
   onValueChange,
   emptyDescription,
   emptyAction,
+  adornment,
   children,
 }: {
   id: string;
@@ -31,6 +32,8 @@ export function MeetingDeviceField({
   emptyDescription: string;
   /** The step that fills the list (asking for permission), shown while it is empty. */
   emptyAction?: ReactNode;
+  /** Drawn inside the picker, just before its chevron (the prejoin's mic dots). */
+  adornment?: ReactNode;
   /** Extra detail under the picker (an input-level meter). */
   children?: ReactNode;
 }) {
@@ -47,15 +50,23 @@ export function MeetingDeviceField({
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select
-        id={id}
-        value={value || devices[0]!.deviceId}
-        onValueChange={(v) => v && onValueChange(v)}
-        items={devices.map((d) => ({
-          value: d.deviceId,
-          label: d.label || t("meetings.deviceUnnamed"),
-        }))}
-      />
+      {/* The adornment sits over the trigger; the value keeps clear of it. */}
+      <div className={adornment ? "relative [&_[data-slot=select-value]]:pr-12" : "contents"}>
+        <Select
+          id={id}
+          value={value || devices[0]!.deviceId}
+          onValueChange={(v) => v && onValueChange(v)}
+          items={devices.map((d) => ({
+            value: d.deviceId,
+            label: d.label || t("meetings.deviceUnnamed"),
+          }))}
+        />
+        {adornment ? (
+          <span className="pointer-events-none absolute top-1/2 right-7.5 flex -translate-y-1/2 items-center">
+            {adornment}
+          </span>
+        ) : null}
+      </div>
       {children}
     </Field>
   );

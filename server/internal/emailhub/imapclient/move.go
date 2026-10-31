@@ -18,11 +18,26 @@ func MoveMessage(c Credentials, fromMailbox string, uid uint32, toMailbox string
 		return err
 	}
 	defer cl.Logout()
+	return moveUIDsOnClient(cl, fromMailbox, []uint32{uid}, toMailbox)
+}
 
-	// dial read the post-login capabilities, so Support answers from cache.
+// MoveUIDs moves every UID in fromMailbox to toMailbox on this session.
+func (s *Session) MoveUIDs(fromMailbox string, uids []uint32, toMailbox string) error {
+	if s.cl == nil {
+		return fmt.Errorf("imap: session closed")
+	}
+	return moveUIDsOnClient(s.cl, fromMailbox, uids, toMailbox)
+}
+
+func moveUIDsOnClient(cl *client.Client, fromMailbox string, uids []uint32, toMailbox string) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	// dial / OpenSession already read post-login capabilities.
 	has := func(capability string) bool { ok, _ := cl.Support(capability); return ok }
 	gmailAllMail := false
 	if has("X-GM-EXT-1") {
+		var err error
 		if gmailAllMail, err = hasAllAttr(cl, fromMailbox); err != nil {
 			return err
 		}
@@ -31,7 +46,9 @@ func MoveMessage(c Credentials, fromMailbox string, uid uint32, toMailbox string
 		return fmt.Errorf("imap select %s: %w", fromMailbox, err)
 	}
 	seqset := new(imap.SeqSet)
-	seqset.AddNum(uid)
+	for _, uid := range uids {
+		seqset.AddNum(uid)
+	}
 	switch {
 	case gmailAllMail:
 		// Gmail reads "removed from All Mail" as "move to Trash"; a copy only adds the label.
@@ -48,7 +65,7 @@ func MoveMessage(c Credentials, fromMailbox string, uid uint32, toMailbox string
 	if err := cl.UidStore(seqset, item, []interface{}{imap.DeletedFlag}, nil); err != nil {
 		return fmt.Errorf("imap uid store: %w", err)
 	}
-	// UID EXPUNGE (RFC 4315) removes only this message.
+	// UID EXPUNGE (RFC 4315) removes only these messages.
 	status, err := cl.Execute(&commands.Uid{Cmd: &imap.Command{Name: "EXPUNGE", Arguments: []interface{}{seqset}}}, nil)
 	if err != nil {
 		return fmt.Errorf("imap uid expunge: %w", err)

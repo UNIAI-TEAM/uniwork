@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -10,7 +8,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -103,56 +100,4 @@ func HashRecoveryCode(code string) string {
 	norm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(code), " ", ""))
 	sum := sha256.Sum256([]byte(norm))
 	return base64.RawStdEncoding.EncodeToString(sum[:])
-}
-
-// SecretSealer keeps TOTP secrets unreadable in a database dump. The key is
-// derived from the JWT secret with SHA-256.
-// ponytail: one key for both; rotating JWT_SECRET voids every enrolment
-// (spec F-01 §2 I2). Add MFA_ENCRYPTION_KEY if that ever bites.
-type SecretSealer struct{ aead cipher.AEAD }
-
-func NewSecretSealer(jwtSecret []byte) (SecretSealer, error) {
-	if len(jwtSecret) == 0 {
-		return SecretSealer{}, errors.New("sealer: empty key")
-	}
-	key := sha256.Sum256(jwtSecret)
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
-		return SecretSealer{}, err
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return SecretSealer{}, err
-	}
-	return SecretSealer{aead: aead}, nil
-}
-
-func (s SecretSealer) Seal(plain string) (string, error) {
-	if s.aead == nil {
-		return "", errors.New("sealer: not configured")
-	}
-	nonce := make([]byte, s.aead.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return "", err
-	}
-	return base64.RawStdEncoding.EncodeToString(s.aead.Seal(nonce, nonce, []byte(plain), nil)), nil
-}
-
-func (s SecretSealer) Open(sealed string) (string, error) {
-	if s.aead == nil {
-		return "", errors.New("sealer: not configured")
-	}
-	raw, err := base64.RawStdEncoding.DecodeString(sealed)
-	if err != nil {
-		return "", err
-	}
-	n := s.aead.NonceSize()
-	if len(raw) < n {
-		return "", errors.New("sealer: short ciphertext")
-	}
-	plain, err := s.aead.Open(nil, raw[:n], raw[n:], nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plain), nil
 }

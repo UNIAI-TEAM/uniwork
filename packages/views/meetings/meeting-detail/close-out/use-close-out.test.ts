@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { effectiveValues, listKeyAction, useCloseOut } from "./use-close-out";
 
@@ -81,5 +81,86 @@ describe("useCloseOut", () => {
 
     act(() => result.current.clear());
     expect(result.current.picked).toEqual([]);
+  });
+
+  describe("after an assignment", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("undo bar leaves after eight seconds", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(7_999);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current.assigned).toBeNull();
+    });
+
+    it("a second assignment starts the eight seconds again, and clearing ends them", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      act(() => result.current.markAssigned(["a2"]));
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a2"]);
+      act(() => result.current.clearAssigned());
+      expect(result.current.assigned).toBeNull();
+    });
+
+    it("reads the wall clock, so a system sleep past the window ends the undo", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      // Asleep: the wall clock jumps, the timers did not run.
+      vi.setSystemTime(Date.now() + 60_000);
+      let ids: readonly string[] | null = ["x"];
+      act(() => {
+        ids = result.current.undoIds();
+      });
+      expect(ids).toBeNull();
+      expect(result.current.assigned).toBeNull();
+    });
+
+    it("holding the dock pauses the countdown, up to the server's window", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      act(() => result.current.holdUndo(true));
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(result.current.undoIds()).toEqual(["a1"]);
+      // Let go: the five seconds left are still there.
+      act(() => result.current.holdUndo(false));
+      act(() => {
+        vi.advanceTimersByTime(4_750);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(result.current.assigned).toBeNull();
+
+      // Held past the server's two minutes, it ends anyway.
+      act(() => result.current.markAssigned(["a2"]));
+      act(() => result.current.holdUndo(true));
+      act(() => {
+        vi.advanceTimersByTime(120_000);
+      });
+      expect(result.current.assigned).toBeNull();
+    });
   });
 });

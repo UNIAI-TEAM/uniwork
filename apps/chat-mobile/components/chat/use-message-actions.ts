@@ -2,7 +2,6 @@
 // (through the mutation layer, data/mutations/messages.ts) and what each
 // long-press action does, with the failure each one says. Conversation draws;
 // this hook acts, so a new message action touches one unit.
-import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
@@ -28,6 +27,7 @@ import { toast } from "@/data/stores/toast-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import type { ConversationSheetAction } from "@/lib/conversation-sheets";
 import type { TimelineMessage } from "@/lib/timeline-display";
+import { taskDraftFromSources } from "./create-task-sheet";
 import type { ChatWorkspace } from "./use-chat-workspace";
 
 type FollowUpCommand = "create" | "complete" | "convert" | "remove";
@@ -107,10 +107,11 @@ export function useMessageActions({ chat, roomId, followUpOf, senderName, sheets
       onEdit: composer.edit,
       onDelete: confirmDelete,
       onFollowUp: followUp,
-      onCreateTask: (message: TimelineMessage) =>
-        void createTask({ messageId: message.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(message.body)) }).catch(
-          () => toast.error(t("chat.link.create_error")),
-        ),
+      onCreateTask: (message: TimelineMessage) => {
+        const draft = taskDraftFromSources([{ id: message.id, body: message.record?.body ?? message.body, sentAt: message.ts }]);
+        if (!draft) return;
+        sheets({ type: "open", sheet: { kind: "createTask", ...draft, count: 1 } });
+      },
       onRetry: (message: TimelineMessage) => {
         if (message.pending) retrySend(message.pending);
       },

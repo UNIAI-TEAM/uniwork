@@ -5,7 +5,7 @@ import { applyBadge } from "../badge";
 import { DEEP_LINK_CHANNEL, type MainRendererQueue } from "../deep-link";
 import { downloadURLSafely, openExternalSafely, openNotificationSettings } from "../external-url";
 import type { ShellConfig } from "../runtime-config";
-import { expectBoolean, expectCount, expectUrl, guard, isTrustedSender, sendToApp } from "./schema";
+import { expectBoolean, expectCount, expectLoginOptions, expectUrl, guard, isTrustedSender, sendToApp } from "./schema";
 
 export interface IpcDeps {
   config: ShellConfig;
@@ -41,7 +41,7 @@ export function registerIpc(deps: IpcDeps): void {
     event.returnValue = isTrustedSender(event, origin) ? appInfo(app.getVersion(), process.platform) : null;
   });
 
-  ipcMain.handle("session:login", guard(origin, nothing, () => session.login()));
+  ipcMain.handle("session:login", guard(origin, expectLoginOptions, (options) => session.login(options?.provider)));
   ipcMain.handle("session:get-access-token", guard(origin, nothing, () => session.getAccessToken()));
   ipcMain.handle("session:refresh", guard(origin, nothing, () => session.refresh()));
   ipcMain.handle("session:logout", guard(origin, nothing, () => session.logout()));

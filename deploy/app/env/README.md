@@ -69,7 +69,7 @@ kubectl -n uniwork create secret generic uniwork-openai \
 
 Rotate the key on OpenRouter if it was ever exposed; update the secret and restart `uniwork-be`.
 
-### Apple (UniChat on the iPhone)
+### Apple (Sign in with Apple, iPhone calls)
 
 Secret `uniwork-apple` holds the two Apple keys of team `XJAM488A6D`; the BE reads
 it through `be.secrets.apns` and `be.secrets.siwa` with `optional: true`, so a
@@ -78,10 +78,11 @@ cluster without it still starts the pod:
 | Key | What | Without it |
 |---|---|---|
 | `APNS_KEY_ID`, `APNS_PRIVATE_KEY` | APNs token-auth key (`.p8`, PEM text) for iPhone VoIP call pushes (ADR 0038) | VoIP off, iPhones keep the Expo call push; the BE logs at start that the APNs key is incomplete |
-| `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` | Sign in with Apple key (`.p8`, PEM text) that signs Apple's client secret (ADR 0041) | sign-in works, account deletion cannot revoke the Apple grant (logged at start) |
+| `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` | Sign in with Apple key (`.p8`, PEM text) that signs Apple's client secret (ADR 0041, 0049) | the web's Apple stays off (desktop and Android included, since they sign in with Apple through the web); the iPhone's sign-in works, but account deletion cannot revoke the Apple grant (logged at start) |
 
 The non-secret half is in `uniwork-be.env`: `APNS_TEAM_ID`, `APPLE_SIWA_TEAM_ID`,
-`APPLE_SIWA_AUDIENCES` (empty turns Sign in with Apple off) and `APNS_VOIP_TOPIC`
+`APPLE_SIWA_AUDIENCES` (empty turns the iPhone's Sign in with Apple off),
+`APPLE_SIWA_WEB_CLIENT_ID` (the web's Services ID; empty hides Apple on the web) and `APNS_VOIP_TOPIC`
 (kept empty: each push uses the token's own `<bundle id>.voip`). iPhone calls
 also need the `unichat_mobile_calls_ios` flag (default off, `/admin`).
 

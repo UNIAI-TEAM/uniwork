@@ -1,0 +1,822 @@
+{
+  "schemaVersion": 1,
+  "version": "1.14.0",
+  "date": "2026-10-30",
+  "ready": true,
+  "sourceRef": "349c27ed4d2af0ef189b6068697bec45b43a0c59",
+  "previousSourceRef": "294418f863a48b1e0f4b88c9659e797104b26243",
+  "title": {
+    "vi": "Tìm tệp theo nội dung trong Tài liệu và Hỏi UNI, AI trong trình soạn Office chỉ dùng UniWork AI, khách họp vào phòng nhanh hơn",
+    "en": "Find files by their content in Documents and Ask UNI, Office editor AI runs only on UniWork AI, link guests get into meetings faster"
+  },
+  "summary": {
+    "vi": "Ô tìm của Tài liệu và Hỏi UNI nay tìm được tệp Word, Excel, PowerPoint và tệp văn bản theo chữ bên trong tệp, kèm đoạn trích quanh chỗ khớp. AI trong trình soạn Office trên web chỉ chạy bằng UniWork AI; tùy chọn khóa AI riêng của tổ chức đã được gỡ. Hỏi UNI soạn tệp Office có công tắc riêng cho từng tổ chức. Khách vào họp bằng link không còn phải chờ lâu sau khi chủ trì cho vào.",
+    "en": "The Documents search box and Ask UNI now find Word, Excel, PowerPoint and text files by the words inside them, with a snippet around the match. AI in the Office editor on the web runs only on UniWork AI; the option to use the organization's own AI key has been removed. Ask UNI drafting Office files has its own switch for each organization. Guests joining a meeting by link no longer wait long after the host admits them."
+  },
+  "note": {
+    "vi": "Tìm theo nội dung chỉ đọc 20.000 ký tự đầu của mỗi tệp và chưa hỗ trợ PDF, HTML, ảnh, video hay tệp lớn hơn 20 MiB; tệp đã có từ trước chỉ tìm được theo nội dung sau khi được lập chỉ mục lại. Hỏi UNI soạn tệp Office mặc định tắt cho tới khi UniWork bật cho tổ chức của bạn. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập.",
+    "en": "Content search reads only the first 20,000 characters of each file and doesn't yet cover PDF, HTML, images, video or files larger than 20 MiB; files that already existed are found by their content only after they have been re-indexed. Ask UNI drafting Office files is off by default until UniWork turns it on for your organization. The desktop app still accepts an AI key you enter yourself."
+  },
+  "changes": [
+    {
+      "commit": "e3ea8eb68e6c7fc69ae76dec888362734b8a038e",
+      "subject": "docs: plan 1 of the BYOK removal and plan 5 of Ask UNI Office shipped",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): tài liệu kế hoạch nội bộ; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "7d68e364a23008c66ab52730e0daad0590fe7b72",
+      "subject": "fix(office): grant the frame's cloud tools with UniWork AI, not with BYOK",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): cấp quyền tìm web, tìm ảnh, tạo ảnh của khung trình soạn theo UniWork AI; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "4599b03fb71fba899ae583310ab574cbdbffaf48",
+      "subject": "docs(changelog): đề xuất Changelog v1.13.0 — duyệt nội dung Việt/Anh (UNI-2293)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #521 (mô tả PR): các file công bố Changelog v1.13.0; nội dung của phiên bản trước, không phải thay đổi mới của ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/521"
+      }
+    },
+    {
+      "commit": "e90cc8c27246adc34dfb30501bdcd000ece46e03",
+      "subject": "refactor(ai): remove the BYOK key store, proxy routes and vendor client from the server",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "AI trong trình soạn Office trên web nay chỉ chạy bằng UniWork AI: tùy chọn dùng khóa AI riêng (BYOK) của tổ chức đã được gỡ, cùng các khóa đã lưu. Tìm trên web, tìm ảnh và tạo ảnh trong trình soạn đi theo quyền dùng UniWork AI của tổ chức. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập, và trang quyền riêng tư nói rõ khi đó nội dung được gửi thẳng tới nhà cung cấp AI.",
+        "en": "AI in the Office editor on the web now runs only on UniWork AI: the option to use the organization's own AI key (BYOK) has been removed, along with any saved keys. Web search, image search and image generation in the editor follow the organization's access to UniWork AI. The desktop app still accepts an AI key you enter yourself, and the privacy page explains that content is then sent straight to the AI provider."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "48ef4ee0401229f55b1af60d9093210999c2c7ab",
+      "subject": "feat(db): drop ai_provider_credentials and the office.ai_byok plan feature",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): migration bỏ bảng khóa AI riêng và tính năng gói office.ai_byok; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "3ed2e9e6134abb8c77b55eb1b011e6abc6d6950b",
+      "subject": "refactor(web): drop the unused key-store client, the own-key copy and the byok half of the G7 harness",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): bỏ client kho khóa và chữ khóa riêng trên web, cùng phần bộ chạy thử; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "18b467205568c51bb1099db12ef621a012ba3c64",
+      "subject": "chore(deploy): client Google của app cho dev (bản staging) và production (bản store) (#522)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #522 (mô tả PR): cấu hình OAuth client Google trong file env triển khai dev/production cho đăng nhập Google trong app điện thoại; cấu hình triển khai, PR ghi chưa kiểm đăng nhập thật. Giới hạn cấu hình đã nêu ở ghi chú v1.13.0.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/522"
+      }
+    },
+    {
+      "commit": "ea489ebc3c5a982d3873ae2c583eb00a34bbbbd8",
+      "subject": "fix(web): keep the desktop key disclosure on the privacy page and drop the dead G7-08 vendor parsers",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): giữ đoạn khóa desktop trên trang quyền riêng tư và bỏ parser bộ chạy thử; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "a4c4ca06917ac20823ea288ccd20e9904c4e50e5",
+      "subject": "fix: move LiveKit public URL to livekit.uniworkos.com",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #524 (mô tả PR): chuyển tên miền LiveKit, chứng chỉ TLS và NetworkPolicy của cụm; hạ tầng triển khai, test plan trong PR chưa được tích.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/524"
+      }
+    },
+    {
+      "commit": "09ed0baa123e6d884a0172d5c958924fd9675265",
+      "subject": "docs: ADR 0051, UniWork AI only; BYOK leaves the web frame, the org key store and the server",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): ADR 0051, tài liệu nội bộ; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "5a5c1cf584ba6c96838b8c746a7600006d8a2540",
+      "subject": "docs: name only the key-store parts of ADR 0028 and 0029 as superseded by 0051",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): chỉnh tài liệu ADR; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "198a7ef8452c7c0dc8f94034826faaaa882d0d39",
+      "subject": "chore(office): re-pin the web modules at c4b20c5 without BYOK and re-vendor the frame protocol",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): pin lại module khung trình soạn và vendor lại giao thức, kỹ thuật; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "63bbe608eb905b2236de4d89da4dd7cf4b733a57",
+      "subject": "docs(office): regenerate the genoffice tool extract at c4b20c542",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): sinh lại bảng công cụ, tài liệu kỹ thuật; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "18c6131b35451bf20ae3fddb9b5b9ba7bd091267",
+      "subject": "docs: plan 1 of the BYOK removal implemented, waiting for the PR",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): tài liệu trạng thái kế hoạch; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "03a8b3e5efdea7da6fbadbf516b0ca61be0b6589",
+      "subject": "docs(office): record the Sheets wasm checksum of the c4b20c5 and 8d73c6b builds",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): ghi checksum bản build, kỹ thuật; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "75e875948d51a40cfd0bc3ef2d0adf8db7812a7e",
+      "subject": "fix(office): switch UniWork AI on in the G7-06 harness server so web frame tokens carry uniwork_ai",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): sửa máy chủ bộ chạy thử G7-06, chỉ công cụ kiểm thử; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "0d68b60e3ffbf6da3a53a62a4d454bef99b9605c",
+      "subject": "fix(landing): say a desktop user's own AI key sends content straight to the provider",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): câu chữ trang quyền riêng tư về khóa AI trong app desktop; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "af7cf6def7e3a2c00a07bc0f7f038f48f3280742",
+      "subject": "docs: correct the office.ai_cloud scope in CLAUDE.md and ADR 0051, state the protocol re-vendor as done",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): chỉnh tài liệu CLAUDE.md và ADR; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "49ef2853785818aad5b53587a97e108fecf52e79",
+      "subject": "fix(ai): cite the c4b20c542 genoffice schema in the UniWork tool table comment",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): chú thích trong code, không đổi hành vi; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "690722d19cb32ed3caefde70dfd45681fc2ddd92",
+      "subject": "chore(mobile): record the reviewed privacy page hash for two web copies",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): ghi hash trang quyền riêng tư cho app điện thoại, kỹ thuật; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "536b8de061e5c40562d7458797bbd22f4bb7b259",
+      "subject": "fix(ci): chart job expects the new LiveKit host",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #528 (mô tả PR): script CI của job chart theo host LiveKit mới; chỉ CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/528"
+      }
+    },
+    {
+      "commit": "476f70d48b22607a282f659926a4106b4c470488",
+      "subject": "test(office): stop tying the G7-06 goldens to the live frame pin",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #527 (mô tả PR): test ảnh mẫu G7-06, chỉ kiểm thử; gộp vào mục AI trong trình soạn Office chỉ dùng UniWork AI (e90cc8c27).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/527"
+      }
+    },
+    {
+      "commit": "f2f2995fbbedf35956be38a7ebb65a563a4b5faf",
+      "subject": "chore(deps): ignore CVE-2026-118664 (decode-uri-component via expo-router)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #529 chỉ có template chưa điền nên đọc diff (fallback): chỉ đổi cấu hình audit phụ thuộc trong package.json; hạ tầng build, không đổi hành vi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "commit": "f6274a0c5991e5f1bd1215451c815d03cc7b5e69",
+      "subject": "fix(meetings): let a link guest hear the host's approval on the lobby socket (#530)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
+        "en": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/530"
+      }
+    },
+    {
+      "commit": "eef1c59aa23e504de033c5b17629e5852f432d8f",
+      "subject": "docs: plan 1 of the BYOK removal shipped",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #531 (mô tả PR): chỉ tài liệu kế hoạch/roadmap gỡ BYOK.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/531"
+      }
+    },
+    {
+      "commit": "50886c82aec5f6ee301fc63bdea26ab9b3092825",
+      "subject": "docs: plan 6 of Ask UNI drafting Office files, going to production",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu kế hoạch 6; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "c8edec27b62389b94f9fff325c6ab7258fab8545",
+      "subject": "feat(ai): ask_uni_office switches Ask UNI's Office drafting tools and refuses their Apply when off",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hỏi UNI soạn tệp Office có công tắc riêng, mặc định tắt, do UniWork bật cho từng tổ chức. Khi tắt, Hỏi UNI không đề xuất soạn tệp, và việc áp dụng các đề xuất soạn tệp đã có, kể cả trong một kế hoạch hay ở chế độ Tự động, bị từ chối kèm thông báo rõ ràng thay vì áp dụng dở dang. Đọc tệp đính kèm và mục Mẫu văn bản không bị ảnh hưởng.",
+        "en": "Ask UNI drafting Office files has its own switch, off by default, which UniWork turns on for each organization. While it's off, Ask UNI doesn't offer to draft files, and applying existing drafting suggestions, including within a plan or in Auto mode, is refused with a clear message instead of being applied partway. Reading attached files and the Templates section are not affected."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "24a9a82936b3e62cae6fdee2028b5776a18048c6",
+      "subject": "fix(ai): ask_uni_office also refuses plan and Auto applies by checking in applyRow",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): áp dụng kế hoạch và chế độ Tự động cũng bị từ chối khi tắt; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "9e13e0e6758424dcccbcdb3f669c96f3e49c5767",
+      "subject": "test(ai): an offline eval case for Ask UNI drafting a Word file",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): ca eval offline, chỉ kiểm thử; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "a9f5404e7381da46dac294b2070cc2d5d780d0e7",
+      "subject": "docs(ops): say the eval runner turns ask_uni_office on for every case with a mode",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu vận hành eval; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "a5bb6cf06748173f1e5352e60e28c8618efa25bc",
+      "subject": "docs(ops): Office AI go-live checklist and the ask_uni_office switch in the AI runbook",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): checklist lên production và runbook AI, tài liệu vận hành; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "bd0dcab00de5073411e160094e2c318dce47bd8c",
+      "subject": "docs(ops): the go-live checklist checks server-only flags in /admin and rolls back with overrides",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): checklist vận hành; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "f70ef5e4c816a223a4183daaa31daceaee411405",
+      "subject": "docs: plan 6 of Ask UNI drafting Office files implemented, waiting for the PR",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu trạng thái kế hoạch; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "582f63f52334540248eb2f2167c2a5571225f16a",
+      "subject": "fix(ai): a plan apply refuses drafting rows before any row runs",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): áp dụng kế hoạch bị từ chối từ đầu, không áp dụng dở dang; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "78287a5756664cbda4a7a546ecf1a2176c203d3d",
+      "subject": "test(ai): the office eval case forbids saying the file exists",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): ca eval, chỉ kiểm thử; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "2577264a06874112d258b3498b3d082c6f6fd39b",
+      "subject": "docs(ops): go-live order gains ask_uni_stream, and ask_uni_office_off is documented",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu vận hành thứ tự bật cờ; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "d93311a247fbd6b797b0d13529c89b45ea395fa9",
+      "subject": "docs: plan 6 Task 1 matches ruling R2 and Tasks 1-3 are ticked",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu kế hoạch; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "d4fa1b92db5d20c8a0213e308e72ee5a2462f98f",
+      "subject": "docs(ops): edit, dismiss and undo of an office card all pass only the ask_uni_actions gate",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #532 (mô tả PR): tài liệu vận hành về sửa/bỏ qua/hoàn tác thẻ; gộp vào mục công tắc Hỏi UNI soạn tệp Office (c8edec27b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/532"
+      }
+    },
+    {
+      "commit": "3408583d9116c3c3aeb6744487fabf8cb3210961",
+      "subject": "docs: plan 6 of Ask UNI drafting Office files shipped",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #533 (mô tả PR): chỉ tài liệu kế hoạch/roadmap Hỏi UNI soạn tệp Office.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/533"
+      }
+    },
+    {
+      "commit": "3f0a70436671edbd1d4ac3a874690dc2f4bfcbb4",
+      "subject": "docs: plan 7 of Ask UNI drafting Office files - content search of file documents",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): tài liệu kế hoạch 7; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "7b8dd50e0ba25d08384fb8540d62b97e52811f8e",
+      "subject": "feat(documents): every new file version requests its text index",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): mỗi version tệp mới yêu cầu lập chỉ mục chữ; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "4085a8eedb58978b692c041f1bea880a08554a1f",
+      "subject": "test(arch): file versions are inserted only through insertFileVersion",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): test kiến trúc; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "19f5e9f57b705db4e4f60e308c6fc31127c771a3",
+      "subject": "feat(documents): a slow-lane consumer indexes the text of file documents",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: ô tìm và Hỏi UNI nay tìm được tệp theo chữ bên trong tệp DOCX, XLSX, PPTX, ODT, CSV, Markdown và TXT. Kết quả tìm có đoạn trích ngắn lấy quanh chỗ khớp, nên bạn thấy ngay vì sao tệp được tìm ra, kể cả khi chữ khớp nằm sâu trong tệp. Tệp hạn chế mà bạn không có quyền đọc vẫn không lộ nội dung trong kết quả.",
+        "en": "Documents: the search box and Ask UNI now find files by the text inside DOCX, XLSX, PPTX, ODT, CSV, Markdown and TXT files. Results show a short snippet around the match so you can see why a file was found, even when the matching words are deep inside the file. Restricted files you can't read still don't reveal their content in results."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "1b1577dc6c37ff5261b9935be3831805f65d0085",
+      "subject": "feat(documents): search snippets show the matched words",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): đoạn trích kết quả lấy quanh chỗ khớp; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "422ced25b1214b9e4becad7c09f0c2c7417c90f8",
+      "subject": "feat(documents): document-text-reindex requests the index of existing files",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): lệnh vận hành document-text-reindex lập chỉ mục tệp đã có (do ops chạy); gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "7d34b270dfb83ad9ee4fb76eeb701a19745d96d6",
+      "subject": "docs: content search of files in the documents runbook and the plan status",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): runbook và trạng thái kế hoạch; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "e6100cb654acdd6ab9e86011a5a6df2e4124805d",
+      "subject": "fix(documents): the text indexer survives a panic and drops files it cannot serve",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): bộ lập chỉ mục chịu được panic và bỏ tệp không đọc được; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "a23c517fb5787325b872ac3d49fc3db88ef72a15",
+      "subject": "fix(search): matchSnippet folds only the indexed window of a file's text",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): đoạn trích chỉ xét phần chữ đã lập chỉ mục, hiệu năng; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "52baaf891ee2255cc3f93bc5ded00a5fcf0d08c6",
+      "subject": "fix(documents): the document tree query stops loading body text",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): truy vấn cây thư mục thôi tải phần thân, tối ưu nội bộ; PR không mô tả thay đổi người dùng thấy được; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "4e709a6a3d13a3dc40f34bf75d105168bcca7ff5",
+      "subject": "fix(documents): the reindex command paces itself behind the slow lane",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): lệnh reindex tự chờ làn chậm, vận hành; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "30199856c22a3ae336c969bedab037e205bdd8bd",
+      "subject": "test(documents): the text index topic is checked against the outbox catalogue",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #535 (mô tả PR): test catalogue outbox; gộp vào mục tìm tệp theo nội dung (19f5e9f57).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/535"
+      }
+    },
+    {
+      "commit": "b956d05399ce5cf702b4cdac62400c7cf86e4bf4",
+      "subject": "chore(deploy): point the UniChat desktop beta download at 0.1.0-beta.3 (#534)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #534 (mô tả PR): đổi URL bản cài UniChat desktop kênh beta trong file env triển khai; cấu hình phát hành, PR ghi chưa kiểm trang tải thật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/534"
+      }
+    },
+    {
+      "commit": "349c27ed4d2af0ef189b6068697bec45b43a0c59",
+      "subject": "fix(chat): tắt gợi ý mention khi gõ email",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước.",
+        "en": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/chat/chat-mention-utils.ts",
+          "packages/core/chat/chat-mention-utils.test.ts"
+        ]
+      }
+    }
+  ]
+}

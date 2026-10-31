@@ -1,4 +1,4 @@
-# Golden flow 1: a fresh install signs in through the system browser, opens
+# Golden flow 1: a fresh install signs in on the app's own screen, opens
 # the test room from the conversation list, sends a message and reads it back
 # from the server after a cold start (a relaunch holds no local copy of a send
 # the server already echoed, so seeing it again proves it landed).

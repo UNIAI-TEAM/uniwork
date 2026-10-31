@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOpenOutboxByTopic = `-- name: CountOpenOutboxByTopic :one
+SELECT count(*)::bigint FROM outbox_events
+WHERE topic = $1 AND status IN ('PENDING', 'PROCESSING')
+`
+
+// cmd/document-text-reindex: how many requests of one topic still wait for or
+// sit in a consumer, so the command can pace itself behind the slow lane.
+// tenant: system
+func (q *Queries) CountOpenOutboxByTopic(ctx context.Context, topic string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenOutboxByTopic, topic)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const documentFileInUse = `-- name: DocumentFileInUse :one
 SELECT EXISTS (
   SELECT 1 FROM document_versions v
@@ -44,6 +59,99 @@ func (q *Queries) DocumentFileInUse(ctx context.Context, arg DocumentFileInUsePa
 	return in_use, err
 }
 
+const listFileDocumentsForTextIndex = `-- name: ListFileDocumentsForTextIndex :many
+SELECT id, organization_id, workspace_id, file_version_id
+FROM documents
+WHERE kind = 'file'
+  AND file_version_id IS NOT NULL
+  AND ($1::text IS NULL OR organization_id = $1)
+  AND id > $2
+ORDER BY id
+LIMIT $3
+`
+
+type ListFileDocumentsForTextIndexParams struct {
+	OrganizationID pgtype.Text `json:"organization_id"`
+	AfterID        string      `json:"after_id"`
+	PageLimit      int32       `json:"page_limit"`
+}
+
+type ListFileDocumentsForTextIndexRow struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
+// cmd/document-text-reindex: one keyset page of file documents across
+// organizations (or one, when organization_id is set), to request the text
+// index of files uploaded before document.text_index_requested existed.
+// tenant: system
+func (q *Queries) ListFileDocumentsForTextIndex(ctx context.Context, arg ListFileDocumentsForTextIndexParams) ([]ListFileDocumentsForTextIndexRow, error) {
+	rows, err := q.db.Query(ctx, listFileDocumentsForTextIndex, arg.OrganizationID, arg.AfterID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFileDocumentsForTextIndexRow{}
+	for rows.Next() {
+		var i ListFileDocumentsForTextIndexRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.FileVersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setDocumentFileText = `-- name: SetDocumentFileText :execrows
+UPDATE documents
+SET content_text = $1,
+    search_text = $2
+WHERE id = $3
+  AND organization_id = $4
+  AND workspace_id = $5
+  AND kind = 'file'
+  AND file_version_id = $6
+`
+
+type SetDocumentFileTextParams struct {
+	ContentText    string      `json:"content_text"`
+	SearchText     string      `json:"search_text"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
+// The text index of a file document (document.text_index_requested consumer):
+// the extracted text and the folded search column. A derived column, not a
+// content change, so revision, content_revision and updated_at stay as they
+// are. The file_version_id guard drops a result for a version that is no
+// longer current; zero rows is not an error.
+func (q *Queries) SetDocumentFileText(ctx context.Context, arg SetDocumentFileTextParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDocumentFileText,
+		arg.ContentText,
+		arg.SearchText,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.FileVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setDocumentFileVersion = `-- name: SetDocumentFileVersion :one
 
 UPDATE documents
@@ -51,6 +159,7 @@ SET file_version_id = $1,
     current_version = $2,
     title = $3,
     search_text = $4,
+    content_text = '',
     revision = revision + 1,
     content_revision = revision + 1,
     updated_by = $5,

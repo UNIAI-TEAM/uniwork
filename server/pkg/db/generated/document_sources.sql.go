@@ -55,38 +55,39 @@ WITH base AS (
           OR upper($2::text) = ANY(string_to_array(upper(COALESCE(r.member_set_key, '')), '|'))))
     )
     AND ($4::text IS NULL OR m.id = $4::text)
+    AND ($5::text IS NULL OR r.id = $5::text)
 ), page AS (
   SELECT id, source_id, sort_at, sender_id, sender_kind, room_id, room_kind, room_name, name, mime_type, size_bytes, name_key, editor_key, editor_null
   FROM base
   WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
     -- requested direction; an editor-less row (editor_null) is always last.
-    ($5::text IS NULL OR CASE $6::text
-         WHEN 'updated' THEN CASE WHEN $7::boolean
-              THEN (sort_at, source_id COLLATE "C") < ($8::timestamptz, $5::text COLLATE "C")
-              ELSE (sort_at, source_id COLLATE "C") > ($8::timestamptz, $5::text COLLATE "C") END
-         WHEN 'size' THEN CASE WHEN $7::boolean
-              THEN (size_bytes, source_id COLLATE "C") < ($9::bigint, $5::text COLLATE "C")
-              ELSE (size_bytes, source_id COLLATE "C") > ($9::bigint, $5::text COLLATE "C") END
-         WHEN 'name' THEN CASE WHEN $7::boolean
-              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C")
-              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C") END
-         WHEN 'editor' THEN (editor_null::int > $11::boolean::int
-              OR (editor_null = $11::boolean
-                  AND CASE WHEN $7::boolean
-              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C")
-              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C") END))
+    ($6::text IS NULL OR CASE $7::text
+         WHEN 'updated' THEN CASE WHEN $8::boolean
+              THEN (sort_at, source_id COLLATE "C") < ($9::timestamptz, $6::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > ($9::timestamptz, $6::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN $8::boolean
+              THEN (size_bytes, source_id COLLATE "C") < ($10::bigint, $6::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > ($10::bigint, $6::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN $8::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($11::text COLLATE "vi-x-icu", $6::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($11::text COLLATE "vi-x-icu", $6::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > $12::boolean::int
+              OR (editor_null = $12::boolean
+                  AND CASE WHEN $8::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($11::text COLLATE "vi-x-icu", $6::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($11::text COLLATE "vi-x-icu", $6::text COLLATE "C") END))
          ELSE true END)
-    AND ($6::text IS DISTINCT FROM 'updated' OR $5::text IS NULL
-         OR CASE WHEN $7::boolean THEN sort_at <= $8::timestamptz
-                 ELSE sort_at >= $8::timestamptz END)
-  AND ($12::timestamptz IS NULL
-      OR (sort_at <= $12::timestamptz
-        AND (sort_at, source_id COLLATE "C") < ($12::timestamptz, $13::text COLLATE "C")))
-    AND ($14::text IS NULL OR uw_fold_search(name) LIKE '%' || $14::text || '%')
-    AND CASE $15::text
-      WHEN 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($16::text[])
+    AND ($7::text IS DISTINCT FROM 'updated' OR $6::text IS NULL
+         OR CASE WHEN $8::boolean THEN sort_at <= $9::timestamptz
+                 ELSE sort_at >= $9::timestamptz END)
+  AND ($13::timestamptz IS NULL
+      OR (sort_at <= $13::timestamptz
+        AND (sort_at, source_id COLLATE "C") < ($13::timestamptz, $14::text COLLATE "C")))
+    AND ($15::text IS NULL OR uw_fold_search(name) LIKE '%' || $15::text || '%')
+    AND CASE $16::text
+      WHEN 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($17::text[])
       WHEN 'image' THEN mime_type LIKE 'image/%'
-      WHEN 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($16::text[]))
+      WHEN 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($17::text[]))
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
@@ -95,20 +96,20 @@ WITH base AS (
   -- bound parameter, so the planner folds the unused ones away and a plain
   -- (key, id) order remains.
   ORDER BY
-    (CASE WHEN $6::text IS NULL THEN sort_at END) DESC,
-    (CASE WHEN $6::text IS NULL THEN id COLLATE "C" END) DESC,
-    (CASE WHEN $6::text = 'editor' THEN editor_null END) ASC,
-    (CASE WHEN $6::text = 'name' AND NOT $7::boolean THEN name_key
-          WHEN $6::text = 'editor' AND NOT $7::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
-    (CASE WHEN $6::text = 'name' AND $7::boolean THEN name_key
-          WHEN $6::text = 'editor' AND $7::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
-    (CASE WHEN $6::text = 'size' AND NOT $7::boolean THEN size_bytes END) ASC,
-    (CASE WHEN $6::text = 'size' AND $7::boolean THEN size_bytes END) DESC,
-    (CASE WHEN $6::text = 'updated' AND NOT $7::boolean THEN sort_at END) ASC,
-    (CASE WHEN $6::text = 'updated' AND $7::boolean THEN sort_at END) DESC,
-    (CASE WHEN $6::text IS NOT NULL AND NOT $7::boolean THEN id COLLATE "C" END) ASC,
-    (CASE WHEN $6::text IS NOT NULL AND $7::boolean THEN id COLLATE "C" END) DESC
-  LIMIT $17::int
+    (CASE WHEN $7::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN $7::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN $7::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN $7::text = 'name' AND NOT $8::boolean THEN name_key
+          WHEN $7::text = 'editor' AND NOT $8::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN $7::text = 'name' AND $8::boolean THEN name_key
+          WHEN $7::text = 'editor' AND $8::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN $7::text = 'size' AND NOT $8::boolean THEN size_bytes END) ASC,
+    (CASE WHEN $7::text = 'size' AND $8::boolean THEN size_bytes END) DESC,
+    (CASE WHEN $7::text = 'updated' AND NOT $8::boolean THEN sort_at END) ASC,
+    (CASE WHEN $7::text = 'updated' AND $8::boolean THEN sort_at END) DESC,
+    (CASE WHEN $7::text IS NOT NULL AND NOT $8::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN $7::text IS NOT NULL AND $8::boolean THEN id COLLATE "C" END) DESC
+  LIMIT $18::int
 )
 SELECT
   p.source_id::text AS source_id,
@@ -146,6 +147,7 @@ type ListDocumentSourceChatFilesParams struct {
 	ViewerID       string             `json:"viewer_id"`
 	WorkspaceID    string             `json:"workspace_id"`
 	RowID          pgtype.Text        `json:"row_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
 	SortCursorID   pgtype.Text        `json:"sort_cursor_id"`
 	SortKey        pgtype.Text        `json:"sort_key"`
 	SortDesc       bool               `json:"sort_desc"`
@@ -197,6 +199,7 @@ type ListDocumentSourceChatFilesRow struct {
 //	type_mode            '' all | 'ext' extension in type_exts | 'image' |
 //	                     'other' neither a known extension nor an image
 //	row_id               one row by its own id (download/save lookup)
+//	parent_id            only the files held by this room / task / meeting / thread
 //
 // Shape of each query: "base" holds the domain's gate and the raw columns;
 // "page" applies the keyset and filters, sorts on the base columns (so the
@@ -219,6 +222,7 @@ func (q *Queries) ListDocumentSourceChatFiles(ctx context.Context, arg ListDocum
 		arg.ViewerID,
 		arg.WorkspaceID,
 		arg.RowID,
+		arg.ParentID,
 		arg.SortCursorID,
 		arg.SortKey,
 		arg.SortDesc,
@@ -305,6 +309,7 @@ WITH base AS (
         AND btrim(ea2.filename) <> ''
         AND ea2.id < ea.id)
     AND ($16::text IS NULL OR ea.id = $16::text)
+    AND ($17::text IS NULL OR th.id = $17::text)
 )
 SELECT
   source_id::text AS source_id,
@@ -390,6 +395,7 @@ type ListDocumentSourceEmailFilesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	ViewerID       string             `json:"viewer_id"`
 	RowID          pgtype.Text        `json:"row_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
 }
 
 type ListDocumentSourceEmailFilesRow struct {
@@ -442,6 +448,7 @@ func (q *Queries) ListDocumentSourceEmailFiles(ctx context.Context, arg ListDocu
 		arg.OrganizationID,
 		arg.ViewerID,
 		arg.RowID,
+		arg.ParentID,
 	)
 	if err != nil {
 		return nil, err
@@ -507,6 +514,7 @@ WITH base AS (
     AND rec.status = 'COMPLETE'
     AND rec.file_id IS NOT NULL
     AND ($4::text IS NULL OR rec.id = $4::text)
+    AND ($5::text IS NULL OR mt.id = $5::text)
   UNION ALL
   SELECT
     ('minutes:' || mt.id)::text AS id,
@@ -531,69 +539,70 @@ WITH base AS (
    AND doc.workspace_id = mt.workspace_id
   LEFT JOIN users eu ON eu.id = doc.updated_by AND doc.updated_by_kind = 'human'
   WHERE $4::text IS NULL
-    AND $5::boolean
+    AND $6::boolean
     AND mt.organization_id = $1::text
     AND mt.workspace_id = $3::text
     AND doc.organization_id = $1::text
     AND doc.workspace_id = $3::text
     AND mt.minutes_document_id IS NOT NULL
+    AND ($5::text IS NULL OR mt.id = $5::text)
     AND doc.archived_at IS NULL
     AND doc.kind = 'page'
     AND doc.owner_id IS NULL
     -- Same permission + content-readable predicate as ListDocumentsPage
     -- (server/pkg/db/queries/document_search.sql:40-61,137-164), fed by
     -- DocumentService.documentListScope (server/internal/service/document_search.go:399-470).
-    AND (($6::boolean
-          AND (doc.system_kind IS NULL OR doc.system_kind <> 'my_folder' OR doc.acl_owner_id = $7::text)
-          AND (doc.acl_owner_id = $7::text
-               OR (doc.visibility = 'workspace' AND doc.workspace_level = ANY($8::text[]))
+    AND (($7::boolean
+          AND (doc.system_kind IS NULL OR doc.system_kind <> 'my_folder' OR doc.acl_owner_id = $8::text)
+          AND (doc.acl_owner_id = $8::text
+               OR (doc.visibility = 'workspace' AND doc.workspace_level = ANY($9::text[]))
                OR EXISTS (
                     SELECT 1 FROM document_break_glass_grants g
                     WHERE g.organization_id = doc.organization_id
                       AND g.workspace_id = doc.workspace_id
                       AND g.document_id = doc.id
-                      AND g.actor_id = $7::text
+                      AND g.actor_id = $8::text
                       AND g.actor_kind = 'human'
                       AND g.revoked_at IS NULL
                       AND g.expires_at > now())
                OR NOT EXISTS (
                     SELECT 1 FROM uw_my_folder_foreign_ids(
-                      $7::text, $1::text, $3::text, $9::int
+                      $8::text, $1::text, $3::text, $10::int
                     ) mfs WHERE mfs.document_id = doc.id)))
-         OR ($10::boolean AND doc.visibility = 'workspace'
-             AND doc.workspace_level = ANY($8::text[]))
-         OR ($11::boolean AND doc.acl_owner_id = $7::text)
-         OR ($12::boolean AND EXISTS (
+         OR ($11::boolean AND doc.visibility = 'workspace'
+             AND doc.workspace_level = ANY($9::text[]))
+         OR ($12::boolean AND doc.acl_owner_id = $8::text)
+         OR ($13::boolean AND EXISTS (
               SELECT 1 FROM document_shares s
               WHERE s.organization_id = doc.organization_id
                 AND s.workspace_id = doc.workspace_id
                 AND s.document_id = doc.id
                 AND s.revoked_at IS NULL
-                AND s.level = ANY($8::text[])
-                AND ((s.principal_type = 'user' AND s.principal_id = $7::text)
+                AND s.level = ANY($9::text[])
+                AND ((s.principal_type = 'user' AND s.principal_id = $8::text)
                      OR (s.principal_type = 'organization' AND s.principal_id = doc.organization_id)
                      OR (s.principal_type = 'workspace'
-                         AND s.principal_id = ANY($13::text[]))))))
-    AND (NOT $6::boolean
+                         AND s.principal_id = ANY($14::text[]))))))
+    AND (NOT $7::boolean
          OR doc.visibility <> 'restricted'
-         OR (doc.acl_owner_id IS NOT NULL AND doc.acl_owner_id = $7::text)
+         OR (doc.acl_owner_id IS NOT NULL AND doc.acl_owner_id = $8::text)
          OR EXISTS (
               SELECT 1 FROM document_shares rs
               WHERE rs.organization_id = doc.organization_id
                 AND rs.workspace_id = doc.workspace_id
                 AND rs.document_id = doc.id
                 AND rs.revoked_at IS NULL
-                AND rs.level = ANY($8::text[])
-                AND ((rs.principal_type = 'user' AND rs.principal_id = $7::text)
+                AND rs.level = ANY($9::text[])
+                AND ((rs.principal_type = 'user' AND rs.principal_id = $8::text)
                      OR (rs.principal_type = 'organization' AND rs.principal_id = doc.organization_id)
                      OR (rs.principal_type = 'workspace'
-                         AND rs.principal_id = ANY($13::text[]))))
+                         AND rs.principal_id = ANY($14::text[]))))
          OR EXISTS (
               SELECT 1 FROM document_break_glass_grants g
               WHERE g.organization_id = doc.organization_id
                 AND g.workspace_id = doc.workspace_id
                 AND g.document_id = doc.id
-                AND g.actor_id = $7::text
+                AND g.actor_id = $8::text
                 AND g.actor_kind = 'human'
                 AND g.revoked_at IS NULL
                 AND g.expires_at > now()))
@@ -602,34 +611,34 @@ WITH base AS (
   FROM base
   WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
     -- requested direction; an editor-less row (editor_null) is always last.
-    ($14::text IS NULL OR CASE $15::text
-         WHEN 'updated' THEN CASE WHEN $16::boolean
-              THEN (sort_at, source_id COLLATE "C") < ($17::timestamptz, $14::text COLLATE "C")
-              ELSE (sort_at, source_id COLLATE "C") > ($17::timestamptz, $14::text COLLATE "C") END
-         WHEN 'size' THEN CASE WHEN $16::boolean
-              THEN (size_bytes, source_id COLLATE "C") < ($18::bigint, $14::text COLLATE "C")
-              ELSE (size_bytes, source_id COLLATE "C") > ($18::bigint, $14::text COLLATE "C") END
-         WHEN 'name' THEN CASE WHEN $16::boolean
-              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($19::text COLLATE "vi-x-icu", $14::text COLLATE "C")
-              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($19::text COLLATE "vi-x-icu", $14::text COLLATE "C") END
-         WHEN 'editor' THEN (editor_null::int > $20::boolean::int
-              OR (editor_null = $20::boolean
-                  AND CASE WHEN $16::boolean
-              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($19::text COLLATE "vi-x-icu", $14::text COLLATE "C")
-              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($19::text COLLATE "vi-x-icu", $14::text COLLATE "C") END))
+    ($15::text IS NULL OR CASE $16::text
+         WHEN 'updated' THEN CASE WHEN $17::boolean
+              THEN (sort_at, source_id COLLATE "C") < ($18::timestamptz, $15::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > ($18::timestamptz, $15::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN $17::boolean
+              THEN (size_bytes, source_id COLLATE "C") < ($19::bigint, $15::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > ($19::bigint, $15::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN $17::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($20::text COLLATE "vi-x-icu", $15::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($20::text COLLATE "vi-x-icu", $15::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > $21::boolean::int
+              OR (editor_null = $21::boolean
+                  AND CASE WHEN $17::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($20::text COLLATE "vi-x-icu", $15::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($20::text COLLATE "vi-x-icu", $15::text COLLATE "C") END))
          ELSE true END)
-    AND ($15::text IS DISTINCT FROM 'updated' OR $14::text IS NULL
-         OR CASE WHEN $16::boolean THEN sort_at <= $17::timestamptz
-                 ELSE sort_at >= $17::timestamptz END)
-  AND ($21::timestamptz IS NULL
-      OR (sort_at <= $21::timestamptz
-        AND (sort_at, source_id COLLATE "C") < ($21::timestamptz, $22::text COLLATE "C")))
-    AND ($23::text IS NULL OR uw_fold_search(name) LIKE '%' || $23::text || '%')
+    AND ($16::text IS DISTINCT FROM 'updated' OR $15::text IS NULL
+         OR CASE WHEN $17::boolean THEN sort_at <= $18::timestamptz
+                 ELSE sort_at >= $18::timestamptz END)
+  AND ($22::timestamptz IS NULL
+      OR (sort_at <= $22::timestamptz
+        AND (sort_at, source_id COLLATE "C") < ($22::timestamptz, $23::text COLLATE "C")))
+    AND ($24::text IS NULL OR uw_fold_search(name) LIKE '%' || $24::text || '%')
     AND CASE
-      WHEN kind = 'page' THEN $5::boolean
-      WHEN $24::text = 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($25::text[])
-      WHEN $24::text = 'image' THEN mime_type LIKE 'image/%'
-      WHEN $24::text = 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($25::text[]))
+      WHEN kind = 'page' THEN $6::boolean
+      WHEN $25::text = 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($26::text[])
+      WHEN $25::text = 'image' THEN mime_type LIKE 'image/%'
+      WHEN $25::text = 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($26::text[]))
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
@@ -638,20 +647,20 @@ WITH base AS (
   -- bound parameter, so the planner folds the unused ones away and a plain
   -- (key, id) order remains.
   ORDER BY
-    (CASE WHEN $15::text IS NULL THEN sort_at END) DESC,
-    (CASE WHEN $15::text IS NULL THEN id COLLATE "C" END) DESC,
-    (CASE WHEN $15::text = 'editor' THEN editor_null END) ASC,
-    (CASE WHEN $15::text = 'name' AND NOT $16::boolean THEN name_key
-          WHEN $15::text = 'editor' AND NOT $16::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
-    (CASE WHEN $15::text = 'name' AND $16::boolean THEN name_key
-          WHEN $15::text = 'editor' AND $16::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
-    (CASE WHEN $15::text = 'size' AND NOT $16::boolean THEN size_bytes END) ASC,
-    (CASE WHEN $15::text = 'size' AND $16::boolean THEN size_bytes END) DESC,
-    (CASE WHEN $15::text = 'updated' AND NOT $16::boolean THEN sort_at END) ASC,
-    (CASE WHEN $15::text = 'updated' AND $16::boolean THEN sort_at END) DESC,
-    (CASE WHEN $15::text IS NOT NULL AND NOT $16::boolean THEN id COLLATE "C" END) ASC,
-    (CASE WHEN $15::text IS NOT NULL AND $16::boolean THEN id COLLATE "C" END) DESC
-  LIMIT $26::int
+    (CASE WHEN $16::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN $16::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN $16::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN $16::text = 'name' AND NOT $17::boolean THEN name_key
+          WHEN $16::text = 'editor' AND NOT $17::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN $16::text = 'name' AND $17::boolean THEN name_key
+          WHEN $16::text = 'editor' AND $17::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN $16::text = 'size' AND NOT $17::boolean THEN size_bytes END) ASC,
+    (CASE WHEN $16::text = 'size' AND $17::boolean THEN size_bytes END) DESC,
+    (CASE WHEN $16::text = 'updated' AND NOT $17::boolean THEN sort_at END) ASC,
+    (CASE WHEN $16::text = 'updated' AND $17::boolean THEN sort_at END) DESC,
+    (CASE WHEN $16::text IS NOT NULL AND NOT $17::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN $16::text IS NOT NULL AND $17::boolean THEN id COLLATE "C" END) DESC
+  LIMIT $27::int
 )
 SELECT
   p.source_id::text AS source_id,
@@ -683,6 +692,7 @@ type ListDocumentSourceMeetingFilesParams struct {
 	RecordingsDisabled bool               `json:"recordings_disabled"`
 	WorkspaceID        string             `json:"workspace_id"`
 	RowID              pgtype.Text        `json:"row_id"`
+	ParentID           pgtype.Text        `json:"parent_id"`
 	IncludePages       bool               `json:"include_pages"`
 	SeeAll             bool               `json:"see_all"`
 	ViewerID           string             `json:"viewer_id"`
@@ -745,6 +755,7 @@ func (q *Queries) ListDocumentSourceMeetingFiles(ctx context.Context, arg ListDo
 		arg.RecordingsDisabled,
 		arg.WorkspaceID,
 		arg.RowID,
+		arg.ParentID,
 		arg.IncludePages,
 		arg.SeeAll,
 		arg.ViewerID,
@@ -837,39 +848,40 @@ WITH base AS (
     AND (a.file_id IS NULL OR f.status = 'ready')
     AND a.purpose IS DISTINCT FROM 'task_description_image'
     AND ($3::text IS NULL OR a.id = $3::text)
+    AND ($4::text IS NULL OR t.id = $4::text)
 ), page AS (
   SELECT id, source_id, sort_at, parent_kind, parent_id, parent_title, parent_ref, name, mime_type, size_bytes,
     uploader_id, uploader_type, name_key, editor_key, editor_null
   FROM base
   WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
     -- requested direction; an editor-less row (editor_null) is always last.
-    ($4::text IS NULL OR CASE $5::text
-         WHEN 'updated' THEN CASE WHEN $6::boolean
-              THEN (sort_at, source_id COLLATE "C") < ($7::timestamptz, $4::text COLLATE "C")
-              ELSE (sort_at, source_id COLLATE "C") > ($7::timestamptz, $4::text COLLATE "C") END
-         WHEN 'size' THEN CASE WHEN $6::boolean
-              THEN (size_bytes, source_id COLLATE "C") < ($8::bigint, $4::text COLLATE "C")
-              ELSE (size_bytes, source_id COLLATE "C") > ($8::bigint, $4::text COLLATE "C") END
-         WHEN 'name' THEN CASE WHEN $6::boolean
-              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($9::text COLLATE "vi-x-icu", $4::text COLLATE "C")
-              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($9::text COLLATE "vi-x-icu", $4::text COLLATE "C") END
-         WHEN 'editor' THEN (editor_null::int > $10::boolean::int
-              OR (editor_null = $10::boolean
-                  AND CASE WHEN $6::boolean
-              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($9::text COLLATE "vi-x-icu", $4::text COLLATE "C")
-              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($9::text COLLATE "vi-x-icu", $4::text COLLATE "C") END))
+    ($5::text IS NULL OR CASE $6::text
+         WHEN 'updated' THEN CASE WHEN $7::boolean
+              THEN (sort_at, source_id COLLATE "C") < ($8::timestamptz, $5::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > ($8::timestamptz, $5::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN $7::boolean
+              THEN (size_bytes, source_id COLLATE "C") < ($9::bigint, $5::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > ($9::bigint, $5::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN $7::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > $11::boolean::int
+              OR (editor_null = $11::boolean
+                  AND CASE WHEN $7::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > ($10::text COLLATE "vi-x-icu", $5::text COLLATE "C") END))
          ELSE true END)
-    AND ($5::text IS DISTINCT FROM 'updated' OR $4::text IS NULL
-         OR CASE WHEN $6::boolean THEN sort_at <= $7::timestamptz
-                 ELSE sort_at >= $7::timestamptz END)
-  AND ($11::timestamptz IS NULL
-      OR (sort_at <= $11::timestamptz
-        AND (sort_at, source_id COLLATE "C") < ($11::timestamptz, $12::text COLLATE "C")))
-    AND ($13::text IS NULL OR uw_fold_search(name) LIKE '%' || $13::text || '%')
-    AND CASE $14::text
-      WHEN 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($15::text[])
+    AND ($6::text IS DISTINCT FROM 'updated' OR $5::text IS NULL
+         OR CASE WHEN $7::boolean THEN sort_at <= $8::timestamptz
+                 ELSE sort_at >= $8::timestamptz END)
+  AND ($12::timestamptz IS NULL
+      OR (sort_at <= $12::timestamptz
+        AND (sort_at, source_id COLLATE "C") < ($12::timestamptz, $13::text COLLATE "C")))
+    AND ($14::text IS NULL OR uw_fold_search(name) LIKE '%' || $14::text || '%')
+    AND CASE $15::text
+      WHEN 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($16::text[])
       WHEN 'image' THEN mime_type LIKE 'image/%'
-      WHEN 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($15::text[]))
+      WHEN 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY($16::text[]))
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
@@ -878,20 +890,20 @@ WITH base AS (
   -- bound parameter, so the planner folds the unused ones away and a plain
   -- (key, id) order remains.
   ORDER BY
-    (CASE WHEN $5::text IS NULL THEN sort_at END) DESC,
-    (CASE WHEN $5::text IS NULL THEN id COLLATE "C" END) DESC,
-    (CASE WHEN $5::text = 'editor' THEN editor_null END) ASC,
-    (CASE WHEN $5::text = 'name' AND NOT $6::boolean THEN name_key
-          WHEN $5::text = 'editor' AND NOT $6::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
-    (CASE WHEN $5::text = 'name' AND $6::boolean THEN name_key
-          WHEN $5::text = 'editor' AND $6::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
-    (CASE WHEN $5::text = 'size' AND NOT $6::boolean THEN size_bytes END) ASC,
-    (CASE WHEN $5::text = 'size' AND $6::boolean THEN size_bytes END) DESC,
-    (CASE WHEN $5::text = 'updated' AND NOT $6::boolean THEN sort_at END) ASC,
-    (CASE WHEN $5::text = 'updated' AND $6::boolean THEN sort_at END) DESC,
-    (CASE WHEN $5::text IS NOT NULL AND NOT $6::boolean THEN id COLLATE "C" END) ASC,
-    (CASE WHEN $5::text IS NOT NULL AND $6::boolean THEN id COLLATE "C" END) DESC
-  LIMIT $16::int
+    (CASE WHEN $6::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN $6::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN $6::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN $6::text = 'name' AND NOT $7::boolean THEN name_key
+          WHEN $6::text = 'editor' AND NOT $7::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN $6::text = 'name' AND $7::boolean THEN name_key
+          WHEN $6::text = 'editor' AND $7::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN $6::text = 'size' AND NOT $7::boolean THEN size_bytes END) ASC,
+    (CASE WHEN $6::text = 'size' AND $7::boolean THEN size_bytes END) DESC,
+    (CASE WHEN $6::text = 'updated' AND NOT $7::boolean THEN sort_at END) ASC,
+    (CASE WHEN $6::text = 'updated' AND $7::boolean THEN sort_at END) DESC,
+    (CASE WHEN $6::text IS NOT NULL AND NOT $7::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN $6::text IS NOT NULL AND $7::boolean THEN id COLLATE "C" END) DESC
+  LIMIT $17::int
 )
 SELECT
   p.source_id::text AS source_id,
@@ -920,6 +932,7 @@ type ListDocumentSourceTaskFilesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	WorkspaceID    string             `json:"workspace_id"`
 	RowID          pgtype.Text        `json:"row_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
 	SortCursorID   pgtype.Text        `json:"sort_cursor_id"`
 	SortKey        pgtype.Text        `json:"sort_key"`
 	SortDesc       bool               `json:"sort_desc"`
@@ -967,6 +980,7 @@ func (q *Queries) ListDocumentSourceTaskFiles(ctx context.Context, arg ListDocum
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.RowID,
+		arg.ParentID,
 		arg.SortCursorID,
 		arg.SortKey,
 		arg.SortDesc,

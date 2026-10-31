@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { resetAuthStoreForTests } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, linkResetServes, resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ForgotPasswordView } from "./forgot-password-view";
@@ -14,6 +14,55 @@ beforeEach(() => {
 });
 
 describe("ForgotPasswordView", () => {
+  it("goes back to sign in with next, in link mode when next is the link step (spec §4.4)", () => {
+    const linkStep = "/auth/continue?step=link&next=%2Finvite%2Ft1";
+    render(wrapWithNav(<ForgotPasswordView next={linkStep} />));
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toHaveAttribute(
+      "href",
+      `/login?next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+  });
+
+  it("starts a signed-in person on their own address", () => {
+    setSessionUser({
+      id: "u1", email: "an@company.vn", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    render(wrapWithNav(<ForgotPasswordView next="/acme/team/settings?tab=security" />));
+    expect(screen.getByLabelText("Email")).toHaveValue("an@company.vn");
+  });
+
+  it("remembers, in link mode only, which address the reset went to", async () => {
+    forgetLinkReset();
+    requestMock.mockResolvedValue({ status: "ok" });
+    const { unmount } = render(wrapWithNav(<ForgotPasswordView />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "an@company.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    await screen.findByRole("button", { name: /Gửi lại/ });
+    expect(linkResetIntent()).toBeNull();
+    unmount();
+
+    render(wrapWithNav(<ForgotPasswordView next="/auth/continue?step=link" />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "An@Company.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    await screen.findByRole("button", { name: /Gửi lại/ });
+    await waitFor(() => expect(linkResetIntent()).not.toBeNull());
+    expect(await linkResetServes(linkResetIntent(), "an@company.vn")).toBe(true);
+    forgetLinkReset();
+  });
+
+  it("tells a Google or Apple account on the form that it needs no reset, and how to add a password", async () => {
+    requestMock.mockResolvedValue({ status: "ok" });
+    render(wrapWithNav(<ForgotPasswordView />));
+    const hint = /^Bạn đăng nhập bằng Google hoặc Apple\? .* nhập email ở trên: chúng tôi gửi link đặt mật khẩu\.$/;
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.c" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    // Sent, there is no "email above" any more: the mail itself says it.
+    expect(await screen.findByText(/Nếu a@b.c có tài khoản/)).toBeInTheDocument();
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
+  });
+
   it("shows the sent state with the email after submit", async () => {
     requestMock.mockResolvedValue({ status: "ok" });
     render(wrapWithNav(<ForgotPasswordView />));

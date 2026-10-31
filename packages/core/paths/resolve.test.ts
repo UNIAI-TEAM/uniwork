@@ -3,7 +3,9 @@ import {
   GLOBAL_PREFIXES,
   isGlobalPath,
   isReservedSlug,
+  nextOverridesOnboarding,
   paths,
+  homeWorkspace,
   pendingAuthStep,
   resolveHomeDestination,
   resolvePostAuthDestination,
@@ -113,6 +115,19 @@ describe("resolvePostAuthDestination", () => {
   });
 });
 
+describe("homeWorkspace", () => {
+  const list = [ws("unicom", "alpha"), ws("acme", "team")];
+  it("is the workspace last opened while it is still theirs, else the first", () => {
+    expect(homeWorkspace(list, onboarded, { orgSlug: "acme", wsSlug: "team" })?.slug).toBe("team");
+    expect(homeWorkspace(list, onboarded, { orgSlug: "gone", wsSlug: "team" })?.slug).toBe("alpha");
+  });
+  it("is none while a gate is owed, with no workspace, or once the organization is left", () => {
+    expect(homeWorkspace(list, verified, null)).toBeNull();
+    expect(homeWorkspace([], onboarded, null)).toBeNull();
+    expect(homeWorkspace([ws("closed", "alpha")], onboarded, null, [{ ...org("closed"), deactivated: true }])).toBeNull();
+  });
+});
+
 describe("resolveHomeDestination", () => {
   const list = [ws("unicom", "alpha"), ws("acme", "team")];
   it("returns to the workspace the user was last in", () => {
@@ -167,11 +182,63 @@ describe("paths", () => {
       expect(paths.verify()).toBe("/verify");
       expect(paths.authCallback()).toBe("/auth/callback");
       expect(paths.googleStart()).toBe("http://api.test/api/v1/auth/google/start");
-      expect(paths.googleStart("/acme/team")).toBe("http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
-      expect(paths.googleStart(null)).toBe("http://api.test/api/v1/auth/google/start");
+      expect(paths.googleStart({ next: "/acme/team" })).toBe("http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
+      expect(paths.googleStart({ next: null })).toBe("http://api.test/api/v1/auth/google/start");
+      // sign_up (the register page) creates the account at once; sign_in is the default and stays out of the URL.
+      expect(paths.googleStart({ next: "/x", intent: "sign_up" })).toBe(
+        "http://api.test/api/v1/auth/google/start?next=%2Fx&intent=sign_up",
+      );
+      expect(paths.googleStart({ intent: "sign_in" })).toBe("http://api.test/api/v1/auth/google/start");
+      expect(paths.appleStart()).toBe("http://api.test/api/v1/auth/apple/start");
+      expect(paths.appleStart({ next: "/invite/t1", intent: "sign_up" })).toBe(
+        "http://api.test/api/v1/auth/apple/start?next=%2Finvite%2Ft1&intent=sign_up",
+      );
     } finally {
       resetRuntimeConfig();
     }
+  });
+
+  it("carries next (and the link mode) through every sign-in page (ADR 0049, spec §4.2–4.4)", () => {
+    expect(paths.login()).toBe("/login");
+    expect(paths.login({ next: "/acme/team" })).toBe("/login?next=%2Facme%2Fteam");
+    const linkStep = paths.authContinue({ step: "link", next: "/invite/t1" });
+    expect(linkStep).toBe("/auth/continue?step=link&next=%2Finvite%2Ft1");
+    expect(paths.login({ next: linkStep, link: true })).toBe(
+      `/login?next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+    expect(paths.authContinue()).toBe("/auth/continue");
+    // The app's provider button rides the desktop consent page's sign-in (spec §3.5).
+    const consent = "/auth/desktop/authorize?attempt_id=01J";
+    expect(paths.login({ next: consent, provider: "apple" })).toBe(`/login?next=${encodeURIComponent(consent)}&provider=apple`);
+    expect(paths.login({ provider: null })).toBe("/login");
+    // The app's register screen: the provider starts to sign up; an intent without a provider starts nothing.
+    expect(paths.login({ next: consent, provider: "apple", intent: "sign_up" })).toBe(
+      `/login?next=${encodeURIComponent(consent)}&provider=apple&intent=sign_up`,
+    );
+    expect(paths.login({ provider: "google", intent: "sign_in" })).toBe("/login?provider=google");
+    expect(paths.login({ intent: "sign_up" })).toBe("/login");
+    expect(paths.login({ next: "/acme/team", error: "sign_in_failed" })).toBe("/login?next=%2Facme%2Fteam&error=sign_in_failed");
+    // A reset whose account has a second factor opens /login on the code step, still linking.
+    expect(paths.login({ mfa: true, link: true, next: linkStep })).toBe(
+      `/login?mfa=1&next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+    // ...and says it came from a reset, whose account the code is checked against.
+    expect(paths.login({ mfa: true, reset: true, link: true, next: linkStep })).toBe(
+      `/login?mfa=1&reset=1&next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+    expect(paths.register({ next: "/invite/t1" })).toBe("/register?next=%2Finvite%2Ft1");
+    expect(paths.verify({ next: "/x" })).toBe("/verify?next=%2Fx");
+    expect(paths.onboarding({ next: "/x" })).toBe("/onboarding?next=%2Fx");
+    expect(paths.forgotPassword({ next: "/x" })).toBe("/forgot-password?next=%2Fx");
+    expect(paths.register({ next: null })).toBe("/register");
+  });
+
+  it("builds the account-level settings the server sends a link back to", () => {
+    expect(paths.accountSettings()).toBe("/settings");
+    expect(paths.securitySettings()).toBe("/settings?tab=security");
+    expect(paths.securitySettings({ expectUser: "01J8X4" })).toBe("/settings?tab=security&expect_user=01J8X4");
+    expect(isReservedSlug("settings")).toBe(true);
+    expect(isReservedSlug("auth")).toBe(true);
   });
 });
 
@@ -190,6 +257,16 @@ describe("noWorkspace", () => {
     expect(GLOBAL_PREFIXES).toContain("/no-workspace");
     expect(isGlobalPath("/no-workspace")).toBe(true);
     expect(isReservedSlug("no-workspace")).toBe(true);
+  });
+});
+
+describe("nextOverridesOnboarding", () => {
+  it("only for a membership join link and an email invitation", () => {
+    expect(nextOverridesOnboarding("/join/l1#secret=s3cret")).toBe(true);
+    expect(nextOverridesOnboarding("/invite/tok")).toBe(true);
+    expect(nextOverridesOnboarding("/invite/meeting/m1")).toBe(false);
+    expect(nextOverridesOnboarding("/acme/team/tasks")).toBe(false);
+    expect(nextOverridesOnboarding(null)).toBe(false);
   });
 });
 

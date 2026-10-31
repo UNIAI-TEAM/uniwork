@@ -66,6 +66,22 @@ func (q *Queries) CancelMcpAuthAttempt(ctx context.Context, id string) error {
 	return err
 }
 
+const cancelOpenMcpAuthAttemptsForUser = `-- name: CancelOpenMcpAuthAttemptsForUser :execrows
+UPDATE mcp_auth_attempts SET cancelled_at = now()
+WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
+`
+
+// An account taken back by the owner of its mailbox, or whose password a reset
+// link replaced (ADR 0049): consents opened or approved before and no client
+// redeemed yet die with it.
+func (q *Queries) CancelOpenMcpAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOpenMcpAuthAttemptsForUser, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimMcpAuthAttempt = `-- name: ClaimMcpAuthAttempt :one
 UPDATE mcp_auth_attempts SET user_id = $1, csrf_digest = $2
 WHERE id = $3

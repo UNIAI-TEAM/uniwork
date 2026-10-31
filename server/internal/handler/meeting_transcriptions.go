@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math"
 	"net/http"
 	"time"
 
@@ -16,16 +17,30 @@ import (
 // Meetings held without a room (UNI-2001, parent spec §6.4): recording the
 // meeting as held, the recording's upload session, and its transcriptions.
 
+// heldSeconds clamps n far outside the service's bounds before converting, so
+// a huge value either way is refused there instead of wrapping around int64
+// into range.
+func heldSeconds(n int) time.Duration {
+	return time.Duration(max(min(n, math.MaxInt32), math.MinInt32)) * time.Second
+}
+
 func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {
 	var in sdi.RecordMeetingHeldSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	// An unreadable time stays zero: the service refuses it (422) only after
-	// it has authorized the caller, so a stranger learns nothing either way.
-	started, _ := time.Parse(time.RFC3339, in.StartedAt)
-	ended, _ := time.Parse(time.RFC3339, in.EndedAt)
-	m, err := h.Meetings.RecordHeld(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), started, ended)
+	userID, meetingID := middleware.UserID(r.Context()), chi.URLParam(r, "meetingID")
+	var m db.Meeting
+	var err error
+	if in.DurationSeconds > 0 && in.StartedAt == "" && in.EndedAt == "" {
+		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, heldSeconds(in.DurationSeconds), heldSeconds(in.EndedSecondsAgo))
+	} else {
+		// An unreadable time stays zero: the service refuses it (422) only after
+		// it has authorized the caller, so a stranger learns nothing either way.
+		started, _ := time.Parse(time.RFC3339, in.StartedAt)
+		ended, _ := time.Parse(time.RFC3339, in.EndedAt)
+		m, err = h.Meetings.RecordHeld(r.Context(), userID, meetingID, started, ended)
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -58,7 +73,7 @@ func toTranscriptionDTO(t db.MeetingTranscription) sdo.MeetingTranscriptionDTO {
 	return sdo.MeetingTranscriptionDTO{
 		ID: t.ID, MeetingID: t.MeetingID, FileID: t.FileID, Filename: t.Filename, SizeBytes: t.SizeBytes,
 		Language: t.Language, Status: t.Status, ErrorCode: t.ErrorCode, Attempts: t.Attempts,
-		StartsAt: rfc3339(t.StartsAt), AudioSeconds: t.AudioSeconds.Int32, CreatedBy: t.CreatedBy,
+		StartsAt: rfc3339(t.StartsAt), EstimatedSeconds: t.EstimatedSeconds, AudioSeconds: t.AudioSeconds.Int32, CreatedBy: t.CreatedBy,
 		CreatedAt: rfc3339(t.CreatedAt), CompletedAt: rfc3339(t.CompletedAt),
 	}
 }
@@ -69,7 +84,8 @@ func (h *handlers) requestMeetingTranscription(w http.ResponseWriter, r *http.Re
 		return
 	}
 	t, err := h.Meetings.RequestTranscription(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
-		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent, DurationSeconds: in.DurationSeconds})
+		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent, DurationSeconds: in.DurationSeconds,
+			OffsetSeconds: in.OffsetSeconds})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

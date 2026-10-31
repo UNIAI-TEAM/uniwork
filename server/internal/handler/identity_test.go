@@ -12,16 +12,19 @@ import (
 )
 
 // enrolMFA walks the settings flow over HTTP and returns the TOTP secret
-// plus the recovery codes the confirm step showed once.
+// plus the recovery codes the confirm step showed once: confirm it is you
+// with the password (every test account has password123), then setup and
+// confirm with that step-up token.
 func enrolMFA(t *testing.T, srv *httptest.Server, token string) (string, []string) {
 	t.Helper()
-	res, out := doJSON(t, srv, "POST", "/api/v1/me/mfa/setup", token, nil)
+	proof := stepUp(t, srv, token, map[string]any{"password": "password123"})
+	res, out := doJSON(t, srv, "POST", "/api/v1/me/mfa/setup", token, map[string]string{"step_up_token": proof})
 	if res.StatusCode != 200 || out["secret"] == "" || out["otpauth_url"] == "" {
 		t.Fatalf("setup: %d %v", res.StatusCode, out)
 	}
 	secret := out["secret"].(string)
 	code, _ := auth.TOTPCode(secret, time.Now())
-	res, out = doJSON(t, srv, "POST", "/api/v1/me/mfa/confirm", token, map[string]string{"code": code})
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/mfa/confirm", token, map[string]string{"code": code, "step_up_token": proof})
 	if res.StatusCode != 200 {
 		t.Fatalf("confirm: %d %v", res.StatusCode, out)
 	}
@@ -31,6 +34,17 @@ func enrolMFA(t *testing.T, srv *httptest.Server, token string) (string, []strin
 		codes[i] = c.(string)
 	}
 	return secret, codes
+}
+
+// stepUp is POST /me/step-up with proof; it fails the test unless a token
+// comes back.
+func stepUp(t *testing.T, srv *httptest.Server, token string, proof map[string]any) string {
+	t.Helper()
+	res, out := doJSON(t, srv, "POST", "/api/v1/me/step-up", token, proof)
+	if res.StatusCode != http.StatusOK || out["step_up_token"] == nil {
+		t.Fatalf("step-up: %d %v", res.StatusCode, out)
+	}
+	return out["step_up_token"].(string)
 }
 
 func TestMFALoginOverHTTP(t *testing.T) {

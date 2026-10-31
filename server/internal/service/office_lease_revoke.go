@@ -109,6 +109,22 @@ func revokeOfficeLeasesForUser(ctx context.Context, q *db.Queries, userID string
 	return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, OfficeLeaseRevokeSessionRevoked, refs, nil)
 }
 
+// revokeOfficeLeasesForOtherFamilies revokes every lease of the user held by
+// a device outside keepFamilyID (revokeOtherUserSessions).
+func revokeOfficeLeasesForOtherFamilies(ctx context.Context, q *db.Queries, userID, keepFamilyID string) (int, error) {
+	rows, err := q.RevokeOfficeOfflineLeasesForOtherFamilies(ctx, db.RevokeOfficeOfflineLeasesForOtherFamiliesParams{
+		UserID: userID, KeepFamilyID: keepFamilyID, Reason: OfficeLeaseRevokeSessionRevoked,
+	})
+	if err != nil {
+		return 0, err
+	}
+	refs := make([]officeLeaseRef, len(rows))
+	for i, r := range rows {
+		refs[i] = officeLeaseRef(r)
+	}
+	return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, OfficeLeaseRevokeSessionRevoked, refs, nil)
+}
+
 // officeLeaseOrgRevokeBatch bounds one statement of an organization-wide
 // revoke; the caller loops until a batch comes back short.
 const officeLeaseOrgRevokeBatch = int32(500)

@@ -204,6 +204,8 @@ export function SettingsListItem({
   meta,
   badge,
   actions,
+  reason,
+  reasonId,
   className,
   muted = false,
   align = "center",
@@ -219,6 +221,12 @@ export function SettingsListItem({
   /** A status beside the title (current session, deactivated). */
   badge?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Why an action is held back (a SettingsRowReason), under the meta and
+   * never truncated; `reasonId` lets the held-back action point at it.
+   */
+  reason?: ReactNode;
+  reasonId?: string;
   className?: string;
   /**
    * Quiets an inactive entry (deactivated, not shipped yet). Only the glyph is
@@ -264,6 +272,11 @@ export function SettingsListItem({
           {badge ? <span className="shrink-0">{badge}</span> : null}
         </div>
         {meta ? <div className="truncate text-caption text-muted-foreground">{meta}</div> : null}
+        {reason ? (
+          <div id={reasonId} className="text-caption leading-5">
+            {reason}
+          </div>
+        ) : null}
       </div>
       {actions ? (
         <div

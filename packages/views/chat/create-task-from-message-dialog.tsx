@@ -1,87 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useAiCapabilities, useChatTaskDraft } from "@uniwork/core/ai";
 import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { useCreateTaskFromChatMessage } from "@uniwork/core/chat";
-import { useMembers } from "@uniwork/core/workspaces";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import { Dialog } from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
-import { cn } from "@uniwork/ui/lib/utils";
-import type { AssigneeRef } from "../tasks/pickers";
-import {
-  FormDialogBody,
-  FormDialogContent,
-  FormDialogFooter,
-  FormDialogHeader,
-} from "../common/form-dialog";
-import { ChatTaskAssigneeField, ChatTaskDueField, ChatTaskProjectField } from "./chat-task-peek-fields";
-import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
+import type { CreateTaskBody } from "@uniwork/core/tasks";
+import type { TaskPriority } from "@uniwork/core/types";
+import { CreateTaskDialog } from "../tasks/create-task-dialog";
+import type { CreateTaskSubmitter } from "../tasks/use-create-task-manual";
 import { chatErrorMessage } from "./chat-error-message";
-import { ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
-import { initialsOf } from "@uniwork/core/chat/initials";
-import { formatMessageTime } from "./chat-message-time";
-import { chatPersonFaceClass } from "./chat-person-card";
-import { senderNameClass, senderQuoteClass } from "./sender-colors";
-import { memberDisplayLabel } from "./workspace-member-picker-utils";
+import {
+  anchorSourceMessage,
+  descriptionFromSourceMessages,
+  type CreateTaskSourceMessage,
+} from "./create-task-from-message-quote";
 import { useChatTaskNav } from "./use-chat-task-nav";
 
 const TITLE_MAX_LENGTH = 200;
+const DESCRIPTION_MAX_LENGTH = 4000;
 
-/** The big title field (canvas): 48px, display face, white with the ring while focused. */
-const TITLE_INPUT_CLASS =
-  "h-12 rounded-lg border-border bg-surface px-3 font-display text-title-lg font-bold md:text-title-lg focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-brand-subtle dark:bg-surface";
-
-/** The message the task comes from, quoted on its sender's colour bar: face, name, time, words. */
-function SourceMessageQuote({
-  workspaceId,
-  senderId,
-  sentAt,
-  roomTitle,
-  body,
-}: {
-  workspaceId: string;
-  senderId: string;
-  sentAt?: number;
-  roomTitle?: string;
-  body: string;
-}) {
-  const { t, i18n } = useTranslation();
-  const { data: members = [] } = useMembers(workspaceId);
-  const member = members.find((entry) => entry.user_id === senderId);
-  const name = member ? memberDisplayLabel(member) : t("chat.link.source_sender_unknown");
-  return (
-    <figure
-      aria-label={t("chat.link.source_message")}
-      className={cn(senderQuoteClass(senderId), "flex gap-2.5 rounded-lg border-l-3 bg-muted px-3 py-2.5")}
-    >
-      <ActorAvatar
-        name={name}
-        initials={initialsOf(name)}
-        size="fluid"
-        className={cn("size-7 text-micro", chatPersonFaceClass(senderId))}
-      />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-baseline gap-2">
-          <span className={cn("truncate text-label font-semibold", senderNameClass(senderId, false))}>{name}</span>
-          {sentAt || roomTitle ? (
-            // Where and when it was said: "Ra mắt UniWork Q4 · 10:18" (canvas).
-            <span className="min-w-0 truncate text-caption text-muted-foreground tabular-nums">
-              {[roomTitle, sentAt ? formatMessageTime(sentAt, i18n.language) : ""].filter(Boolean).join(" · ")}
-            </span>
-          ) : null}
-        </span>
-        <span className="line-clamp-3 text-body text-foreground">{body}</span>
-      </span>
-    </figure>
-  );
+function asPriority(value: string): TaskPriority {
+  switch (value) {
+    case "none":
+    case "low":
+    case "medium":
+    case "high":
+    case "urgent":
+      return value;
+    default:
+      return "none";
+  }
 }
 
-/** Create a task from a chat message: big title, property chips, one action. */
+function defaultsFromSources(
+  sources: CreateTaskSourceMessage[],
+  fallbackBody: string,
+): Partial<CreateTaskBody> {
+  const anchor = anchorSourceMessage(sources);
+  return {
+    title: titleFromMessageBody(anchor?.body ?? fallbackBody).slice(0, TITLE_MAX_LENGTH),
+    description: descriptionFromSourceMessages(sources).slice(0, DESCRIPTION_MAX_LENGTH) || undefined,
+    assignee_id: null,
+    project_id: null,
+  };
+}
+
+/**
+ * Creates a task from one or more chat messages through the same composer as
+ * "Tạo thủ công" — title, description, property pills, dates — then posts via
+ * the chat create-from-message command so the message stays linked.
+ */
 export function CreateTaskFromMessageDialog({
   open,
   onOpenChange,
@@ -90,7 +60,7 @@ export function CreateTaskFromMessageDialog({
   messageBody,
   senderId,
   sentAt,
-  roomTitle,
+  sourceMessages,
   allowSyncThread = false,
   onCreated,
 }: {
@@ -99,147 +69,149 @@ export function CreateTaskFromMessageDialog({
   workspaceId: string;
   messageId: string;
   messageBody: string;
-  /** Who wrote the message and when: the dialog quotes it above the title. */
   senderId?: string;
   sentAt?: number;
-  /** The conversation it was said in, beside the time in the quote. */
   roomTitle?: string;
-  /** When true, show the “sync thread ↔ task comments” checkbox. */
+  /** When set (multi-select), overrides the single message props for draft. */
+  sourceMessages?: CreateTaskSourceMessage[];
+  /** Kept for callers; the manual composer has no sync-thread control. */
   allowSyncThread?: boolean;
   onCreated?: (taskId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const createTask = useCreateTaskFromChatMessage(workspaceId);
+  const draftTask = useChatTaskDraft(workspaceId);
+  const { data: caps } = useAiCapabilities(workspaceId, open);
   const { openTaskAction } = useChatTaskNav();
 
-  const [title, setTitle] = useState(() => titleFromMessageBody(messageBody));
-  const [projectId, setProjectId] = useState("");
-  const [assignee, setAssignee] = useState<AssigneeRef | null>(null);
-  const [dueDate, setDueDate] = useState("");
-  const [syncThread, setSyncThread] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const sources = useMemo<CreateTaskSourceMessage[]>(() => {
+    if (sourceMessages && sourceMessages.length > 0) return sourceMessages;
+    if (!messageId) return [];
+    return [{ id: messageId, body: messageBody, senderId, sentAt }];
+  }, [messageBody, messageId, senderId, sentAt, sourceMessages]);
+
+  const linkedMessageId = useMemo(
+    () => anchorSourceMessage(sources)?.id ?? messageId,
+    [messageId, sources],
+  );
+  const sourceKey = useMemo(() => sources.map((message) => message.id).join(","), [sources]);
+
+  const [defaults, setDefaults] = useState<Partial<CreateTaskBody>>(() =>
+    defaultsFromSources(sources, messageBody),
+  );
+  const autoDraftKeyRef = useRef<string | null>(null);
+  const syncThreadRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    setSubmitError(null);
-    setTitle(titleFromMessageBody(messageBody));
-    setProjectId("");
-    setAssignee(null);
-    setDueDate("");
-    setSyncThread(false);
-  }, [open, messageBody]);
+    if (!open) {
+      autoDraftKeyRef.current = null;
+      syncThreadRef.current = false;
+      return;
+    }
+    syncThreadRef.current = false;
+    setDefaults(defaultsFromSources(sources, messageBody));
+    // Reset once per open selection (ids), not on every parent re-render of the sources array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sources content is keyed by sourceKey
+  }, [messageBody, open, sourceKey]);
 
-  const trimmed = title.trim();
-  const canSubmit = trimmed.length >= 1 && !!messageId && !createTask.isPending;
-
-  const submit = () => {
-    if (!canSubmit) return;
-    setSubmitError(null);
-    void createTask
+  const applyAiDraft = useCallback(() => {
+    if (!caps?.enabled || sources.length === 0 || draftTask.isPending || createTask.isPending) {
+      return;
+    }
+    void draftTask
       .mutateAsync({
-        messageId,
-        title: trimmed,
-        project_id: projectId || undefined,
-        assignee_id: assignee?.id,
-        assignee_kind: assignee?.kind,
-        due_date: dueDate || undefined,
-        sync_thread: allowSyncThread ? syncThread : undefined,
+        message_ids: sources.map((message) => message.id),
+        locale: i18n.language.startsWith("vi") ? "vi" : "en",
       })
-      .then((task) => {
-        if (!task?.id) {
-          setSubmitError(t("chat.link.create_error"));
+      .then((draft) => {
+        if (!draft.title.trim()) {
+          toast.error(t("chat.link.ai_draft_error"));
           return;
+        }
+        setDefaults((prev) => ({
+          ...prev,
+          title: draft.title.trim().slice(0, TITLE_MAX_LENGTH),
+          description: draft.description.trim()
+            ? draft.description.trim().slice(0, DESCRIPTION_MAX_LENGTH)
+            : prev.description,
+          priority: asPriority(draft.priority),
+          due_date: /^\d{4}-\d{2}-\d{2}$/.test(draft.due_date.trim())
+            ? draft.due_date.trim()
+            : prev.due_date ?? null,
+        }));
+      })
+      .catch((err: unknown) => {
+        toast.error(chatErrorMessage(err, t, t("chat.link.ai_draft_error")));
+      });
+  }, [caps?.enabled, createTask.isPending, draftTask, i18n.language, sources, t]);
+
+  // Fill the composer from AI once per open selection (one message or many).
+  useEffect(() => {
+    if (!open || sources.length < 1 || !caps?.enabled) return;
+    const key = sourceKey;
+    if (!key || autoDraftKeyRef.current === key) return;
+    autoDraftKeyRef.current = key;
+    applyAiDraft();
+  }, [applyAiDraft, caps?.enabled, open, sourceKey, sources.length]);
+
+  const heading =
+    sources.length > 1
+      ? t("chat.link.create_task_title_multi", { count: sources.length })
+      : t("chat.link.create_task_title");
+
+  const submitter: CreateTaskSubmitter = useMemo(
+    () => ({
+      pending: createTask.isPending || draftTask.isPending,
+      errorText: (error) => chatErrorMessage(error, t, t("chat.link.create_error")),
+      async submit(body: CreateTaskBody) {
+        if (!linkedMessageId) {
+          throw new Error("missing_message");
+        }
+        const task = await createTask.mutateAsync({
+          messageId: linkedMessageId,
+          title: body.title,
+          description: body.description,
+          status: body.status,
+          project_id: body.project_id ?? undefined,
+          assignee_id: body.assignee_id ?? undefined,
+          assignee_kind: body.assignee_kind,
+          start_date: body.start_date ?? undefined,
+          due_date: body.due_date ?? undefined,
+          label_ids: body.label_ids,
+          priority: body.priority,
+          sync_thread: allowSyncThread ? syncThreadRef.current : undefined,
+        });
+        if (!task?.id) {
+          throw new Error("create_failed");
         }
         toast.success(t("chat.link.created_toast"), { action: openTaskAction(task.id) });
         onOpenChange(false);
         onCreated?.(task.id);
-      })
-      .catch((err: unknown) => setSubmitError(chatErrorMessage(err, t, t("chat.link.create_error"))));
-  };
+      },
+    }),
+    [
+      allowSyncThread,
+      createTask,
+      draftTask.isPending,
+      linkedMessageId,
+      onCreated,
+      onOpenChange,
+      openTaskAction,
+      t,
+    ],
+  );
+
+  if (!open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
-        <FormDialogHeader
-          title={t("chat.link.create_task_title")}
-          description={t("chat.link.create_task_description")}
-        />
-
-        <FormDialogBody className={CHAT_DIALOG_BODY_CLASS}>
-          {senderId && messageBody.trim() ? (
-            <SourceMessageQuote
-              workspaceId={workspaceId}
-              senderId={senderId}
-              sentAt={sentAt}
-              roomTitle={roomTitle}
-              body={messageBody}
-            />
-          ) : null}
-          <div className="space-y-1">
-            <Label htmlFor="chat-task-title" className="gap-0 px-0.5 text-caption leading-4 font-semibold text-muted-foreground">
-              {t("chat.link.title_label")}
-              <RequiredMark />
-            </Label>
-            <Input
-              id="chat-task-title"
-              aria-required
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (submitError) setSubmitError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                if (e.key === "Enter" && canSubmit) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              autoFocus
-              maxLength={TITLE_MAX_LENGTH}
-              placeholder={t("tasks.detail.title_placeholder")}
-              className={TITLE_INPUT_CLASS}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <ChatTaskProjectField workspaceId={workspaceId} value={projectId} onChange={setProjectId} />
-            <ChatTaskAssigneeField workspaceId={workspaceId} value={assignee} onChange={setAssignee} />
-            <ChatTaskDueField id="chat-task-due" value={dueDate} onChange={setDueDate} />
-          </div>
-
-          {allowSyncThread ? (
-            <label className="flex cursor-pointer items-start gap-2.5 px-0.5 py-1">
-              <Checkbox
-                checked={syncThread}
-                onCheckedChange={(next) => setSyncThread(next === true)}
-                className="mt-px size-5 rounded-md [&_svg]:size-3.5"
-              />
-              <span className="min-w-0 space-y-0.5">
-                <span className="block text-body-lg text-foreground">{t("chat.link.sync_thread")}</span>
-                <span className="block text-caption text-muted-foreground">
-                  {t("chat.link.sync_thread_hint")}
-                </span>
-              </span>
-            </label>
-          ) : null}
-        </FormDialogBody>
-
-        <FormDialogFooter
-          onCancel={() => onOpenChange(false)}
-          cancelVariant="secondary"
-          submitLabel={t("chat.link.create")}
-          submittingLabel={t("chat.link.creating")}
-          submitting={createTask.isPending}
-          submitDisabled={!trimmed || !messageId}
-          onSubmit={submit}
-          leading={
-            submitError || !trimmed ? (
-              <ChatFormFooterNote error={submitError} hint={trimmed ? null : t("chat.link.title_required_hint")} />
-            ) : undefined
-          }
-        />
-      </FormDialogContent>
-    </Dialog>
+    <CreateTaskDialog
+      workspaceId={workspaceId}
+      open={open}
+      onOpenChange={onOpenChange}
+      showTrigger={false}
+      defaults={defaults}
+      submitter={submitter}
+      heading={heading}
+    />
   );
 }

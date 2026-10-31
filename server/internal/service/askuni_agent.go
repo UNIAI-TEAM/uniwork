@@ -553,6 +553,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// first model call of the request only (spec §9).
 	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars), Parts: plan.Parts})
 	tools := s.agentTools()
+	if !s.askOfficeOn(runCtx, tc) {
+		tools = slices.DeleteFunc(tools, func(t agentTool) bool { return askOfficeTools[t.Name] })
+	}
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
 	// The answer records the choice when it held, Auto ("") when it fell back.
 	if model != "" {

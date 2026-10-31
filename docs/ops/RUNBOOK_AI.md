@@ -98,7 +98,7 @@ hay khóa của upstream dev ở đâu ngoài secret store/cấu hình máy dev.
 Trợ lý UniWork AI trong editor Office giữ hội thoại **trên server**: client chỉ gửi câu hỏi mới hoặc tool-result, không
 bao giờ gửi lịch sử (luật bảo mật 7). Hai bảng `ai_uniwork_conversations` / `ai_uniwork_turns`; mỗi lượt là JSON của
 `provider.Message` (nội dung + tool call + tool-result) được mã hóa `server/internal/util/secretbox` (AES-256-GCM)
-bằng khóa riêng `AI_CONVERSATION_KEY` — không dùng chung `AI_CREDENTIAL_KEY` để lộ một khóa không lộ cả hai.
+bằng khóa riêng `AI_CONVERSATION_KEY`, không dùng chung với khóa nào khác của máy chủ để lộ một khóa không lộ khóa kia.
 
 | Mục | Giá trị |
 | --- | --- |
@@ -291,9 +291,12 @@ UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình l
 | `proposal_expired` | 409 | Dòng quá 24 giờ | Hỏi lại UNI |
 | `proposal_not_pending` | 409 | Dòng đã được áp dụng, bỏ qua hoặc đang chạy (bấm đúp, hai tab) | Không cần làm; thẻ vẽ lại theo trạng thái thật |
 | `proposal_ref_pending` | 409 | Dòng dùng `{{row:N.id}}` của một dòng chưa áp dụng | Áp dụng dòng N trước (duyệt kế hoạch làm theo thứ tự) |
+| `ask_uni_office_off` | 403 | Cờ `ask_uni_office` tắt cho tổ chức này: Apply (một dòng hoặc cả kế hoạch) của dòng `list_templates`, `create_office_document` hay `save_attachment_template` bị từ chối trước khi chạy gì, dòng giữ `pending` | Không phải sự cố nếu cố ý tắt; nếu không, bật `ask_uni_office` theo `OFFICE_AI_GO_LIVE.md` |
 | `revision_conflict` | 409 | Đối tượng đã đổi `revision` sau khi UNI đề xuất | Hỏi lại UNI để lấy đề xuất mới |
 | `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
 | `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
+
+Khi `ask_uni_office` tắt, thẻ soạn tệp đã có vẫn hiện: Sửa (chuẩn bị lại dòng, không ghi gì), Bỏ qua và Hoàn tác vẫn chạy bình thường, vì cả ba chỉ qua cổng `ask_uni_actions`, không kiểm `ask_uni_office`; chỉ Áp dụng bị từ chối.
 
 Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
 
@@ -312,6 +315,34 @@ Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả m
 - **Chi phí**: khối bộ nhớ thường chỉ vài trăm token, nhưng trường hợp nặng nhất (50 mục × 300 ký tự, khoảng 15.000 ký tự) là cỡ 4–6 nghìn token cho **mỗi** vòng gọi model của lượt (spec §5.2; với khoảng 2,3 vòng mỗi câu, phần thêm tối đa khoảng $0,03 mỗi câu với Sonnet 5.5). Khối này nằm trong phần prompt đổi theo người nên không vào cache chung; `propose_memory` thêm một vòng tool khi người dùng nói điều đáng nhớ. Nhập từ AI khác là lời gọi riêng (`ask_uni_memory_import`, prompt `memory_import@2`; `@1` chỉ còn cho dòng usage cũ), tách khỏi lượt hỏi: mỗi lần tách là một dòng `ai_usage_events`, thử lại một lần khi model trả sai khuôn thì tính thêm một dòng, và mỗi người bị giới hạn số lần tách mỗi giờ (`ai_memory_import_rate_limited`). Khi chi phí tăng bất thường, đối chiếu số dòng `capability = 'ask_uni_memory_import'` và tắt cờ trước khi tắt `ask_uni_agent`.
 - **Audit**: dòng audit của bộ nhớ không bao giờ chứa chữ của mục (`TestAiMemoryAuditCarriesNoText`); chữ dán khi nhập cũng không được log hay audit.
 - **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`, mục "P4: memory cases") và ca nhập `TestMemoryImportEvalLive`; mức đạt nằm ở đó.
+
+## Hỏi UNI: giao việc cho AI trong trình soạn (UNI-2264, ADR 0048)
+
+Khi người hỏi áp dụng thẻ `create_office_document` mà thẻ ghi "Mở và soạn" hoặc "Mở và dựng", server ghi một gói vào `ai_office_handoffs`: yêu cầu, dàn ý chia phần và tư liệu đã duyệt. Trang web gửi `ai.start` cho khung trình soạn sau khi tài liệu mở; mỗi lượt UniWork AI mang header `X-UniWork-AI-Handoff` thì server mở rộng câu hỏi từ gói, rồi tiến một phần khi câu trả lời đã lưu, và trả `X-UniWork-AI-Handoff-Remaining`.
+
+- **Cờ.** Phía Hỏi UNI (ba công cụ `list_templates`, `create_office_document`, `save_attachment_template` và Apply của chúng) theo `ask_uni_office`; tắt thì công cụ biến khỏi vòng agent và Apply trả `ask_uni_office_off`. Giao việc cho trình soạn vẫn theo `office.ai_cloud`, `office_ai_uniwork` và cờ định dạng, không theo `ask_uni_office`. Trước khi bật cho khách: [`OFFICE_AI_GO_LIVE.md`](OFFICE_AI_GO_LIVE.md). Tắt `ask_uni_actions` thì không còn thẻ tạo tệp. Tắt `office_ai_uniwork` (hoặc `office_ai_uniwork_<định dạng>`), hay tổ chức hết credit AI, thì thẻ ghi "Tạo và mở để tự soạn", Apply không ghi gói, tệp vẫn được tạo để người hỏi tự soạn.
+- **Worker dọn gói**: `OfficeHandoffSweeper` (trong chuỗi shutdown của `server/cmd/server/main.go`) chạy lúc khởi động rồi mỗi 10 phút, xóa gói quá 24 giờ theo lô 500. Log `office handoff sweep` với `purged`; lỗi ghi ở mức Warn và lượt sau chạy lại. Gói hết hạn không còn được đọc dù worker chậm (việc đọc gói kiểm `expires_at`), nên worker dừng chỉ làm bảng phình, không làm lộ dữ liệu.
+- **Việc không bắt đầu trong trình soạn**: xem dòng lý do trên thẻ (`editor_ai`); xem khung có nhận capability `aiStart` không (bundle web phải là bản pin từ `web-0.1.0-6799c67` trở về sau; frame chỉ nhận khi bảng AI dùng UniWork AI); trang chưa giữ được khóa sửa thì việc nằm chờ, chưa bị từ chối. Header của một gói hết hạn, của người khác, tài liệu khác hay hội thoại khác thì server bỏ qua im lặng: lượt chạy như câu hỏi thường.
+- **Dữ liệu**: gói chứa chữ người hỏi đã duyệt; không log và không audit chữ đó (log chỉ có id). Gói không vào bản xuất dữ liệu tổ chức: thẻ đề xuất gốc (`agent_action_proposals`) đã được xuất.
+
+## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0050)
+
+Các bộ viết một lần của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief, style/dàn ý/trang của deck) chạy dưới UniWork AI qua `POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/write` (frame token, chỉ web). Body `{kind, lang, input}`; prompt do server giữ (`server/internal/ai/prompts_office_writer.go`, prompt id `office_writer_<kind>@1`, ví dụ `office_writer_slides_page@1`). Route này không có cờ riêng và không theo `ask_uni_office` (cờ đó chỉ chi phối phía Hỏi UNI); trước khi bật cho khách xem [`OFFICE_AI_GO_LIVE.md`](OFFICE_AI_GO_LIVE.md). Cùng cổng với route chat (quyền sửa tài liệu, `RequireMember`, gói `office.ai_cloud`, `office_ai_uniwork` và `office_ai_uniwork_<định dạng>`, `CheckQuota(ai.tokens)`), nên tắt cờ chat là tắt luôn route viết.
+
+- **Dòng usage**: capability `office_uniwork_writer` (tách khỏi `office_uniwork_ai`), `prompt_id` = `office_writer_<kind>@1` cho biết kind nào tốn credit. Mỗi lời gọi tính một lượt `model_calls` của run đang chạy.
+- **Lỗi và nghĩa của chúng** (trước byte đầu, JSON `{code, message}`):
+  - 400 `invalid_request`: thiếu header `X-UniWork-AI-Run` hoặc `X-UniWork-AI-Conversation` (route viết không bao giờ mở run), `kind` lạ hoặc của module khác, trường lạ hoặc sai kiểu.
+  - 403: `forbidden` (khung chỉ xem), `entitlement_required` (thiếu gói `office.ai_cloud`), `office_capability_off` (cờ tắt).
+  - 409: `run_expired` (run lạ, hết hạn hoặc của hội thoại khác), `conversation_expired`, `run_limit_reached`.
+  - 413 `payload_too_large`: body > 1 MiB hoặc một trường vượt trần của kind; model không được gọi.
+  - 429: `ai_uniwork_busy` (trần đồng thời riêng của route viết, khóa Redis `ai:uniwork-writer:`), `ai_rate_limited` (nhóm `ai-uniwork` dùng chung 60/phút mỗi người).
+  - 402 `credits_exhausted`, 503 `ai_disabled`, 502 `ai_provider_error`, 504 `ai_provider_timeout`, 408 `ai_cancelled` (client dừng trước đoạn đầu), 422 `ai_refused` (model từ chối trước đoạn đầu) như route chat.
+- **`run_limit_reached` trên deck lớn là bình thường.** Một run nhận tối đa 9 lượt model trước khi lời gọi viết bị từ chối (`UniworkRunModelCallMax - 1`; lượt thứ 10 chừa cho vòng công cụ). Lượt chat đã mở run dùng một lượt, nên với deck dựng trong một lượt, lời gọi viết thứ 9 (tính cả lần thử lại) nhận lỗi này: `generate_deck` dừng, đặt các trang đã có và báo trang chưa làm. Không phải sự cố; gói PPTX của Hỏi UNI chia việc để mỗi phần là một run.
+- **Đứt giữa luồng**: sau đoạn chữ đầu, lỗi kết thúc bằng chunk `x_uniwork.terminal` với `code` `ai_provider_error` / `ai_provider_timeout` / `ai_cancelled` / `ai_refused` rồi `[DONE]` (HTTP vẫn 200); trình soạn coi lần viết là dở dang. Lỗi nhà cung cấp giữa stream **không** tính phí. Hết hạn hoặc hủy sau khi đã có chữ thì Gateway tính phần đã nhận đúng một lần và credit của run tăng bằng số đó. Model từ chối sau khi đã viết (`ai_refused`, Anthropic `stop_reason: refusal`) thì Gateway tính đủ phí như nhà cung cấp đã tính, nhưng credit của run không tăng. Một dòng usage `failed` không có `cost_micros` là lỗi nhà cung cấp; một dòng `failed` có phí với `reason_code` `ai_refused` là model từ chối; một dòng `cancelled` có phí là hết hạn/hủy.
+- **Proxy và ingress phía trước server không được đệm response này** (server gửi `X-Accel-Buffering: no`) và phải cho phép chờ đọc giữa hai byte ít nhất bằng hạn của lời gọi viết, `UniworkWriterDeadline` = 300 giây. Nginx app-dev (`deploy/app-dev/nginx/uniwork.unicomhub.com`) đặt `proxy_read_timeout 3600s` ở khối server nên đường `/api` thừa hưởng 3600s: đủ hôm nay. Nếu ghi bị cắt giữa luồng, kiểm `proxy_read_timeout` và việc đệm của mọi proxy khác phía trước. Mỗi lần ghi SSE có hạn 60 giây phía server; client ngừng đọc thì lời gọi bị hủy.
+- **Đổi trần**: policy `office_uniwork_writer` ở `server/internal/ai/policy.go` (`MaxTokens` 16384, `Temperature` 0.3, `TimeoutScale`/`StreamTimeoutScale` 3); trần đầu ra từng kind ở `writerKindMaxTokens` và trần từng trường ở `writerFields` (`server/internal/ai/prompts_office_writer.go`); hạn 300 giây là `UniworkWriterDeadline` (`server/internal/service/ai_uniwork.go`); trần lượt của run vẫn là `UniworkRunModelCallMax` (lời gọi viết dùng trừ một). Các giá trị là tạm cho tới G7-D1.
+  - Model của route viết đổi bằng `AI_MODEL_OFFICE_UNIWORK_WRITER` (trong allowlist, như mọi `AI_MODEL_<CAPABILITY>`); route viết **không** theo `AI_MODEL_OFFICE_UNIWORK_AI` của route chat, nên đổi model chat phải đổi cả biến này nếu muốn hai route cùng model.
+- **Dữ liệu**: `input` và chữ trả về là nội dung tài liệu của người dùng; không log, không audit, không metrics (log chỉ có id). Không có cờ để bật log nội dung.
 
 ## Không bao giờ
 

@@ -492,17 +492,9 @@ export const EMPTY_SHARED_SUMMARY: ChatRoomSharedSummary = {
   recent_photos: [],
 };
 
-/** The method, JSON body and abort signal of one chat request: what the endpoint factories (chat-users-api.ts, chat-presence-api.ts) hand their transport. */
-export interface ChatRequestOpts {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  /** A JSON value; the transport serialises it. */
-  body?: unknown;
-  signal?: AbortSignal;
-}
-
 /**
- * A transport for the endpoint factories: the web binds `request` of
- * ../http.ts, the phone its own client. It resolves to the parsed JSON body
- * (undefined for a 204) and rejects on a failed response.
+ * The chat factories' names for the one transport every endpoint factory
+ * takes (endpoint-request.ts): the web binds `request` of ../http.ts, the
+ * phone its own client.
  */
-export type ChatRequest = (path: string, opts?: ChatRequestOpts) => Promise<unknown>;
+export type { EndpointRequestOpts as ChatRequestOpts, EndpointRequest as ChatRequest } from "./endpoint-request";

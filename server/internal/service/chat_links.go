@@ -43,10 +43,14 @@ type ChatMessageLinkRow struct {
 
 type CreateTaskFromMessageInput struct {
 	Title        string
+	Description  string // optional client draft; empty keeps the message-body default
+	Status       string
 	ProjectID    *string
 	AssigneeID   *string
 	AssigneeKind string
+	StartDate    *string
 	DueDate      *string
+	LabelIDs     []string
 	SyncThread   bool
 	Priority     string
 }
@@ -90,7 +94,9 @@ func errChatProjectNotFound() error {
 }
 
 func titleFromMessageBody(body string) string {
-	body = strings.TrimSpace(body)
+	// Mentions read as @Name so a task title never carries raw mention:// markup
+	// that would overflow a chat card (same rule as ChatPreviewBody / the TS helper).
+	body = strings.TrimSpace(chatMentionMarkdownPattern.ReplaceAllString(body, "@$1"))
 	if body == "" {
 		return "Task từ chat"
 	}
@@ -189,17 +195,26 @@ func (s *ChatService) CreateTaskFromMessage(
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = titleFromMessageBody(msg.Body)
-	}
-	desc := msg.Body
-	if utf8.RuneCountInString(desc) > 4000 {
-		desc = string([]rune(desc)[:4000])
+	} else if strings.Contains(title, "mention://") {
+		// A client may still send the stored markdown body as the title; strip
+		// it so the card never overflows, without re-applying the 120-rune cut.
+		title = strings.TrimSpace(chatMentionMarkdownPattern.ReplaceAllString(title, "@$1"))
 	}
 	when := msg.CreatedAt.Time.UTC().Format(time.RFC3339)
 	roomLabel := strings.TrimSpace(room.Name)
 	if roomLabel == "" {
 		roomLabel = room.ID
 	}
-	desc = fmt.Sprintf("%s\n\nTừ chat #%s lúc %s", desc, roomLabel, when)
+	desc := strings.TrimSpace(in.Description)
+	if desc == "" {
+		desc = msg.Body
+		if utf8.RuneCountInString(desc) > 4000 {
+			desc = string([]rune(desc)[:4000])
+		}
+		desc = fmt.Sprintf("%s\n\nTừ chat #%s lúc %s", desc, roomLabel, when)
+	} else if utf8.RuneCountInString(desc) > 4000 {
+		desc = string([]rune(desc)[:4000])
+	}
 
 	priority := strings.TrimSpace(in.Priority)
 	if priority == "" {
@@ -207,8 +222,9 @@ func (s *ChatService) CreateTaskFromMessage(
 	}
 	originID := msg.ID
 	task, err := s.tasks.Create(ctx, Human(userID), workspaceID, CreateTaskInput{
-		Title: title, Description: desc, Priority: priority,
-		AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate,
+		Title: title, Description: desc, Status: strings.TrimSpace(in.Status), Priority: priority,
+		AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind,
+		StartDate: in.StartDate, DueDate: in.DueDate, LabelIDs: in.LabelIDs,
 		OriginType: chatMessageOriginType, OriginID: &originID,
 		ProjectID: in.ProjectID,
 	})

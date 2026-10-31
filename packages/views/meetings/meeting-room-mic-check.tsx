@@ -8,7 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 type AudioContextCtor = new () => AudioContext;
 
-function audioContextCtor(): AudioContextCtor | null {
+export function audioContextCtor(): AudioContextCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { AudioContext?: AudioContextCtor; webkitAudioContext?: AudioContextCtor };
   return w.AudioContext ?? w.webkitAudioContext ?? null;
@@ -75,24 +75,12 @@ export function MeetingMediaPermissionAction({
 }
 
 /**
- * A thin input-level bar, so the viewer can see the chosen microphone hears
- * them. Reads a few times a second, not every frame, and without an easing
- * transition when reduced motion is asked for. Given `track` (the mic already
- * published in a room) it listens to that one; a second capture of the same
- * device can reconfigure it (Bluetooth headsets drop to call quality) under
- * what everyone else hears.
+ * The input level (0–100) of a microphone, read a few times a second, not
+ * every frame. Given `track` (the mic already published in a room) it listens
+ * to that one; a second capture of the same device can reconfigure it
+ * (Bluetooth headsets drop to call quality) under what everyone else hears.
  */
-export function MeetingMicLevel({
-  deviceId,
-  track,
-  className,
-}: {
-  deviceId?: string;
-  track?: MediaStreamTrack;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  const reduceMotion = useReducedMotion() ?? false;
+function useMicLevel(deviceId?: string, track?: MediaStreamTrack): number {
   const [level, setLevel] = useState(0);
 
   useEffect(() => {
@@ -146,6 +134,26 @@ export function MeetingMicLevel({
     };
   }, [deviceId, track]);
 
+  return level;
+}
+
+/**
+ * A thin input-level bar, so the viewer can see the chosen microphone hears
+ * them; without an easing transition when reduced motion is asked for.
+ */
+export function MeetingMicLevel({
+  deviceId,
+  track,
+  className,
+}: {
+  deviceId?: string;
+  track?: MediaStreamTrack;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const reduceMotion = useReducedMotion() ?? false;
+  const level = useMicLevel(deviceId, track);
+
   return (
     <div
       role="meter"
@@ -162,4 +170,49 @@ export function MeetingMicLevel({
       />
     </div>
   );
+}
+
+// Taller in the middle, so five dots read as a voice rather than a bar chart.
+const DOT_SHAPE = [0.6, 0.85, 1, 0.85, 0.6] as const;
+
+/**
+ * Five dots that stretch with the voice, drawn inside the mic picker in the
+ * prejoin (UNI-2285 D). `level` is 0–1. Under reduced motion the dots keep
+ * their resting height and only brighten while the mic hears something.
+ */
+export function MeetingMicDots({ level, className }: { level: number; className?: string }) {
+  const { t } = useTranslation();
+  const reduceMotion = useReducedMotion() ?? false;
+  const value = Math.round(Math.min(1, Math.max(0, level)) * 100);
+  const hearing = value >= 10;
+  return (
+    <span
+      role="meter"
+      aria-label={t("meetings.micLevel")}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      data-slot="mic-dots"
+      data-motion-loop={reduceMotion ? undefined : ""}
+      className={cn("inline-flex h-5 items-center gap-0.75", className)}
+    >
+      {DOT_SHAPE.map((shape, i) => (
+        <span
+          key={i}
+          data-mic-dot=""
+          className={cn(
+            "w-1.25 rounded-full bg-success-solid",
+            hearing ? "opacity-100" : "opacity-45",
+            !reduceMotion && "transition-[height,opacity] duration-fast ease-out-quart",
+          )}
+          style={{ height: `${reduceMotion ? 5 : 5 + 14 * (value / 100) * shape}px` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The dots, listening to the chosen microphone. */
+export function MeetingMicDotsLive({ deviceId, className }: { deviceId?: string; className?: string }) {
+  return <MeetingMicDots level={useMicLevel(deviceId) / 100} className={className} />;
 }

@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, X } from "lucide-react";
+import { ChevronDown, Monitor, Smartphone } from "lucide-react";
 import type { DesktopConsent } from "@uniwork/core/api/endpoints/auth";
+import { useAuthStore } from "@uniwork/core/auth";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Bezel } from "../layout/brand-surface";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_PILL } from "./auth-controls";
+import { AuthShell, SkeletonText } from "./auth-shell";
 
 export type DesktopConsentState = "pending" | "approved" | "cancelled" | "error" | "expired";
 
 type DesktopConsentProps = {
+  /** Null while the attempt is still loading (state pending), or when it could not be read. */
   consent: DesktopConsent | null;
   state?: DesktopConsentState;
   callbackUrl?: string;
   onDecision: (decision: "approve" | "cancel") => Promise<void>;
   onRetry?: () => void;
-  onBack?: () => void;
   onOpenDesktop?: () => void;
+  /** "Không phải bạn?": signs this browser out; the page then sends it to sign in again. */
+  onSwitchAccount?: () => Promise<void>;
 };
 
 // Server client ids (DESKTOP_AUTH_CLIENTS) to the product name the person installed; anything else shows the raw id.
@@ -27,47 +36,321 @@ function appName(clientId: string | undefined): string {
   return clientId;
 }
 
-export function DesktopConsentView({ consent, state = "pending", callbackUrl, onDecision, onRetry = () => undefined, onBack = () => undefined, onOpenDesktop = () => undefined }: DesktopConsentProps) {
+/**
+ * The phone app signs in through this page too (spec §3.5): its attempt
+ * carries the OS it runs on, and the page says "on this phone" instead of
+ * speaking of a desktop app the person does not have.
+ */
+function onPhone(platform: string | undefined): boolean {
+  const os = platform?.trim().toLowerCase();
+  return os === "ios" || os === "android";
+}
+
+/** One fact on the plane: what it is on the left, its value on the right. */
+function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-3">
+      <dt className="shrink-0 text-caption text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-body font-medium text-foreground [overflow-wrap:anywhere]">{children}</dd>
+    </div>
+  );
+}
+
+const PLANE = "flex flex-col divide-y divide-border/70 rounded-xl bg-muted/50 px-4 py-1";
+
+/**
+ * An address with a break chance after its @: the value column is narrow on
+ * a phone, and without one a long address was cut wherever it ran out
+ * ("…@example.c / om") instead of before its domain.
+ */
+function breakableEmail(email: string): ReactNode {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return email;
+  return (
+    <>
+      {email.slice(0, at + 1)}
+      <wbr />
+      {email.slice(at + 1)}
+    </>
+  );
+}
+
+/** The same address as skeleton text, breaking where the real one will. */
+function breakableEmailBone(email: string): ReactNode {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return <SkeletonText>{email}</SkeletonText>;
+  return (
+    <>
+      <SkeletonText>{email.slice(0, at + 1)}</SkeletonText>
+      <wbr />
+      <SkeletonText>{email.slice(at + 1)}</SkeletonText>
+    </>
+  );
+}
+
+/**
+ * Who is asking and for whom: the app, the device and the account this
+ * browser is signed in as lead, because those are what the person checks
+ * before allowing. The server and build only matter when something looks
+ * wrong, so they wait behind "Chi tiết".
+ */
+function ConsentFacts({ consent, app, phone }: { consent: DesktopConsent; app: string; phone: boolean }) {
+  const { t } = useTranslation();
+  const Device = phone ? Smartphone : Monitor;
+  return (
+    <div className="flex flex-col gap-3">
+      <dl className={PLANE}>
+        <Fact label={t("auth.desktop.app")}>{app}</Fact>
+        <Fact label={t("auth.desktop.device")}>
+          <span className="inline-flex items-center gap-2">
+            <Device aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            {consent.device_label || consent.platform}
+          </span>
+        </Fact>
+        <Fact label={t("auth.desktop.account")}>
+          <span className="block">{consent.account_name || t("auth.desktop.accountUnknown")}</span>
+          <span className="block text-caption font-normal text-muted-foreground">
+            {consent.account_email ? breakableEmail(consent.account_email) : t("auth.desktop.emailUnknown")}
+          </span>
+        </Fact>
+      </dl>
+      <Collapsible>
+        <CollapsibleTrigger className="group inline-flex items-center gap-1.5 self-start rounded-md text-label font-medium text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11">
+          <ChevronDown
+            aria-hidden
+            className="size-4 transition-transform duration-(--duration-fast) group-data-panel-open:rotate-180 motion-reduce:transition-none"
+          />
+          {t("auth.desktop.details")}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <dl className={cn(PLANE, "mt-2")}>
+            <Fact label={t("auth.desktop.deployment")}>{consent.deployment_id}</Fact>
+            <Fact label={t("auth.desktop.build")}>{consent.build || t("auth.desktop.unknown")}</Fact>
+          </dl>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+/** UniChat is the app that most often opens this page, on a phone through its sign-in sheet. */
+const LIKELY_APP = "UniChat";
+const LIKELY_DEVICE = { phone: "iPhone", desktop: "MacBook" };
+
+/**
+ * The consent's own shape while the attempt loads, drawn from the words it
+ * will most likely hold: the title and line, the facts' labels, and the
+ * account, which is this browser's own. A phone's sign-in sheet is a coarse
+ * pointer, so there the phone's longer title holds its three lines, and the
+ * two links keep their 44px. Nothing moves when the attempt lands.
+ */
+function ConsentSkeleton({ switchable }: { switchable: boolean }) {
+  const { t } = useTranslation();
+  const user = useAuthStore((s) => s.user);
+  const phone = useCoarsePointer();
+  const app = LIKELY_APP;
+  const email = user?.email || t("auth.desktop.emailUnknown");
+  return (
+    <AuthShell
+      loadingAs={{
+        title: t(phone ? "auth.desktop.phone.title" : "auth.desktop.title", { app }),
+        description: t("auth.desktop.description"),
+      }}
+      nameInTitle
+    >
+      <div aria-hidden inert className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          <dl className={PLANE}>
+            <Fact label={<SkeletonText>{t("auth.desktop.app")}</SkeletonText>}>
+              <SkeletonText>{app}</SkeletonText>
+            </Fact>
+            <Fact label={<SkeletonText>{t("auth.desktop.device")}</SkeletonText>}>
+              <span className="inline-flex items-center gap-2">
+                <Skeleton className="size-4 shrink-0 rounded-sm" />
+                <SkeletonText>{phone ? LIKELY_DEVICE.phone : LIKELY_DEVICE.desktop}</SkeletonText>
+              </span>
+            </Fact>
+            <Fact label={<SkeletonText>{t("auth.desktop.account")}</SkeletonText>}>
+              <span className="block">
+                <SkeletonText>{user?.display_name || t("auth.desktop.accountUnknown")}</SkeletonText>
+              </span>
+              <span className="block text-caption font-normal">{breakableEmailBone(email)}</span>
+            </Fact>
+          </dl>
+          <span className="inline-flex items-center gap-1.5 self-start text-label font-medium pointer-coarse:min-h-11">
+            <Skeleton className="size-4 shrink-0 rounded-sm" />
+            <SkeletonText>{t("auth.desktop.details")}</SkeletonText>
+          </span>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-12 w-full rounded-full" />
+          <Skeleton className="h-12 w-full rounded-full" />
+          {switchable ? (
+            <p className="flex flex-wrap items-center justify-center gap-x-1 text-label">
+              <SkeletonText>{t("auth.desktop.notYouQuestion")}</SkeletonText>
+              <span className="inline-flex items-center px-1 pointer-coarse:min-h-11">
+                <SkeletonText>{t("auth.desktop.useAnother")}</SkeletonText>
+              </span>
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+/**
+ * The browser half of a desktop or phone app's sign-in: the app opened this
+ * page with an attempt, and the person signed in here allows it, or not. On
+ * the sign-in screens' own shell, since the person usually arrives straight
+ * from /login and the two should read as one flow.
+ *
+ * Every outcome is final for this attempt: allowed, cancelled and expired
+ * point back to the app, which starts a new one if needed; only a failure to
+ * read or send offers to try again here. Each is titled by what happened.
+ * The attempt last read keeps naming the app and the platform when a retry
+ * or a 410 brings no attempt with it; one never read is spoken of neutrally
+ * ("Quay lại ứng dụng…"), never as a guessed product on a guessed device.
+ */
+export function DesktopConsentView({
+  consent,
+  state = "pending",
+  callbackUrl,
+  onDecision,
+  onRetry = () => undefined,
+  onOpenDesktop = () => undefined,
+  onSwitchAccount,
+}: DesktopConsentProps) {
   const { t } = useTranslation();
   const [pending, setPending] = useState<"approve" | "cancel" | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const busy = pending !== null || switching;
+  const [known, setKnown] = useState<DesktopConsent | null>(consent);
+  useEffect(() => {
+    if (consent) setKnown(consent);
+  }, [consent]);
+  const seen = consent ?? known;
+
   async function decide(decision: "approve" | "cancel") {
+    // aria-disabled keeps the buttons in the tab order, so the guard is here.
+    if (busy) return;
     setPending(decision);
-    try { await onDecision(decision); } finally { setPending(null); }
+    try {
+      await onDecision(decision);
+    } finally {
+      setPending(null);
+    }
   }
-  const app = appName(consent?.client_id);
-  const resultCopy = state === "approved" ? t("auth.desktop.approved", { app }) : state === "cancelled" ? t("auth.desktop.cancelledResult") : state === "expired" ? t("auth.desktop.expired") : t("auth.desktop.errorResult");
+
+  async function switchAccount() {
+    if (busy || !onSwitchAccount) return;
+    setSwitching(true);
+    try {
+      await onSwitchAccount();
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const app = appName(seen?.client_id);
+  const phone = onPhone(seen?.platform);
+  const copy = phone ? "auth.desktop.phone" : "auth.desktop";
+
+  if (state === "pending" && !consent) return <ConsentSkeleton switchable={Boolean(onSwitchAccount)} />;
+
+  if (state !== "pending") {
+    // Allowed and cancelled are only ever reached with the attempt read.
+    const [title, result] =
+      state === "approved"
+        ? // The page opened the app as soon as it was allowed; the sentence is
+          // the fallback for when it did not open, or the way back after a
+          // reload that kept no callback.
+          [t("auth.desktop.approvedTitle", { app }), t(callbackUrl ? "auth.desktop.approved" : "auth.desktop.approvedReturn", { app })]
+        : state === "cancelled"
+          ? [t("auth.desktop.cancelledTitle"), t("auth.desktop.cancelled", { app })]
+          : state === "expired"
+            ? [t("auth.desktop.expiredTitle"), seen ? t("auth.desktop.expired", { app }) : t("auth.desktop.expiredUnknown")]
+            : [t("auth.desktop.errorTitle"), t("auth.desktop.error")];
+    return (
+      <AuthShell title={title} description={<span role="status">{result}</span>}>
+        {state === "error" ? (
+          <Button type="button" size="lg" className={AUTH_PILL} onClick={onRetry}>
+            {t("common.retry")}
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {state === "approved" && callbackUrl ? (
+              <Button type="button" size="lg" className={AUTH_PILL} onClick={onOpenDesktop}>
+                {t("auth.desktop.openDesktop", { app })}
+              </Button>
+            ) : null}
+            {/* A desktop browser's tab. The phone's sign-in sheet has none, and
+                the app waits behind it until it is closed: it says how to get
+                back once there is nothing left to do here. */}
+            {seen && !phone ? (
+              <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p>
+            ) : seen && phone && state !== "approved" ? (
+              <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.phone.closePage", { app })}</p>
+            ) : null}
+          </div>
+        )}
+      </AuthShell>
+    );
+  }
+
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-app-shell p-6">
-      <Bezel>
-        <section aria-labelledby="desktop-consent-title" className="flex w-full max-w-xl flex-col gap-6 p-6 sm:p-9">
-          <div className="flex flex-col gap-2">
-            <p className="text-overline text-muted-foreground">{t("auth.desktop.eyebrow")}</p>
-            <h1 id="desktop-consent-title" className="font-display text-display font-bold text-foreground">{state === "pending" ? t("auth.desktop.title", { app }) : t("auth.desktop.resultTitle")}</h1>
-            {state === "pending" ? <p className="text-body text-muted-foreground">{t("auth.desktop.description")}</p> : <p role="status" className="text-body text-muted-foreground">{resultCopy}</p>}
-          </div>
-          {state === "pending" && consent ? <dl className="grid gap-3 rounded-xl border border-border/70 bg-surface p-4 text-body sm:grid-cols-2">
-            <div><dt className="text-muted-foreground">{t("auth.desktop.app")}</dt><dd className="break-words font-semibold">{app}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.device")}</dt><dd className="break-words font-semibold">{consent.device_label || consent.platform}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.account")}</dt><dd className="break-words font-semibold">{consent.account_name || t("auth.desktop.accountUnknown")}</dd><dd className="break-words text-caption text-muted-foreground">{consent.account_email || t("auth.desktop.emailUnknown")}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.deployment")}</dt><dd className="break-words font-semibold">{consent.deployment_id}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.build")}</dt><dd className="break-words font-semibold">{consent.build || t("auth.desktop.unknown")}</dd></div>
-          </dl> : null}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            {state === "pending" ? <>
-            <Button type="button" variant="outline" disabled={pending !== null} onClick={() => void decide("cancel")}><X className="mr-2 size-4" aria-hidden />{t("common.cancel")}</Button>
-            <Button type="button" disabled={pending !== null} onClick={() => void decide("approve")}><Check className="mr-2 size-4" aria-hidden />{pending === "approve" ? t("auth.desktop.approving") : t("auth.desktop.approve")}</Button>
-            </> : state === "approved" ? <>
-              {callbackUrl ? <Button type="button" onClick={onOpenDesktop}>{t("auth.desktop.openDesktop", { app })}</Button> : null}
-              <Button type="button" variant="outline" onClick={onBack}>{t("common.close")}</Button>
-            </> : state === "error" || state === "expired" ? <>
-              <Button type="button" onClick={onRetry}>{t("common.retry")}</Button>
-              <Button type="button" variant="outline" onClick={onBack}>{t("common.back")}</Button>
-            </> : <Button type="button" variant="outline" onClick={onBack}>{t("common.back")}</Button>}
-          </div>
-          {state === "approved" ? <p className="text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p> : null}
-        </section>
-      </Bezel>
-    </main>
+    <AuthShell title={t(`${copy}.title`, { app })} description={t("auth.desktop.description")} nameInTitle>
+      <div className="flex flex-col gap-6">
+        {consent ? <ConsentFacts consent={consent} app={app} phone={phone} /> : null}
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            size="lg"
+            className={AUTH_PILL}
+            aria-disabled={busy || undefined}
+            aria-busy={pending === "approve" || undefined}
+            onClick={() => void decide("approve")}
+          >
+            {/* Decorative: the label already says it is working. */}
+            {pending === "approve" ? <Spinner /> : null}
+            {/* Answers the title's question with its own words: "Cho phép UniChat", on a phone too. */}
+            {pending === "approve" ? t("auth.desktop.approving") : t("auth.desktop.approve", { app })}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className={AUTH_PILL}
+            aria-disabled={busy || undefined}
+            aria-busy={pending === "cancel" || undefined}
+            onClick={() => void decide("cancel")}
+          >
+            {pending === "cancel" ? <Spinner /> : null}
+            {t("common.cancel")}
+          </Button>
+          {onSwitchAccount ? (
+            <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
+              {t("auth.desktop.notYouQuestion")}
+              {/* Button primitive for the 44px coarse-pointer floor, drawn as the
+                  credential screens' inline link. Signing out takes a moment
+                  before the page moves on: it says so, like its neighbours. */}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto px-1 text-label text-brand"
+                aria-disabled={busy || undefined}
+                aria-busy={switching || undefined}
+                onClick={() => void switchAccount()}
+              >
+                {switching ? <Spinner /> : null}
+                {switching ? t("auth.desktop.signingOut") : t("auth.desktop.useAnother")}
+              </Button>
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </AuthShell>
   );
 }
 

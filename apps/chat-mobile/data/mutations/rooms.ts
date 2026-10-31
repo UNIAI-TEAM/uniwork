@@ -1,13 +1,29 @@
 // What the chat does to its rooms: mute, leave, open a DM, join a channel,
 // make a group or add people to one, mark a thread read, and ask the AI to
 // catch up on a room. See command.ts for the layer's rule.
-import { leaveRoom, createGroup, inviteGroupMembers, joinChannel, markThreadRead, resolveDMRoom, setRoomMuted } from "../chat-actions";
+import {
+  createGroup,
+  inviteGroupMembers,
+  joinChannel,
+  leaveRoom,
+  markThreadRead,
+  resolveDMRoom,
+  setChatNickname,
+  setRoomMuted,
+  setRoomWallpaper,
+} from "../chat-actions";
 import { chatApi } from "../chat-api";
 import { useCommand } from "./command";
 
 /** Optimistic on the room list; a failure restores the row and rejects. */
 export const useSetRoomMuted = (wsId: string) =>
   useCommand("chat.mute_room", (qc, { roomId, muted }: { roomId: string; muted: boolean }) => setRoomMuted(qc, wsId, roomId, muted));
+
+export const useSetRoomWallpaper = (wsId: string) =>
+  useCommand("chat.wallpaper", (qc, { roomId, preset }: { roomId: string; preset: string }) => setRoomWallpaper(qc, wsId, roomId, preset));
+
+export const useSetNickname = (wsId: string) =>
+  useCommand("chat.nickname", (qc, { userId, nickname }: { userId: string; nickname: string }) => setChatNickname(qc, wsId, userId, nickname));
 
 export const useLeaveRoom = (wsId: string) => useCommand("chat.leave_room", (qc, roomId: string) => leaveRoom(qc, wsId, roomId));
 

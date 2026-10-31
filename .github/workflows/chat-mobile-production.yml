@@ -201,6 +201,9 @@ jobs:
         working-directory: apps/chat-mobile
         env:
           BUILD_ID: ${{ steps.build.outputs.id }}
+          # A submit profile carries no env: without this app.config.ts reads as the dev app and eas looks up
+          # the Play key of com.uniworkos.chat.dev.
+          UNICHAT_ENV: production
         run: eas submit --platform android --profile production-internal --id "$BUILD_ID" --non-interactive --wait
       - name: Summary
         if: always()

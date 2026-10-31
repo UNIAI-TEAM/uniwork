@@ -286,7 +286,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		if err != nil {
 			return err
 		}
-		version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, copied, DocumentEngineInfo{}, pgtype.Int4{}))
+		version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, copied, DocumentEngineInfo{}, pgtype.Int4{}))
 		if err != nil {
 			return err
 		}

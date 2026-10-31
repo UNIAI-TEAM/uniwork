@@ -3,6 +3,11 @@
 > **Trạng thái:** in-progress — spec v1.2 bàn giao (đã duyệt 2026-10-12, U-13; gate còn mở ở §13.1; triển khai bằng cook-plan theo U-14), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). U-14 (2026-10-12) thay U-10:
 > phiên Advisor của UNI-923 triển khai G5/G6/G7 theo plan v2.6. v1.2 bỏ Dify khỏi phạm vi (U-12). Triển khai bắt đầu 2026-10-12 (U-14); chưa cấu hình upstream model production, chưa nghiệm thu sản phẩm.
 
+> **Ghi chú (2026-10-29):** [ADR 0051](../../adr/0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) gỡ BYOK khỏi khung web,
+> kho khóa trên UniWork và máy chủ (spec `2026-10-27-remove-byok-design.md`). Mọi chỗ dưới đây nói BYOK của web còn chạy,
+> "BYOK vẫn chạy" khi UniWork AI lỗi, hay grant `ai` của khung, là lịch sử: UniWork AI là đường AI duy nhất của trình
+> soạn và không còn AI dự phòng. Khóa trên máy và CLI của app desktop (ADR 0028 QĐ2) còn tới kế hoạch 2 của ADR 0051.
+
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
 **Phạm vi tài liệu:** một phase với ba luồng song song và các mốc bàn giao; không hợp nhất ba issue thành một.
@@ -339,6 +344,7 @@ trạng thái cloud là `ready` và `tools.chat` bật. Khi chọn, lượt ch�
 - Không mạng: UniWork AI không chạy; không xếp hàng yêu cầu AI để tự gửi sau reconnect.
 - Chat không mở thành Ask UNI toàn workspace; muốn thêm nguồn phải chọn rõ và server kiểm quyền.
   Tài liệu thuộc Work Product giữ cùng workspace và owner ACL theo C-14, không có ACL phụ của Office AI.
+  Ngoại lệ: [ADR 0048](../../adr/0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) — tư liệu người hỏi đã duyệt trên thẻ Hỏi UNI vào hội thoại của đúng tài liệu Apply vừa tạo, qua gói ở server, dưới dạng không tin cậy.
 - Kết quả phân biệt **trả lời**, **cần làm rõ**, **đã sửa trong editor**, **không hỗ trợ**, **lỗi**; có hủy.
 
 **Ngữ cảnh là nội dung đang mở trong editor**, kể cả phần chưa lưu, vì công cụ genoffice đọc thẳng editor.
@@ -372,6 +378,7 @@ trả lời phải nói rõ là theo nội dung đang mở.
 | Rate limit | Nhóm `ai-uniwork`, theo danh tính, như ADR 0029 D6 |
 | Trạng thái | `GET .../ai/cloud` thêm `tools.chat`; frame thêm grant `uniwork_ai` |
 | Lỗi | Bộ lỗi chuẩn ADR 0029, thêm `run_limit_reached` khi vượt trần lượt (dưới) |
+| Route viết (UNI-2276, ADR 0050) | `POST /office-frame/documents/{documentID}/ai/uniwork/write`, body `{kind, lang, input}`; SSE; lời gọi nằm trong run đang chạy (đoạn "Lời gọi viết một lần" dưới) |
 
 Sau khi chốt, hợp đồng app ↔ UniWork (`uniwork-office-app-api-contract.md` §3) thêm mục cho route này.
 
@@ -399,6 +406,13 @@ Với nhà cung cấp UniWork AI trong v1:
 - Trần số vòng tool và số lượt gọi model cho mỗi lượt chạy, đếm ở server theo run id (bảng hợp đồng ở trên); vượt trần trả `run_limit_reached`.
   Mỗi request tool-result là một lượt model có tính credit.
 
+**Lời gọi viết một lần (UNI-2276, ADR 0050).** Các bộ viết của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief,
+style, dàn ý và từng trang của deck) là một lượt model **ngoài vòng công cụ**, nhưng vẫn nằm trong run của lượt đang chạy:
+cùng run id (`X-UniWork-AI-Run`, kèm `X-UniWork-AI-Conversation`), cùng trần `model_calls`, và luôn **chừa một lượt** cho vòng
+công cụ (nhận khi run đã dùng dưới 9 lượt model; vượt → `run_limit_reached`). Nó không bao giờ mở run, không vào transcript.
+Client chỉ gửi `{kind, lang, input}`; prompt hệ thống do server giữ và mọi chữ trong `input` vào model dưới dạng không tin
+cậy. Chạy dưới capability riêng `office_uniwork_writer`, trả chữ bằng SSE; AI không tự Lưu (§6.4).
+
 Lịch sử hội thoại là nguồn không tin cậy. Nội dung tài liệu, công thức, comment và tool result không phải system
 instruction; prompt injection không được đổi policy, mở URL hoặc lấy scope khác.
 
@@ -418,6 +432,7 @@ phía server trong v1. Việc của G6:
 
 Nếu sau này cần công cụ phía server (ví dụ đọc tài liệu khác trong workspace), đó là mở rộng riêng có ADR,
 phải qua ACL và `TestAskUniToolsAreReadOnly`-style guard; không nằm trong v1.
+Ngoại lệ: [ADR 0048](../../adr/0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) — tư liệu đến qua gói giao việc Hỏi UNI, không qua công cụ; AI trong trình soạn vẫn không có công cụ đọc workspace.
 
 ### 6.4 Áp dụng và lưu
 
@@ -439,7 +454,7 @@ không tuyên bố genoffice hiện hỗ trợ hết.
 | --- | --- | --- | --- |
 | XLSX | Tổng/count/average, điều kiện, nhóm, đối chiếu sheet, giải thích công thức, phát hiện dữ liệu bất thường | Công thức, giá trị hoặc cột dẫn xuất trong range xác định | Expected cells, types/formulas, recalc, reopen, unchanged regions |
 | DOCX | Hỏi/tóm tắt, trích nội dung có anchor, so sánh và giải thích | Viết lại/rút gọn/dịch đoạn được chọn; giữ bảng và phần không sửa | OOXML parts diff, text/structure, render theo ngưỡng; mở lại bằng Word |
-| PPTX | Hỏi/tóm tắt theo slide và text shape | Viết lại/dịch text shape | Text/shape/layout preserved, fresh reopen; không hứa AI tạo layout toàn deck |
+| PPTX | Hỏi/tóm tắt theo slide và text shape | Viết lại/dịch text shape | Text/shape/layout preserved, fresh reopen; dựng cả deck bằng `generate_deck` trên lượt gắn tài liệu (route viết, ADR 0050, UNI-2276); ảnh trên slides web bị bỏ qua (CSP `connect-src 'self'`, chỉ nhận `data:`/`blob:`) |
 | PDF có text layer | Hỏi/tóm tắt với page/text anchors | Text patch trong capability đã chứng minh; giới hạn font/layout rõ | Extraction/render và vùng ngoài patch; scan không giả có text/OCR |
 | Markdown | Hỏi/tóm tắt theo heading/source range | Sửa vùng chọn, giữ frontmatter/link/assets ngoài vùng | Source diff + render + assets |
 | HTML | Hỏi/tóm tắt nội dung | Sửa text/DOM targets được phép | DOM/source diff, assets, CSP/sandbox của frame |

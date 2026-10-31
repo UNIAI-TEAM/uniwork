@@ -224,4 +224,9 @@ describe("AskUniProposalEdit", () => {
     expect(screen.getByText("Phần đầu")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sửa" })).toBeNull();
   });
+
+  it("labels the visibility options of a new Office file", () => {
+    edit(row([{ field: "visibility", type: "enum", from: null, to: "restricted", options: ["restricted", "workspace"] }], { tool: "create_office_document" }));
+    expect(screen.getByLabelText("Sửa Ai xem được")).toHaveTextContent("Chỉ mình tôi");
+  });
 });

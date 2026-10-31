@@ -121,13 +121,13 @@ function capabilityRows(format: OfficeFormat, pdfMissing: string | null): Capabi
         return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "no export is bound for this format in this service build" };
       }
       if (op === "extract_text") {
-        if ((format === "docx" || format === "xlsx" || format === "pptx") && isBound(op, format)) {
+        if ((format === "docx" || format === "xlsx" || format === "pptx" || format === "pdf") && isBound(op, format)) {
           return {
             operation: op,
             supported: true,
             runtime: "internal_service",
             evidence_level: "pending",
-            reason: `selective ${format} text reader bound in the engine service; product evidence packet pending`,
+            reason: `${format === "pdf" ? "pdfium text-layer" : "selective " + format} reader bound in the engine service; product evidence packet pending`,
           };
         }
         return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "no text extractor is bound for this format in this service build" };

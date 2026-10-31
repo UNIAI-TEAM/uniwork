@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -941,14 +942,14 @@ func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
 }
 
 // G6-09a (UNI-1374) N1: the slides tools a UniWork AI turn never gets (the web
-// stubs, whole-deck generation and style templates) are out of the table, so a
+// image stubs and style templates) are out of the table, so a
 // modified client cannot offer them to the model and a call for one is dropped
 // as not_allowlisted, not view_only. The tools the client hides only for a
 // bound document (create_document, the pdf file-level page tools) stay: the
 // table is keyed by module alone and carries no document scope, and R1 (the
 // local-file route) is viewOnly today.
 func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
-	removed := []string{"generate_deck", "insert_web_image", "regenerate_slide", "replace_image", "save_style_template"}
+	removed := []string{"insert_web_image", "replace_image", "save_style_template"}
 	slides := officeUniworkModulesV1["slides"]
 	for _, name := range removed {
 		for _, group := range [][]string{slides.Read, slides.Write} {
@@ -977,7 +978,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	}
 
 	// A view-only turn drops the removed names too, and the reason is
-	// not_allowlisted, not view_only: the five are out of the module table
+	// not_allowlisted, not view_only: the three are out of the module table
 	// altogether, so the write set no longer names them (before G6-09a a call
 	// for one read as view_only and drove aiErrViewOnlyEdit).
 	viewOnly := UniworkModuleAllowlist("slides", offered, true, false)
@@ -1084,7 +1085,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 				"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
 				"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
 			},
-			Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
+			Write: []string{"apply_ops", "edit_chart", "execute_slide_script", "generate_deck", "regenerate_slide"},
 		},
 	}
 	for module, want := range pinned {
@@ -1220,14 +1221,59 @@ func TestAIUniworkBoundDocumentHidesDocumentCreatingTools(t *testing.T) {
 		}
 	}
 
-	// Modules with no bound-hidden tools (markdown, html, slides) are unchanged when bound=true.
-	for _, module := range []string{"markdown", "html", "slides"} {
+	// Modules with no bound-hidden tools (markdown, html) are unchanged when bound=true.
+	// Slides differs the other way round: see TestAIUniworkDeckToolsOnlyOnBoundSlides.
+	for _, module := range []string{"markdown", "html"} {
 		mod := officeUniworkModulesV1[module]
 		offered := facadeSpecs(append(append([]string(nil), mod.Read...), mod.Write...)...)
 		unbound := UniworkModuleAllowlist(module, offered, false, false)
 		bound := UniworkModuleAllowlist(module, offered, false, true)
 		facadeAssertExactNames(t, module+" bound vs unbound", "tools", bound.Tools.Names(), unbound.Tools.Names())
 		facadeAssertExactNames(t, module+" bound vs unbound", "writes", bound.WriteNames, unbound.WriteNames)
+	}
+}
+
+// Plan 5 (ADR 0050): generate_deck and regenerate_slide build pages through the
+// UniWork AI writer route, which needs a document to write into, so the table
+// offers them on a bound deck only. View-only keeps them in WriteNames, so a
+// call for one is reported view_only like any other write.
+func TestAIUniworkDeckToolsOnlyOnBoundSlides(t *testing.T) {
+	deck := []string{"generate_deck", "regenerate_slide"}
+	offered := facadeSpecs(append([]string{"apply_ops", "read_slide"}, deck...)...)
+
+	bound := UniworkModuleAllowlist("slides", offered, false, true)
+	facadeAssertExactNames(t, "slides bound", "tools", bound.Tools.Names(), []string{"apply_ops", "read_slide", "generate_deck", "regenerate_slide"})
+	for _, name := range deck {
+		tool, ok := bound.Tools.Get(name)
+		if !ok || tool.Kind != ToolWrite {
+			t.Errorf("slides bound: %q = %+v (found %v), want an offered write tool", name, tool, ok)
+		}
+		if !slices.Contains(bound.WriteNames, name) {
+			t.Errorf("slides bound: %q missing from WriteNames", name)
+		}
+	}
+
+	unbound := UniworkModuleAllowlist("slides", offered, false, false)
+	facadeAssertExactNames(t, "slides unbound", "tools", unbound.Tools.Names(), []string{"apply_ops", "read_slide"})
+	for _, name := range deck {
+		if slices.Contains(unbound.WriteNames, name) {
+			t.Errorf("slides unbound: %q stayed in WriteNames", name)
+		}
+	}
+	calls := []provider.ToolCall{
+		{ID: "c0", Name: "generate_deck", Input: json.RawMessage(`{}`)},
+		{ID: "c1", Name: "regenerate_slide", Input: json.RawMessage(`{}`)},
+	}
+	if kept, dropped := FilterUniworkToolCalls(calls, unbound); len(kept) != 0 || len(dropped) != 2 ||
+		dropped[0].Reason != UniworkDropNotAllowlisted || dropped[1].Reason != UniworkDropNotAllowlisted {
+		t.Fatalf("slides unbound filter = %+v / %+v, want both not_allowlisted", kept, dropped)
+	}
+
+	viewOnly := UniworkModuleAllowlist("slides", offered, true, true)
+	facadeAssertExactNames(t, "slides bound+viewOnly", "tools", viewOnly.Tools.Names(), []string{"read_slide"})
+	kept, dropped := FilterUniworkToolCalls(calls, viewOnly)
+	if len(kept) != 0 || len(dropped) != 2 || dropped[0].Reason != UniworkDropViewOnly || dropped[1].Reason != UniworkDropViewOnly {
+		t.Fatalf("slides bound+viewOnly filter = %+v / %+v, want both view_only", kept, dropped)
 	}
 }
 
@@ -1546,4 +1592,56 @@ func TestFacadeUntrustedToolResultCapsA6AndA7(t *testing.T) {
 			t.Errorf("trimmed @5 History tokens = %d, exceeds %d", got, UniworkHistoryMaxTokens)
 		}
 	})
+}
+
+// The Ask UNI handoff (ADR 0048) expands a question after the client's 8 000
+// cap: the client's text is checked as it came, the expanded text is what the
+// turn carries, a tool-result turn never expands, and a nil expand is
+// PlanUniworkTurn.
+func TestPlanUniworkTurnWithExpandsAfterTheQuestionCap(t *testing.T) {
+	allow := facadeAllow([]string{"read_range"}, nil)
+	question := func(s string) json.RawMessage {
+		return facadeBody(t, map[string]any{"messages": []map[string]string{{"role": "user", "content": s}}})
+	}
+	long := strings.Repeat("y", 20_000)
+
+	if _, err := PlanUniworkTurnWith(nil, question(strings.Repeat("x", UniworkQuestionMaxRunes+1)), allow,
+		func(string) string { return long }); !errors.Is(err, ErrUniworkInvalidTurn) {
+		t.Fatalf("client question over the cap = %v, want invalid_request", err)
+	}
+
+	turn, err := PlanUniworkTurnWith(nil, question("0123456789"), allow, func(q string) string {
+		if q != "0123456789" {
+			t.Errorf("expand got %q, want the client's question", q)
+		}
+		return long
+	})
+	if err != nil {
+		t.Fatalf("expanded question: %v", err)
+	}
+	if last := turn.History[len(turn.History)-1].Content; turn.Question != long || last != long {
+		t.Fatalf("expanded turn: Question %d bytes, last History %d bytes; want both %d", len(turn.Question), len(last), len(long))
+	}
+
+	called := false
+	if _, err := PlanUniworkTurnWith(facadeCallTurnTranscript("call_1"),
+		facadeBody(t, map[string]any{"messages": facadeToolResults("call_1")}), allow,
+		func(q string) string { called = true; return q }); err != nil {
+		t.Fatalf("tool-result turn: %v", err)
+	}
+	if called {
+		t.Fatal("a tool-result turn called expand")
+	}
+
+	plain, err := PlanUniworkTurn(nil, question("0123456789"), allow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := PlanUniworkTurnWith(nil, question("0123456789"), allow, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(plain, same) {
+		t.Fatalf("nil expand = %+v, want PlanUniworkTurn's %+v", same, plain)
+	}
 }

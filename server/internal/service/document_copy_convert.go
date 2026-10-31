@@ -187,7 +187,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 		if err != nil {
 			return err
 		}
-		version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, out, officeEngineInfo(), pgtype.Int4{}))
+		version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, out, officeEngineInfo(), pgtype.Int4{}))
 		if err != nil {
 			return err
 		}

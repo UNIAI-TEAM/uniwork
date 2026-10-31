@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { toast } from "sonner";
@@ -369,5 +370,23 @@ describe("MeetingControlBar reactions", () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Cài đặt hệ thống/));
     shareErrors.onDeviceError?.(namedError("NotReadableError"));
     expect(toast.error).toHaveBeenLastCalledWith("Không bắt đầu chia sẻ màn hình được. Thử lại hoặc chọn cửa sổ khác.");
+  });
+});
+
+describe("MeetingControlBar tooltips (UNI-2285 E)", () => {
+  it("shares one tooltip that moves to the next control without waiting again", async () => {
+    mobile = false;
+    sharing.pending = false;
+    const user = userEvent.setup();
+    render(wrapWithNav(<MeetingControlBar onExit={() => {}} meetingId="m1" />));
+    const tip = () => document.querySelectorAll("[data-slot=tooltip-content]");
+    await user.hover(screen.getByRole("button", { name: "Rời phòng" }));
+    await waitFor(() => expect(tip()[0]).toHaveTextContent("Rời phòng"), { timeout: 2000 });
+    await user.hover(screen.getByRole("button", { name: "Thiết bị" }));
+    // Well under the 300 ms first delay: the open tip only changes trigger.
+    await waitFor(() => expect(tip()[0]).toHaveTextContent("Thiết bị"), { timeout: 150 });
+    expect(tip()).toHaveLength(1);
+    // The positioner carries the glide, so the move between buttons slides.
+    expect(tip()[0]!.parentElement).toHaveClass("ease-out-quart");
   });
 });

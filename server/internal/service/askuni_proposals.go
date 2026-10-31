@@ -405,6 +405,9 @@ func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.Agen
 	if err := s.proposalMember(ctx, userID, row); err != nil {
 		return AskProposal{}, err
 	}
+	if askOfficeTools[row.ActionType] && !s.askOfficeOn(ctx, proposalContext(row)) {
+		return AskProposal{}, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
+	}
 	// Defense in depth for Auto mode (R11): the stored row must say it may run
 	// unasked, whatever the caller decided.
 	if decision == AskModeAuto && (row.RiskLevel != askLevel1 || row.Tainted || row.Mode != AskModeAuto) {
@@ -592,6 +595,13 @@ func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conve
 			if i < 0 || !(chosen[rows[i].ID] || rows[i].Status == proposalApplied) {
 				return nil, errProposalRefPending
 			}
+		}
+	}
+	// The same for drafting rows with the switch off: applyRow refuses them
+	// too, but only after the rows before them ran.
+	for _, r := range rows {
+		if chosen[r.ID] && askOfficeTools[r.ActionType] && !s.askOfficeOn(ctx, proposalContext(r)) {
+			return nil, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
 		}
 	}
 	plan := rows[0].Mode == AskModePlan

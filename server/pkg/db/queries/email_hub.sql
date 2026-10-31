@@ -428,7 +428,24 @@ WHERE t.account_id = sqlc.arg('account_id')
       sqlc.arg('label_filter') = ''
       AND (
         (sqlc.arg('folder') = 'SNOOZED' AND t.folder = 'INBOX' AND t.snoozed_until IS NOT NULL AND t.snoozed_until > now())
-        OR (sqlc.arg('folder') = 'STARRED' AND t.is_starred = true)
+        OR (
+          sqlc.arg('folder') = 'STARRED'
+          AND t.is_starred = true
+          AND t.id IN (
+            SELECT DISTINCT ON (
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END
+            ) t2.id
+            FROM email_hub_threads t2
+            WHERE t2.account_id = sqlc.arg('account_id')
+              AND t2.organization_id = sqlc.arg('organization_id')
+              AND t2.is_starred = true
+            ORDER BY
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END,
+              CASE t2.folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+              t2.sent_at DESC,
+              t2.id DESC
+          )
+        )
         OR (
           sqlc.arg('folder') NOT IN ('STARRED', 'SNOOZED')
           AND t.folder = sqlc.arg('folder')
@@ -579,16 +596,65 @@ ORDER BY sent_at DESC
 LIMIT $3;
 
 -- name: CountEmailHubStarredThreads :one
+-- One row per Message-ID (UNI-2269): Gmail can cache the same starred mail in
+-- INBOX and All Mail under different UIDs.
 SELECT
   count(*)::bigint AS total,
   count(*) FILTER (WHERE NOT is_read)::bigint AS unread
-FROM email_hub_threads
-WHERE account_id = $1
-  AND organization_id = $2
-  AND is_starred = true;
+FROM (
+  SELECT DISTINCT ON (
+    CASE WHEN message_id <> '' THEN lower(message_id) ELSE id END
+  ) is_read
+  FROM email_hub_threads
+  WHERE account_id = $1
+    AND organization_id = $2
+    AND is_starred = true
+  ORDER BY
+    CASE WHEN message_id <> '' THEN lower(message_id) ELSE id END,
+    CASE folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+    sent_at DESC,
+    id DESC
+) starred_unique;
 
+-- name: MarkEmailHubThreadsStarredByMessageID :execrows
+UPDATE email_hub_threads
+SET is_starred = sqlc.arg('is_starred'), synced_at = now()
+WHERE account_id = sqlc.arg('account_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND message_id <> ''
+  AND lower(message_id) = lower(sqlc.arg('message_id')::text);
+
+-- name: DeleteEmailHubDuplicateThreadsByMessageID :execrows
+-- Keep the preferred folder copy (INBOX > SENT > ARCHIVE); drop the rest.
+DELETE FROM email_hub_threads t
+WHERE t.account_id = sqlc.arg('account_id')
+  AND t.organization_id = sqlc.arg('organization_id')
+  AND t.message_id <> ''
+  AND lower(t.message_id) = lower(sqlc.arg('message_id')::text)
+  AND t.id <> (
+    SELECT id FROM email_hub_threads
+    WHERE account_id = sqlc.arg('account_id')
+      AND organization_id = sqlc.arg('organization_id')
+      AND message_id <> ''
+      AND lower(message_id) = lower(sqlc.arg('message_id')::text)
+    ORDER BY
+      CASE folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+      sent_at DESC,
+      id DESC
+    LIMIT 1
+  );
+
+-- List pages omit body_text/body_html so Postgres does not pull TOAST for the
+-- inbox/folder list (UNI-2268). Detail/conversation queries still SELECT *.
 -- name: ListEmailHubInboxConversationPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')
@@ -677,7 +743,14 @@ WHERE account_id = sqlc.arg('account_id')
 GROUP BY conversation_key;
 
 -- name: ListEmailHubThreadsPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')
@@ -691,7 +764,24 @@ WHERE t.account_id = sqlc.arg('account_id')
       sqlc.arg('label_filter') = ''
       AND (
         (sqlc.arg('folder') = 'SNOOZED' AND t.folder = 'INBOX' AND t.snoozed_until IS NOT NULL AND t.snoozed_until > now())
-        OR (sqlc.arg('folder') = 'STARRED' AND t.is_starred = true)
+        OR (
+          sqlc.arg('folder') = 'STARRED'
+          AND t.is_starred = true
+          AND t.id IN (
+            SELECT DISTINCT ON (
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END
+            ) t2.id
+            FROM email_hub_threads t2
+            WHERE t2.account_id = sqlc.arg('account_id')
+              AND t2.organization_id = sqlc.arg('organization_id')
+              AND t2.is_starred = true
+            ORDER BY
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END,
+              CASE t2.folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+              t2.sent_at DESC,
+              t2.id DESC
+          )
+        )
         OR (
           sqlc.arg('folder') NOT IN ('STARRED', 'SNOOZED')
           AND t.folder = sqlc.arg('folder')
@@ -734,7 +824,14 @@ ORDER BY
 LIMIT sqlc.arg('limit_val');
 
 -- name: ListEmailHubThreadsSearchPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')

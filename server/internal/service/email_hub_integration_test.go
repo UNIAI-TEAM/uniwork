@@ -438,6 +438,68 @@ func TestEmailHubStarredFolderListing(t *testing.T) {
 	}
 }
 
+// Gmail All Mail + INBOX share one Message-ID under different UIDs; STARRED must
+// show a single row and prefer the INBOX copy (UNI-2269).
+func TestEmailHubStarredFolderDedupesGmailCopies(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	mid := "<star-dup@mail.example>"
+	inbox, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderInbox, ImapUid: 10, MessageID: pgtype.Text{String: mid, Valid: true},
+		Subject: "Star me", Snippet: "one", FromAddr: "a@b.co", ToAddrs: []string{acc.EmailAddress},
+		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsStarred: true, ImapLabels: []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderArchive, ImapUid: 99, MessageID: pgtype.Text{String: mid, Valid: true},
+		Subject: "Star me", Snippet: "dup", FromAddr: "a@b.co", ToAddrs: []string{acc.EmailAddress},
+		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsStarred: true, ImapLabels: []string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := svc.ListThreads(ctx, actor, ws.ID, ListEmailHubThreadsInput{
+		AccountID: acc.ID, Folder: emailhub.FolderStarred, Limit: 50,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Threads) != 1 || page.Counts.Total != 1 {
+		t.Fatalf("starred list = %d threads total=%d, want 1", len(page.Threads), page.Counts.Total)
+	}
+	if page.Threads[0].ID != inbox.ID {
+		t.Fatalf("preferred row = %s, want inbox %s", page.Threads[0].ID, inbox.ID)
+	}
+
+	if !svc.applyStarredToExistingByMessageID(ctx, acc, mid) {
+		t.Fatal("expected an existing Message-ID to be starred in place")
+	}
+	left, err := q.ListEmailHubThreadUIDsByFolder(ctx, db.ListEmailHubThreadUIDsByFolderParams{
+		AccountID: acc.ID, OrganizationID: ws.OrganizationID, Folder: emailhub.FolderInbox,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 1 || left[0] != 10 {
+		t.Fatalf("after dedupe inbox UIDs = %v, want [10]", left)
+	}
+	archive, err := q.ListEmailHubThreadUIDsByFolder(ctx, db.ListEmailHubThreadUIDsByFolderParams{
+		AccountID: acc.ID, OrganizationID: ws.OrganizationID, Folder: emailhub.FolderArchive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archive) != 0 {
+		t.Fatalf("archive copy should be deleted, got UIDs %v", archive)
+	}
+}
+
 func TestEmailHubConversationMessages(t *testing.T) {
 	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()

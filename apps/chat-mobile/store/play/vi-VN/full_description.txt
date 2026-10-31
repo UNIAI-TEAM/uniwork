@@ -8,4 +8,4 @@ UniWork Chat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Na
 - Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên (tới vài trăm tin chưa đọc)
 - Hỗ trợ TalkBack, cỡ chữ lớn và chế độ tối
 
-Cần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.
+Cần một tài khoản UniWork. Đăng nhập bằng email và mật khẩu, Google hoặc Apple; ứng dụng không lưu mật khẩu của bạn.

@@ -35,8 +35,10 @@ function selectionUi(overrides: Partial<ChatMessageSelectionUi> = {}): ChatMessa
     copySelected: vi.fn(),
     forwardSelected: vi.fn(),
     deleteSelected: vi.fn(),
+    createTaskSelected: vi.fn(),
     canForwardSelected: false,
     canDeleteSelected: false,
+    canCreateTaskSelected: false,
     ...overrides,
   };
 }
@@ -59,14 +61,17 @@ describe("chat message multi-select menu", () => {
 
   it("shows bulk actions while selection is active", async () => {
     const copySelected = vi.fn();
+    const createTaskSelected = vi.fn();
     render(
       <ChatMessageSelectionContext.Provider
         value={selectionUi({
           active: true,
           selectedIds: new Set(["m1"]),
           copySelected,
+          createTaskSelected,
           canForwardSelected: true,
           canDeleteSelected: true,
+          canCreateTaskSelected: true,
         })}
       >
         <ChatMessageActionsFrame message={message("m1")} isOwn onReply={vi.fn()} onReact={vi.fn()} onCopy={vi.fn()}>
@@ -77,10 +82,15 @@ describe("chat message multi-select menu", () => {
     fireEvent.contextMenu(screen.getByText("Nội dung"));
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: /Sao chép tin đã chọn/ })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: /Tạo việc từ tin đã chọn/ })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: /Chuyển tiếp tin đã chọn/ })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: /Xóa tin đã chọn/ })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole("menuitem", { name: /Sao chép tin đã chọn/ }));
     expect(copySelected).toHaveBeenCalled();
+    fireEvent.contextMenu(screen.getByText("Nội dung"));
+    const menuAgain = await screen.findByRole("menu");
+    fireEvent.click(within(menuAgain).getByRole("menuitem", { name: /Tạo việc từ tin đã chọn/ }));
+    expect(createTaskSelected).toHaveBeenCalled();
   });
 });
 

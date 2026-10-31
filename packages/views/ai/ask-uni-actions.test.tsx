@@ -72,6 +72,22 @@ describe("Ask UNI answer actions: create", () => {
     await waitFor(() => expect(description.textContent).toBe(expected));
   });
 
+  // UNI-2242: a follow-up's task was titled with the conversation's first question.
+  it("titles the task with the question this answer replies to, as plain text", async () => {
+    routes(true, "Mục tiêu của cuộc họp này là gì?");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      wrapWithNav(
+        <AskUniMessageTurn message={msg()} question="Công việc của **từng người**?" conversationId="c1" wsId="ws1" />,
+        undefined,
+        client,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Tạo công việc" }, { timeout: 4000 }));
+    const title = await screen.findByRole("textbox", { name: "Tiêu đề issue" }, { timeout: 4000 });
+    expect((title as HTMLInputElement).value).toBe("Công việc của từng người?");
+  });
+
   it("leaves the title empty when the conversation has none", async () => {
     routes(true, "");
     mount(msg());

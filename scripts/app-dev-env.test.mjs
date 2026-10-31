@@ -84,6 +84,33 @@ test("business env files carry no secrets", () => {
   assert.equal(build.get("NEXT_PUBLIC_APP_URL"), "https://uniwork.unicomhub.com");
 });
 
+test("the staging app signs in on dev, production takes only the store app", () => {
+  // No staging server: the EAS preview environment points the staging build at dev,
+  // and tls-pins.json pins the dev host for it.
+  const dev = assignments("deploy/app-dev/env/uniwork-be.env");
+  assert.equal(dev.get("APPLE_SIWA_AUDIENCES"), "com.uniworkos.chat.staging");
+  assert.equal(dev.get("APPLE_SIWA_TEAM_ID"), "XJAM488A6D");
+  const prod = assignments("deploy/app/env/uniwork-be.env");
+  assert.equal(prod.get("APPLE_SIWA_AUDIENCES"), "com.uniworkos.chat");
+  // One Services ID for the web of both, registered with both hosts' return URLs.
+  assert.equal(dev.get("APPLE_SIWA_WEB_CLIENT_ID"), "com.uniworkos.web");
+  assert.equal(prod.get("APPLE_SIWA_WEB_CLIENT_ID"), "com.uniworkos.web");
+  // Each server takes only its own build's Google clients: the staging app's on dev
+  // (iOS + Android), the store app's on production (iOS + one Android per Play key).
+  const ids = (value) => (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const devApps = ids(dev.get("GOOGLE_NATIVE_CLIENT_IDS"));
+  const prodApps = ids(prod.get("GOOGLE_NATIVE_CLIENT_IDS"));
+  assert.equal(devApps.length, 2);
+  assert.equal(prodApps.length, 4);
+  assert.equal(devApps.some((id) => prodApps.includes(id)), false);
+  assert.notEqual(dev.get("GOOGLE_CLIENT_ID"), prod.get("GOOGLE_CLIENT_ID"));
+  for (const id of [...devApps, ...prodApps, dev.get("GOOGLE_CLIENT_ID"), prod.get("GOOGLE_CLIENT_ID")]) {
+    assert.match(id, /^591833832116-[a-z0-9]+\.apps\.googleusercontent\.com$/);
+  }
+  const pins = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/tls-pins.json"), "utf8"));
+  assert.equal(pins.hosts.staging.includes("uniwork.unicomhub.com"), true);
+});
+
 test("compose files pin registry images", () => {
   const compose = fs.readFileSync(path.join(root, "deploy/app-dev/docker-compose.yml"), "utf8");
   assert.match(compose, /^name: uniwork-app-dev$/m);

@@ -32,4 +32,6 @@ export const accountRoutes = {
   settings: "/account",
   /** Settings › Privacy & legal › Open-source licenses. */
   licenses: "/licenses",
+  /** Settings › Sign-in methods › Đặt mật khẩu / Đổi mật khẩu (spec §5.2). */
+  password: "/password",
 } as const;

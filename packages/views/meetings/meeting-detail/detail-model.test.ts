@@ -59,6 +59,8 @@ describe("sectionFlags", () => {
     expect(sectionFlags({ ...base, status: "OVERTIME", viewer: "admin" })).toMatchObject({ guestLinks: true, lobby: true });
     expect(sectionFlags({ ...base, status: "IN_PROGRESS", viewer: "secretary" })).toMatchObject({ guestLinks: false, lobby: false });
     expect(sectionFlags({ ...base, status: "ENDED", viewer: "host" })).toMatchObject({ guestLinks: false, lobby: false });
+    // An in-person meeting has no room for a guest to enter.
+    expect(sectionFlags({ ...base, status: "SCHEDULED", viewer: "host", inPerson: true }).guestLinks).toBe(false);
   });
 
   it("carries work over only before or during a meeting with a project", () => {

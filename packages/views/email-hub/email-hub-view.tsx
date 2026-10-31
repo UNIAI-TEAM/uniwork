@@ -369,32 +369,8 @@ export function EmailHubView() {
           onOpenShortcuts={openShortcuts}
         />
 
-        {readingEmail ? (
-        <EmailHubViewDetailPanel
-          wsId={wsId}
-          accountId={accountId ?? ""}
-          isScheduledFolder={isScheduledFolder}
-          selectedScheduled={selectedScheduled}
-          cancelScheduledPending={scheduledActions.cancelPending}
-          retryScheduledPending={scheduledActions.retryPending}
-          onRetryScheduled={scheduledActions.retry}
-          onCancelScheduled={scheduledActions.cancel}
-          detailError={detail.isError}
-          detailLoading={detail.isLoading}
-          activeThread={activeThread}
-          mailFolder={mailFolder}
-          detailData={detail.data}
-          readableBody={readableBody}
-          bodyLoading={detail.isBodyLoading}
-          bodyLoadFailed={detail.isBodyLoadFailed}
-          onBodyRefetch={() => void detail.refetchBody()}
-          actions={actions}
-          pending={threadActions.pending}
-          aiOpen={aiOpen}
-          shortcutsOn={shortcutsOn}
-        />
-      ) : (
         <EmailHubViewListPanel
+          readingEmail={readingEmail}
           returnFocusId={lastOpenedRef.current}
           reconnect={activeAccount?.needs_reconnect ? () => accountMenu.onReconnect(activeAccount.id) : undefined}
           header={{
@@ -489,7 +465,32 @@ export function EmailHubView() {
             onNotSpam: (id) => threadActions.move(id, "INBOX"),
           }}
         />
-      )}
+
+        {readingEmail ? (
+          <EmailHubViewDetailPanel
+            wsId={wsId}
+            accountId={accountId ?? ""}
+            isScheduledFolder={isScheduledFolder}
+            selectedScheduled={selectedScheduled}
+            cancelScheduledPending={scheduledActions.cancelPending}
+            retryScheduledPending={scheduledActions.retryPending}
+            onRetryScheduled={scheduledActions.retry}
+            onCancelScheduled={scheduledActions.cancel}
+            detailError={detail.isError}
+            detailLoading={detail.isLoading}
+            activeThread={activeThread}
+            mailFolder={mailFolder}
+            detailData={detail.data}
+            readableBody={readableBody}
+            bodyLoading={detail.isBodyLoading}
+            bodyLoadFailed={detail.isBodyLoadFailed}
+            onBodyRefetch={() => void detail.refetchBody()}
+            actions={actions}
+            pending={threadActions.pending}
+            aiOpen={aiOpen}
+            shortcutsOn={shortcutsOn}
+          />
+        ) : null}
 
       {readingEmail && !isScheduledFolder && selectedId && accountId ? (
         <EmailHubAiRail

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { DisconnectReason, MediaDeviceFailure, RoomEvent, ScreenSharePresets } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -361,5 +361,30 @@ describe("MeetingRoomView screen share quality", () => {
   it("makes screen shares in the room ask for device pixels", () => {
     renderRoom();
     expect(room.lkRoom.on).toHaveBeenCalledWith(RoomEvent.TrackSubscribed, expect.any(Function));
+  });
+});
+
+describe("MeetingRoomView prejoin join (UNI-2285 D)", () => {
+  it("keeps the prejoin with a busy join button until the first join answers", async () => {
+    let answer: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return new Promise((resolve) => {
+          answer = resolve;
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(
+      wrapWithNav(<MeetingRoomView meetingId="m1" workspaceId="w1" meetingTitle="Standup" onLeave={() => {}} />),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    const join = await screen.findByRole("button", { name: "Vào phòng họp" });
+    expect(join).toHaveAttribute("aria-busy", "true");
+    await act(async () => {
+      answer({ decision: "WAITING_APPROVAL", join_request_id: "jr1", meeting_status: "IN_PROGRESS" });
+    });
+    expect(await screen.findByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
   });
 });

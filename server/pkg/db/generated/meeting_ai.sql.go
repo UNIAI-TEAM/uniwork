@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions, summary_points FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -122,6 +122,7 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.TranscriptChangedAt,
 		&i.Topics,
 		&i.OpenQuestions,
+		&i.SummaryPoints,
 	)
 	return i, err
 }
@@ -286,9 +287,10 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions, summary_points)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+  COALESCE(NULLIF($14::text, ''), '[]'))
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions, summary_points
 `
 
 type InsertMeetingSummaryParams struct {
@@ -305,6 +307,7 @@ type InsertMeetingSummaryParams struct {
 	CreatedByKind  string      `json:"created_by_kind"`
 	Topics         string      `json:"topics"`
 	OpenQuestions  string      `json:"open_questions"`
+	SummaryPoints  string      `json:"summary_points"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -322,6 +325,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.CreatedByKind,
 		arg.Topics,
 		arg.OpenQuestions,
+		arg.SummaryPoints,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -340,6 +344,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.TranscriptChangedAt,
 		&i.Topics,
 		&i.OpenQuestions,
+		&i.SummaryPoints,
 	)
 	return i, err
 }
@@ -459,7 +464,7 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by, m.series_id FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by, m.series_id, m.venue FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
   AND (
@@ -531,6 +536,7 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 			&i.AiContentSharedAt,
 			&i.AiContentSharedBy,
 			&i.SeriesID,
+			&i.Venue,
 		); err != nil {
 			return nil, err
 		}
@@ -1002,7 +1008,7 @@ UPDATE meetings SET
   ai_content_shared_by = CASE WHEN $1::bool THEN COALESCE(ai_content_shared_by, $2::text) ELSE NULL END,
   updated_at = now()
 WHERE id = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type SetMeetingAIContentSharedParams struct {
@@ -1058,6 +1064,7 @@ func (q *Queries) SetMeetingAIContentShared(ctx context.Context, arg SetMeetingA
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }

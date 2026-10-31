@@ -318,6 +318,63 @@
         "fixes": {
           "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "Thanh toán VNPay: khi bạn quay lại từ VNPay mà chưa hoàn tất thanh toán, trang Thanh toán báo đã hủy ngay thay vì chờ xác nhận."
         }
+      },
+      "v1_12_0": {
+        "title": "Họp trực tiếp có ghi âm và biên bản, Hỏi UNI tạo tệp Office từ mẫu, link mời dùng nhiều lần",
+        "summary": "Cuộc họp có hình thức Trực tiếp: một máy trong phòng ghi âm ngay trên trình duyệt, họp xong có biên bản và việc đề xuất. Tài liệu có mục Mẫu văn bản cho cả workspace, và Hỏi UNI tạo được tệp Office mới từ mẫu, tệp đính kèm hoặc tệp trống. Tổ chức và workspace có link mời dùng nhiều lần. Khi rời phòng họp, chủ trì chọn chỉ rời, chuyển quyền hoặc kết thúc cho mọi người. Tài liệu chia sẻ được cả thư mục và mở tệp Office định dạng cũ bằng UniWork Office.",
+        "note": "Ghi âm họp trực tiếp chỉ có khi tổ chức được bật ghi lời cuộc họp và gói đang dùng có phút ghi lời; nếu chưa, bạn vẫn đặt lịch họp trực tiếp và ghi nhận đã họp như trước. Hỏi UNI tạo tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; tệp chỉ được tạo sau khi bạn xác nhận trên thẻ, và Hỏi UNI chưa tự viết nội dung theo dàn ý vào tệp.",
+        "features": {
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426": "Link mời dùng nhiều lần cho tổ chức và workspace: tạo, thu hồi hoặc tạo lại link để chia sẻ cho nhiều người cùng lúc. Người mở link khi đang ở một tổ chức khác được hướng dẫn chuyển tổ chức, vì mỗi tài khoản chỉ thuộc một tổ chức. Người chưa có tài khoản đăng ký và xác minh email xong thì vào thẳng nơi được mời, không phải tạo tổ chức mới.",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e": "Rời và kết thúc cuộc họp: khi chủ trì bấm Rời phòng, chọn chỉ rời (vẫn giữ quyền chủ trì), chuyển quyền cho người đang trong phòng, hoặc kết thúc cho mọi người. Sau khi rời, mỗi người thấy màn phù hợp: vào lại với mic và camera như lúc rời; chủ trì ở ngoài vẫn duyệt người xin vào và dừng ghi hình được; khi họp kết thúc có người kết thúc, thời lượng, số người dự, trạng thái biên bản và việc của bạn; người bị mời ra biết ai mời và lúc nào; khách được cảm ơn và mời dùng thử UniWork. Bạn cũng có thể đánh giá nhanh chất lượng cuộc gọi.",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510": "Tài liệu có mục Mẫu văn bản dùng chung cho cả workspace, nhóm theo Word, Excel, PowerPoint và Khác. Tải mẫu lên bằng nút Tải mẫu lên hoặc kéo thả tệp vào mục này; trong menu của mỗi dòng có Đánh dấu là mẫu và Bỏ khỏi Mẫu. Thành viên xem được tài liệu thì đánh dấu được; với tài liệu riêng tư, người có quyền quản lý phải xác nhận mở tài liệu cho cả workspace chỉnh sửa. Tài liệu đã lưu trữ hoặc đang ở thùng rác không đánh dấu là mẫu được.",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f": "Tài liệu: chia sẻ cả thư mục bằng mục Chia sẻ trong menu thư mục — xem trước, rồi áp dụng quyền cho mọi tài liệu trong thư mục và các thư mục con; việc chạy nền và bạn nhận thông báo khi xong, kể cả khi đã rời Tài liệu. Tài liệu có giới hạn truy cập đặc biệt được giữ nguyên. Tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) trên web được mở bằng UniWork Office; trong app máy tính (từ bản beta.10), bản chuyển đổi được lưu thành phiên bản tiếp theo của chính tài liệu đó. Ô tìm kiếm trong Tài liệu gọn hơn.",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525": "Hỏi UNI tạo tệp Office: nhờ Hỏi UNI soạn báo giá, hóa đơn hay bài trình chiếu, Hỏi UNI tìm mẫu trong Mẫu văn bản hoặc dùng tệp bạn đính kèm, rồi đưa thẻ kế hoạch có dàn ý bạn sửa được. Bấm Tạo và mở để có tệp mới của riêng bạn — từ mẫu, từ tệp đính kèm hoặc tệp trống (Word, Excel, PowerPoint, PDF, Markdown, HTML) — và mở ngay trong trình soạn; mẫu gốc không đổi. Hỏi UNI cũng có thể đề xuất lưu tệp đính kèm vào Mẫu văn bản. Hoàn tác sẽ chuyển tệp vừa tạo vào thùng rác.",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347": "Họp trực tiếp không cần giấy: khi lên lịch hoặc họp ngay, chọn hình thức Trực tiếp. Một máy trong phòng bấm Bắt đầu ghi âm ngay trên trình duyệt, rồi Kết thúc và gửi; bản ghi được ghi lời, tách người nói, tóm tắt, đề xuất việc và lập biên bản như file ghi âm tải lên. Âm thanh được lưu dần trên máy nên đóng tab, hết pin hay mất mạng không làm mất phần đã ghi; có mạng lại thì phần còn lại tự gửi tiếp, và app nhắc nếu bạn đăng xuất khi còn bản ghi chưa gửi. Họp trực tiếp không có Thư ký UNI; người đã từ chối lời mời được gợi ý vắng mặt khi điểm danh."
+        },
+        "improvements": {
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây).",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư."
+        },
+        "fixes": {
+          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài.",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng."
+        }
+      },
+      "v1_13_0": {
+        "title": "Đăng nhập thống nhất với Google và Apple, Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn, tạo việc từ nhiều tin nhắn",
+        "summary": "Đăng nhập bằng email, Google hoặc Apple cho cùng kết quả trên web, máy tính và điện thoại; Apple dùng được trên web, và Cài đặt có mục Phương thức đăng nhập. Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn trên web, nay viết được cả tài liệu và dựng bài trình chiếu theo dàn ý đã duyệt. Chat tạo việc từ một hoặc nhiều tin nhắn với gợi ý từ AI. Cuộc họp có chuyển động mới, tóm tắt có nguồn cho từng câu và hoàn tác giao việc trong 8 giây, cùng các bản sửa cho tắt mic khách và Hỏi UNI trong phòng.",
+        "note": "Hỏi UNI giao việc soạn tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; AI trong trình soạn chỉ soạn khi tổ chức bật UniWork AI trong trình soạn cho định dạng đó và còn credit, nếu không tệp vẫn được tạo để bạn tự soạn. AI viết cả tài liệu và dựng bài trình chiếu chỉ có trên web, chưa có trong ứng dụng máy tính. Đăng nhập Google ngay trong app điện thoại cần app UniChat từ bản 0.4.0 và chỉ dùng được sau khi cấu hình xong cho app.",
+        "features": {
+          "ccafd2d2d6272afb2cf5e7b3cc4a7552d4af9320b": "Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn trên web: thẻ kế hoạch có dàn ý và danh sách tư liệu Hỏi UNI đã đọc; bấm Mở và soạn (hoặc Mở và dựng với bài trình chiếu), tệp mới mở ra và AI trong trình soạn viết lần lượt từng phần theo dàn ý đã duyệt, rồi bạn xem lại và tự bấm Lưu. Thẻ nói rõ khi AI không soạn được và vì sao; khi đó nút là Tạo và mở để tự soạn.",
+          "c13d78a4c97f08eba8a8674b2c7e47c76ec6a2785": "AI trong trình soạn Office trên web khi dùng UniWork AI nay viết được cả tài liệu Word và Markdown, trang HTML và brief, và dựng bài trình chiếu: tạo phong cách, dàn ý và từng trang, hoặc làm lại một trang. Nhờ vậy việc Hỏi UNI giao cho trình soạn dựng được cả bài trình chiếu. AI chỉ trả nội dung vào trình soạn; bạn quyết định giữ hay bỏ, kể cả khi một lần viết bị dừng giữa chừng. Trang mức dùng AI trong Cài đặt hiện phần này với tên Viết tài liệu (UniWork AI).",
+          "c8db92bb8a8ad1ffa8a9dd39f5951eb6db2f0335c": "Đăng nhập thống nhất trên web, ứng dụng máy tính và điện thoại bằng email và mật khẩu, Google hoặc Apple; Apple nay dùng được trên web. Khi một lần đăng nhập không khớp tài khoản nào, UniWork không tự tạo hay tự nối tài khoản mà cho bạn chọn liên kết với tài khoản có sẵn, tạo tài khoản mới hoặc nhận mã qua email khác. Cài đặt có mục Phương thức đăng nhập; đổi cách đăng nhập, xóa tài khoản hay chuyển giao tổ chức cần xác nhận lại danh tính. App UniChat trên điện thoại từ bản 0.4.0 đăng nhập ngay trong app, không phải mở trình duyệt.",
+          "c5126171f6582348dd244670217291d422d0a2686": "Chat trên web: tạo việc từ một hoặc nhiều tin nhắn đã chọn (mục Tạo việc từ tin đã chọn) bằng hộp tạo việc đầy đủ, gồm mô tả, mức ưu tiên, hạn, người nhận và project. Khi tổ chức bật tính năng AI, AI gợi ý sẵn tiêu đề, mô tả, mức ưu tiên và hạn từ các tin đã chọn để bạn sửa trước khi tạo. Việc gắn với tin mới nhất trong lựa chọn, và thẻ việc trong chat hiện giống thẻ trên bảng công việc."
+        },
+        "improvements": {
+          "cc0356f93e315ce39b5478dfd61f25c6e2e74d106": "Cuộc họp có chuyển động và phản hồi rõ hơn ở danh sách, phòng chờ, trong phòng, tóm tắt và giao việc. Cuộc họp đang diễn ra hiện ai đang trong phòng, Thư ký UNI có mặt hay không và thời gian đã họp. Người xin vào phòng hiện thành thẻ để cho vào hoặc từ chối ngay; nút cho mọi người cùng vào chuyển sang tab Người. Mỗi câu trong tóm tắt có số nguồn để mở lời nói gốc. Sau khi giao việc từ cuộc họp, bạn có 8 giây để Hoàn tác; việc được đưa vào thùng rác nếu chưa ai sửa hay bình luận. Hiệu ứng tắt khi bật Giảm chuyển động."
+        },
+        "fixes": {
+          "c3c21599462278b2ddb9964171e122957d72b14c7": "Email Hub: thư Gmail gắn sao không còn hiện hai dòng trong thư mục Gắn sao khi cùng một thư nằm ở cả Hộp thư đến và Tất cả thư. Chat: bấm vào ảnh đính kèm đang chờ gửi trong ô soạn tin để xem ảnh lớn trước khi gửi.",
+          "cba1c2d4ab3842539e2d2e33682c45413c75f847f": "Cuộc họp: chủ trì tắt mic được cả khách vào bằng liên kết, kể cả bằng Tắt mic mọi người, và khách nghe theo chủ trì mới sau khi chuyển quyền. Hỏi UNI trong phòng họp: hỏi câu thứ hai không làm mất câu trước, phần chờ không còn đè lên câu trả lời, ký tự như & hiện đúng, và công việc tạo từ một câu trả lời lấy đúng câu hỏi của câu trả lời đó làm tiêu đề.",
+          "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "App UniChat trên iPhone: tab Danh bạ không còn chuyển sang màn báo lỗi khi danh sách vừa dài thêm, như lúc thành viên tải xong, khi xóa ô tìm kiếm hoặc chạm lại tab.",
+          "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Đăng nhập bằng Apple: địa chỉ email ẩn mới của Apple (đuôi @private.icloud.com) được nhận ra giống địa chỉ ẩn cũ, nên Cài đặt hiện đúng là email ẩn của Apple và các quy tắc liên kết Apple áp dụng đúng."
+        }
+      },
+      "v1_14_0": {
+        "title": "Tìm tệp theo nội dung trong Tài liệu và Hỏi UNI, AI trong trình soạn Office chỉ dùng UniWork AI, khách họp vào phòng nhanh hơn",
+        "summary": "Ô tìm của Tài liệu và Hỏi UNI nay tìm được tệp Word, Excel, PowerPoint và tệp văn bản theo chữ bên trong tệp, kèm đoạn trích quanh chỗ khớp. AI trong trình soạn Office trên web chỉ chạy bằng UniWork AI; tùy chọn khóa AI riêng của tổ chức đã được gỡ. Hỏi UNI soạn tệp Office có công tắc riêng cho từng tổ chức. Khách vào họp bằng link không còn phải chờ lâu sau khi chủ trì cho vào.",
+        "note": "Tìm theo nội dung chỉ đọc 20.000 ký tự đầu của mỗi tệp và chưa hỗ trợ PDF, HTML, ảnh, video hay tệp lớn hơn 20 MiB; tệp đã có từ trước chỉ tìm được theo nội dung sau khi được lập chỉ mục lại. Hỏi UNI soạn tệp Office mặc định tắt cho tới khi UniWork bật cho tổ chức của bạn. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Tài liệu: ô tìm và Hỏi UNI nay tìm được tệp theo chữ bên trong tệp DOCX, XLSX, PPTX, ODT, CSV, Markdown và TXT. Kết quả tìm có đoạn trích ngắn lấy quanh chỗ khớp, nên bạn thấy ngay vì sao tệp được tìm ra, kể cả khi chữ khớp nằm sâu trong tệp. Tệp hạn chế mà bạn không có quyền đọc vẫn không lộ nội dung trong kết quả."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI trong trình soạn Office trên web nay chỉ chạy bằng UniWork AI: tùy chọn dùng khóa AI riêng (BYOK) của tổ chức đã được gỡ, cùng các khóa đã lưu. Tìm trên web, tìm ảnh và tạo ảnh trong trình soạn đi theo quyền dùng UniWork AI của tổ chức. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập, và trang quyền riêng tư nói rõ khi đó nội dung được gửi thẳng tới nhà cung cấp AI.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Hỏi UNI soạn tệp Office có công tắc riêng, mặc định tắt, do UniWork bật cho từng tổ chức. Khi tắt, Hỏi UNI không đề xuất soạn tệp, và việc áp dụng các đề xuất soạn tệp đã có, kể cả trong một kế hoạch hay ở chế độ Tự động, bị từ chối kèm thông báo rõ ràng thay vì áp dụng dở dang. Đọc tệp đính kèm và mục Mẫu văn bản không bị ảnh hưởng."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước."
+        }
       }
     }
   },
@@ -381,8 +438,6 @@
     "displayName": "Tên hiển thị",
     "noAccount": "Chưa có tài khoản?",
     "hasAccount": "Đã có tài khoản?",
-    "invalidCredentials": "Email hoặc mật khẩu không đúng",
-    "emailTaken": "Email đã được đăng ký",
     "loginSubtitle": "Tiếp tục công việc của bạn.",
     "meetingInviteReason": "Đăng nhập để tham gia cuộc họp bạn được mời. Sau khi đăng nhập, bạn sẽ quay lại lời mời và vào phòng nếu đủ điều kiện.",
     "registerSubtitle": "Tạo tài khoản để bắt đầu với UniWork.",
@@ -413,9 +468,6 @@
     "emailRequired": "Nhập email của bạn",
     "emailInvalid": "Email chưa đúng, ví dụ ten@congty.vn",
     "passwordRequired": "Nhập mật khẩu",
-    "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
-    "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
-    "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
     "legal": {
       "signUp": "Khi đăng ký, bạn đồng ý với",
       "signIn": "Khi đăng nhập, bạn đồng ý với",
@@ -424,7 +476,6 @@
       "privacy": "Chính sách quyền riêng tư"
     },
     "desktop": {
-      "eyebrow": "Đăng nhập desktop",
       "title": "Cho phép {{app}} đăng nhập?",
       "description": "Kiểm tra thông tin ứng dụng và thiết bị trước khi tiếp tục. Phê duyệt này chỉ có hiệu lực trên thiết bị này.",
       "app": "Ứng dụng",
@@ -435,13 +486,18 @@
       "build": "Bản dựng",
       "unknown": "Chưa cung cấp",
       "loading": "Đang tải…",
-      "approve": "Cho phép ứng dụng desktop",
+      "approve": "Cho phép {{app}}",
       "approving": "Đang cho phép…",
-      "resultTitle": "Kết quả đăng nhập desktop",
-      "approved": "Đã cho phép {{app}} đăng nhập",
-      "cancelledResult": "Đã hủy đăng nhập desktop.",
-      "errorResult": "Không thể hoàn tất đăng nhập desktop. Thử lại.",
-      "expired": "Yêu cầu đăng nhập desktop đã hết hạn.",
+      "approvedTitle": "Đã cho phép {{app}}",
+      "approved": "Nếu {{app}} chưa mở, bấm \"Mở {{app}}\".",
+      "approvedReturn": "Quay lại {{app}} để tiếp tục.",
+      "cancelledTitle": "Đã hủy đăng nhập",
+      "cancelled": "{{app}} chưa được đăng nhập.",
+      "expiredTitle": "Yêu cầu đã hết hạn",
+      "expired": "Quay lại {{app}} và thử lại.",
+      "expiredUnknown": "Quay lại ứng dụng và thử lại.",
+      "errorTitle": "Chưa hoàn tất được đăng nhập",
+      "error": "Thử lại. Nếu vẫn chưa được, mở lại đăng nhập từ ứng dụng.",
       "openDesktop": "Mở {{app}}",
       "closeTab": "Bạn có thể đóng tab này.",
       "accountUnknown": "Tài khoản UniWork",
@@ -457,10 +513,18 @@
       "unichat_login_feature_calls": "Gọi thoại, gọi video và chia sẻ màn hình",
       "unichat_login_feature_uni": "UNI tóm tắt tin chưa đọc và cuộc gọi cho bạn",
       "unichat_login_step_opened": "Trình duyệt đã mở trang đăng nhập UniWork",
-      "unichat_login_step_allow": "Bấm “Cho phép ứng dụng desktop” trên trang đó",
-      "unichat_login_step_return": "Quay lại đây, UniChat tự mở cuộc trò chuyện",
+      "unichat_login_step_allow": "Bấm \"Cho phép UniChat\" trên trang đó",
+      "unichat_login_step_return": "UniChat mở lại và vào thẳng cuộc trò chuyện",
       "unichat_login_cancel": "Hủy",
-      "unichat_login_version": "UniChat {{version}}"
+      "unichat_login_version": "UniChat {{version}}",
+      "details": "Chi tiết",
+      "notYouQuestion": "Không phải bạn?",
+      "useAnother": "Dùng tài khoản khác",
+      "signingOut": "Đang đăng xuất…",
+      "phone": {
+        "title": "Cho phép {{app}} trên điện thoại này đăng nhập?",
+        "closePage": "Đóng trang này để về {{app}}."
+      }
     },
     "connect": {
       "eyebrow": "Kết nối trợ lý AI",
@@ -500,7 +564,7 @@
       "sending": "Đang gửi…",
       "sentTitle": "Kiểm tra hộp thư",
       "sentBody": "Nếu {{email}} có tài khoản UniWork, một email kèm link đặt lại mật khẩu đã được gửi. Link có hiệu lực 60 phút.",
-      "googleHint": "Đăng nhập bằng Google? Dùng nút Google ở trang đăng nhập, không cần mật khẩu.",
+      "googleHint": "Bạn đăng nhập bằng Google hoặc Apple? Dùng nút đó ở trang đăng nhập, không cần mật khẩu. Muốn có thêm mật khẩu, nhập email ở trên: chúng tôi gửi link đặt mật khẩu.",
       "backToLogin": "Về trang đăng nhập",
       "spamHint": "Không thấy email? Kiểm tra thư mục spam.",
       "resend": "Gửi lại link",
@@ -522,7 +586,13 @@
       "hint": "Tối thiểu {{min}} ký tự",
       "tooShort": "Mật khẩu cần ít nhất {{min}} ký tự",
       "invalidTitle": "Link không còn hiệu lực",
-      "invalidHint": "Mỗi link chỉ dùng được một lần và hết hạn sau 60 phút."
+      "invalidHint": "Mỗi link chỉ dùng được một lần và hết hạn sau 60 phút.",
+      "set": {
+        "title": "Đặt mật khẩu",
+        "subtitle": "Chọn mật khẩu để đăng nhập bằng email. Cách bạn vẫn đăng nhập không đổi.",
+        "submit": "Đặt mật khẩu",
+        "submitting": "Đang đặt…"
+      }
     },
     "verify": {
       "title": "Xác thực email",
@@ -536,25 +606,183 @@
       "resendTooSoon": "Vừa gửi một mã rồi, chờ một phút rồi thử lại.",
       "verifying": "Đang xác thực…",
       "wrongAccount": "Nhầm tài khoản?",
-      "spamHint": "Không thấy email? Kiểm tra thư mục spam."
-    },
-    "google": {
-      "continueWith": "Tiếp tục với Google",
-      "or": "hoặc",
-      "denied": "Bạn đã hủy đăng nhập Google.",
-      "failed": "Đăng nhập Google không thành công. Thử lại hoặc dùng email và mật khẩu.",
-      "unverified": "Email của tài khoản Google này chưa được Google xác thực. Dùng tài khoản khác hoặc đăng ký bằng email.",
-      "signingIn": "Đang đăng nhập bằng Google…"
+      "spamHint": "Không thấy email? Kiểm tra thư mục spam.",
+      "deleteInSettings": "Xóa tài khoản trong Cài đặt"
     },
     "mfa": {
       "title": "Xác thực hai lớp",
       "subtitle": "Nhập mã 6 số từ ứng dụng xác thực, hoặc một mã khôi phục.",
       "codeLabel": "Mã xác thực",
-      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx-xxxxx.",
-      "invalidCode": "Mã không đúng hoặc phiên xác thực đã hết hạn. Nhập lại hoặc đăng nhập lại.",
+      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx‑xxxxx.",
       "submit": "Xác nhận",
       "verifying": "Đang xác nhận…",
       "back": "Quay lại đăng nhập"
+    },
+    "social": {
+      "continueWithGoogle": "Tiếp tục với Google",
+      "continueWithApple": "Tiếp tục với Apple",
+      "continueWithEmail": "Tiếp tục với email",
+      "divider": "hoặc dùng email",
+      "or": "hoặc",
+      "browserOpened": "Trình duyệt đã mở trang đăng nhập {{provider}}",
+      "groupLabel": "Đăng nhập bằng Google hoặc Apple",
+      "signingIn": "Đang đăng nhập…",
+      "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa.",
+      "provider": {
+        "google": "Google",
+        "apple": "Apple"
+      },
+      "linkSkipped": {
+        "generic": "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Liên kết lại trong Cài đặt.",
+        "withProvider": "Bạn đã đăng nhập, nhưng chưa liên kết được {{provider}}. Liên kết lại trong Cài đặt."
+      },
+      "retry": {
+        "later": "Chờ một lát rồi thử lại.",
+        "seconds_one": "Thử lại sau {{count}} giây.",
+        "seconds_other": "Thử lại sau {{count}} giây.",
+        "minutes_one": "Thử lại sau {{count}} phút.",
+        "minutes_other": "Thử lại sau {{count}} phút.",
+        "hours_one": "Thử lại sau {{count}} giờ.",
+        "hours_other": "Thử lại sau {{count}} giờ."
+      },
+      "errors": {
+        "generic": "Chưa đăng nhập được. Thử lại.",
+        "network": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
+        "server": "UniWork đang gặp trục trặc. Thử lại sau ít phút.",
+        "session_ended": "Phiên đăng nhập đã kết thúc. Đăng nhập lại để tiếp tục.",
+        "invalid_credentials": "Email hoặc mật khẩu chưa đúng.",
+        "second_factor_invalid": "Mã chưa đúng hoặc lượt đăng nhập đã hết hạn. Nhập lại, hoặc đăng nhập lại từ đầu.",
+        "second_factor_locked": "Xác thực hai lớp đang tạm khóa vì nhập sai nhiều lần.",
+        "rate_limited": "Bạn đã thử nhiều lần liền.",
+        "provider_token_invalid": "Chưa xác nhận được tài khoản vừa chọn. Thử lại.",
+        "provider_unavailable": "Cách đăng nhập này đang tạm tắt. Dùng cách khác.",
+        "native_unavailable": "Đăng nhập trong app đang tạm tắt. Đăng nhập bằng trình duyệt.",
+        "email_taken": "Email này đã có tài khoản. Đăng nhập, hoặc đặt lại mật khẩu nếu bạn quên.",
+        "register_invalid": "Kiểm tra lại địa chỉ email. Mật khẩu cần ít nhất 8 ký tự.",
+        "google_denied": "Bạn đã hủy đăng nhập Google.",
+        "google_failed": "Chưa đăng nhập được bằng Google. Thử lại, hoặc dùng email.",
+        "google_unverified": "Google chưa xác minh email của tài khoản này. Dùng tài khoản Google khác, hoặc đăng nhập bằng email.",
+        "apple_denied": "Bạn đã hủy đăng nhập Apple.",
+        "apple_failed": "Chưa đăng nhập được bằng Apple. Thử lại, hoặc dùng email.",
+        "sign_in_conflict": "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó.",
+        "sign_in_unverified": "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác.",
+        "sign_in_account_unverified": "Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn \"Quên mật khẩu?\" để nhận link qua email và lấy lại tài khoản.",
+        "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại.",
+        "google_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Google này. Đăng nhập bằng cách bạn vẫn dùng.",
+        "apple_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Apple này. Đăng nhập bằng cách bạn vẫn dùng."
+      }
+    },
+    "apple": {
+      "relayEmail": "Email ẩn của Apple",
+      "hideMyEmail": "Ẩn địa chỉ email",
+      "relayHint": "Bạn đã chọn Ẩn địa chỉ email: Apple chuyển thư gửi tới địa chỉ này vào hộp thư thật của bạn.",
+      "signingIn": "Đang đăng nhập bằng Apple…"
+    },
+    "continue": {
+      "loading": "Đang tải lượt đăng nhập…",
+      "loadErrorTitle": "Chưa tải được lượt đăng nhập",
+      "title": "Tiếp tục với {{provider}}",
+      "description": "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào.",
+      "identityLabel": "Tài khoản {{provider}}",
+      "choicesLabel": "Chọn cách tiếp tục",
+      "relayHint": "Tổ chức mời bạn qua email công việc? Chọn \"Tôi được mời bằng email khác\".",
+      "existing": {
+        "title": "Tôi đã có tài khoản UniWork",
+        "body": "Đăng nhập một lần để liên kết {{provider}}. Lần sau chỉ cần {{provider}}."
+      },
+      "invited": {
+        "title": "Tôi được mời bằng email khác",
+        "body": "Dùng email công việc mà tổ chức đã mời."
+      },
+      "create": {
+        "title": "Tạo tài khoản mới",
+        "body": "Dùng {{email}} để đăng nhập UniWork.",
+        "bodyRelay": "Dùng email ẩn của Apple để đăng nhập UniWork.",
+        "displayNameLabel": "Tên hiển thị",
+        "displayNameHint": "Tên đồng nghiệp sẽ thấy.",
+        "displayNameRequired": "Nhập tên hiển thị.",
+        "displayNameTooLong": "Tên hiển thị tối đa {{max}} ký tự.",
+        "submit": "Tạo tài khoản",
+        "submitting": "Đang tạo tài khoản…"
+      },
+      "linkRequired": {
+        "title": "Email này đã có tài khoản UniWork",
+        "body": "Đăng nhập vào {{email}} để liên kết {{provider}}.",
+        "bodyRelay": "Đăng nhập vào tài khoản UniWork của bạn để liên kết {{provider}}.",
+        "action": "Đăng nhập để liên kết"
+      },
+      "claim": {
+        "emailTitle": "Nhập email công việc",
+        "emailBody": "Nhập email tổ chức đã dùng để mời bạn. Chúng tôi gửi một mã 6 số tới đó.",
+        "emailLabel": "Email công việc",
+        "emailPlaceholder": "ten@congty.vn",
+        "send": "Gửi mã",
+        "sending": "Đang gửi mã…",
+        "codeTitle": "Nhập mã xác nhận",
+        "codeBody": "Nhập mã 6 số vừa gửi tới {{email}}. Mã có hiệu lực 15 phút.",
+        "codeLabel": "Mã xác nhận",
+        "verify": "Tiếp tục",
+        "verifying": "Đang kiểm tra mã…",
+        "resend": "Gửi lại mã",
+        "resendIn_one": "Gửi lại sau {{count}} giây",
+        "resendIn_other": "Gửi lại sau {{count}} giây",
+        "resent": "Đã gửi mã mới tới {{email}}.",
+        "changeEmail": "Đổi email",
+        "spamHint": "Không thấy email? Kiểm tra thư mục spam."
+      },
+      "link": {
+        "title": "Liên kết {{provider}}",
+        "question": "Liên kết {{provider}} ({{providerEmail}}) với {{accountEmail}}?",
+        "questionRelay": "Liên kết {{provider}} (email ẩn của Apple) với {{accountEmail}}?",
+        "signedInAs": "Bạn đang đăng nhập bằng {{accountEmail}}.",
+        "body": "Sau đó bạn vào được bằng {{provider}} hoặc cách bạn vẫn dùng.",
+        "confirm": "Liên kết",
+        "decline": "Không liên kết",
+        "linking": "Đang liên kết…",
+        "done": "Đã liên kết {{provider}}. Lần sau chỉ cần {{provider}}.",
+        "notLinked": "Chưa liên kết {{provider}} với {{accountEmail}}.",
+        "nothingLeft": "Không còn gì để liên kết. Tiếp tục vào UniWork.",
+        "nothingLeftTitle": "Đã xong",
+        "continue": "Tiếp tục",
+        "movableTitle": "Chuyển {{provider}} sang tài khoản này?",
+        "movable": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}.",
+        "movableUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống.",
+        "movableNote": "Tài khoản trống đó chưa từng vào tổ chức nào và sẽ bị xóa.",
+        "move": "Chuyển sang đây",
+        "moveDecline": "Không chuyển",
+        "moving": "Đang chuyển…",
+        "taken": "Tài khoản {{provider}} này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+        "takenUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước."
+      },
+      "signedIn": {
+        "linkTo": "Liên kết {{provider}} với {{account}}",
+        "linkToBody": "Lần sau, {{provider}} đưa bạn thẳng vào tài khoản này.",
+        "otherAccount": "Dùng tài khoản khác",
+        "otherAccountBody": "Đăng xuất {{account}} rồi chọn lại."
+      },
+      "loginMode": {
+        "banner": "Đăng nhập vào tài khoản UniWork của bạn để liên kết {{provider}} ({{email}}).",
+        "bannerRelay": "Đăng nhập vào tài khoản UniWork của bạn để liên kết {{provider}}.",
+        "decline": "Không liên kết",
+        "mfaSubtitle": "Đăng nhập vào {{email}} để liên kết {{provider}}."
+      },
+      "expired": {
+        "title": "Lượt đăng nhập đã hết hạn",
+        "body": "Lượt đăng nhập này đã hết hạn hoặc đã xong. Bắt đầu lại từ trang đăng nhập.",
+        "bodyProvider": "Lượt đăng nhập bằng {{provider}} đã hết hạn.",
+        "retry": "Thử lại"
+      },
+      "cancel": "Hủy",
+      "cancelling": "Đang hủy…",
+      "errors": {
+        "generic": "Chưa xong được bước này. Thử lại.",
+        "expired": "Lượt đăng nhập này đã hết hạn. Bắt đầu lại.",
+        "channel": "Lượt đăng nhập này thuộc về thiết bị khác. Bắt đầu lại ở đây.",
+        "conflict": "Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết.",
+        "invalidEmail": "Email chưa đúng định dạng.",
+        "invalidCode": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
+        "tooManyCodes": "Đã tạm dừng mã xác nhận cho địa chỉ này."
+      }
     }
   },
   "workspace": {
@@ -842,6 +1070,7 @@
     },
     "page": {
       "title": "Cài đặt",
+      "accountTitle": "Cài đặt tài khoản",
       "tabs": {
         "notifications": "Thông báo",
         "profile": "Hồ sơ",
@@ -1223,7 +1452,6 @@
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
         "documents_public_links": "Liên kết công khai cho tài liệu",
-        "office_ai_byok": "Khóa AI riêng cho Office",
         "office_ai_cloud": "Công cụ AI đám mây cho Office"
       },
       "errors": {
@@ -1623,6 +1851,7 @@
         "agent_evaluation": "Agent đánh giá",
         "embedding": "Embedding",
         "office_uniwork_ai": "UniWork AI trong Office",
+        "office_uniwork_writer": "Viết tài liệu (UniWork AI)",
         "office_byok": "Office trên web (khóa riêng)",
         "office_byok_desktop": "Ứng dụng Office (khóa riêng)"
       },
@@ -1782,7 +2011,8 @@
         "recoveryCopyFailed": "Chưa sao chép được. Chép tay hoặc tải về.",
         "codeLength_one": "Nhập đủ {{count}} chữ số ứng dụng hiện ra.",
         "codeLength_other": "Nhập đủ {{count}} chữ số ứng dụng hiện ra.",
-        "disableCodeRequired": "Nhập mã từ ứng dụng hoặc một mã khôi phục."
+        "disableCodeRequired": "Nhập mã từ ứng dụng hoặc một mã khôi phục.",
+        "emailUnverified": "Xác minh email của bạn trước, rồi bật xác thực hai lớp."
       },
       "sessions": {
         "section": "Phiên đăng nhập",
@@ -1817,24 +2047,185 @@
         "open": "Xóa tài khoản",
         "title": "Xóa tài khoản của bạn?",
         "body": "Bạn sẽ bị đăng xuất khỏi mọi thiết bị và không đăng nhập lại được. Thao tác này không hoàn tác.",
-        "proof": {
-          "password": "Nhập mật khẩu hiện tại để xác nhận",
-          "code": "Nhập mã xác thực hai lớp để xác nhận",
-          "email": "Gõ lại địa chỉ email của bạn để xác nhận"
-        },
         "ownerHint": "Tài khoản đang là chủ sở hữu tổ chức không xóa được cho đến khi chuyển quyền.",
         "cancel": "Hủy",
         "confirm": "Xóa vĩnh viễn",
         "failed": "Không xóa được tài khoản",
-        "required": {
-          "password": "Nhập mật khẩu để xác nhận.",
-          "code": "Nhập mã xác thực hai lớp để xác nhận.",
-          "email": "Gõ lại email của bạn để xác nhận."
+        "deleting": "Đang xóa…",
+        "consequences": {
+          "erased": "Email, tên, ảnh và mọi cách đăng nhập của bạn bị xóa.",
+          "kept": "Công việc và tin nhắn bạn đã tạo vẫn ở lại tổ chức, dưới tên \"Người dùng đã xóa\".",
+          "owner": "Nếu bạn là chủ sở hữu tổ chức, hãy chuyển quyền trước, hoặc đóng tổ chức nếu chỉ còn mình bạn."
         },
-        "incorrect": {
-          "password": "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.",
-          "code": "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
-          "email": "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản."
+        "ownerTransfer": "Bạn là chủ sở hữu {{name}}, và tổ chức còn thành viên khác. Chuyển quyền sở hữu trong Cài đặt › Thành viên tổ chức, rồi quay lại xóa tài khoản.",
+        "closeNotice": "Bạn là thành viên duy nhất của {{name}}, nên tổ chức sẽ được đóng cùng lúc với tài khoản.",
+        "closeAndDelete": "Đóng tổ chức và xóa tài khoản"
+      },
+      "signInMethods": {
+        "title": "Phương thức đăng nhập",
+        "description": "Cách bạn đăng nhập UniWork trên web, máy tính và điện thoại.",
+        "loadError": "Không tải được phương thức đăng nhập.",
+        "retry": "Thử lại",
+        "badge": {
+          "set": "Đã đặt",
+          "unset": "Chưa đặt",
+          "linked": "Đã liên kết"
+        },
+        "method": {
+          "password": "mật khẩu",
+          "google": "Google",
+          "apple": "Apple"
+        },
+        "password": {
+          "name": "Mật khẩu",
+          "changedOn": "Đổi lần cuối ngày {{date}}",
+          "set": "Đã đặt",
+          "unset": "Đặt mật khẩu để đăng nhập bằng email",
+          "setAction": "Đặt mật khẩu",
+          "changeAction": "Đổi mật khẩu",
+          "setTitle": "Đặt mật khẩu",
+          "setDescription": "Bạn sẽ đăng nhập bằng {{email}} và mật khẩu này.",
+          "setDescriptionRelay": "Bạn sẽ đăng nhập bằng email ẩn của Apple dưới đây và mật khẩu này.",
+          "copyEmail": "Sao chép email",
+          "emailCopied": "Đã sao chép email",
+          "changeTitle": "Đổi mật khẩu",
+          "signsOutOthers": "Các thiết bị khác sẽ đăng xuất.",
+          "current": "Mật khẩu hiện tại",
+          "new": "Mật khẩu mới",
+          "confirm": "Nhập lại mật khẩu mới",
+          "hint": "Tối thiểu {{min}} ký tự",
+          "tooShort": "Mật khẩu cần ít nhất 8 ký tự.",
+          "mismatch": "Hai mật khẩu chưa khớp.",
+          "currentRequired": "Nhập mật khẩu hiện tại.",
+          "currentIncorrect": "Mật khẩu hiện tại chưa đúng.",
+          "save": "Lưu mật khẩu",
+          "saving": "Đang lưu…",
+          "cancel": "Hủy",
+          "toastSet": "Đã đặt mật khẩu.",
+          "toastChanged": "Đã đổi mật khẩu. Các thiết bị khác đã đăng xuất."
+        },
+        "provider": {
+          "linkedOn": "Đã liên kết ngày {{date}}",
+          "linked": "Đã liên kết",
+          "notLinked": "Liên kết để đăng nhập bằng {{provider}}",
+          "link": "Liên kết",
+          "linkAria": "Liên kết {{provider}}",
+          "unlink": "Gỡ liên kết",
+          "unlinkAria": "Gỡ liên kết {{provider}}",
+          "linking": "Đang mở {{provider}}…",
+          "linkOnWeb": "Liên kết trên web",
+          "linkOnWebAria": "Liên kết trên web cho {{provider}}",
+          "linkOnWebHint": "Mở UniWork trong trình duyệt để liên kết {{provider}}."
+        },
+        "reasons": {
+          "last": "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết cách khác trước.",
+          "relay": "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
+        },
+        "unlink": {
+          "title": "Gỡ liên kết {{provider}}?",
+          "body": "Bạn sẽ không đăng nhập bằng {{provider}} được nữa.",
+          "remainingOne": "Bạn vẫn đăng nhập được bằng {{method}}.",
+          "remainingTwo": "Bạn vẫn đăng nhập được bằng {{first}} hoặc {{second}}.",
+          "signsOutOthers": "Các thiết bị khác sẽ đăng xuất.",
+          "confirm": "Gỡ liên kết",
+          "pending": "Đang gỡ…",
+          "toast": "Đã gỡ liên kết {{provider}}."
+        },
+        "move": {
+          "title": "Chuyển {{provider}} sang tài khoản này?",
+          "body": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
+          "bodyUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
+          "confirm": "Chuyển sang đây",
+          "decline": "Không chuyển",
+          "pending": "Đang chuyển…",
+          "toast": "Đã chuyển {{provider}} sang tài khoản này."
+        },
+        "results": {
+          "linked": "Đã liên kết {{provider}}.",
+          "denied": "Bạn đã dừng giữa chừng, {{provider}} chưa được liên kết.",
+          "failed": "Chưa liên kết được {{provider}}. Thử lại.",
+          "taken": "Tài khoản {{provider}} này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+          "takenUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước.",
+          "movable": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}.",
+          "movableUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống.",
+          "already_linked": "Tài khoản này đã liên kết một tài khoản {{provider}} khác. Gỡ liên kết tài khoản đó trước rồi thử lại.",
+          "session_mismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại."
+        },
+        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat.",
+        "browserOtherAccountHint": "Đăng xuất ở đây, rồi đăng nhập tài khoản UniChat của bạn để liên kết đúng tài khoản.",
+        "signOut": "Đăng xuất",
+        "errors": {
+          "generic": "Chưa lưu được thay đổi. Thử lại.",
+          "taken": "Cách đăng nhập này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+          "takenUnknown": "Cách đăng nhập này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước.",
+          "movable": "Cách đăng nhập này đang được dùng cho tài khoản trống {{masked}}. Chuyển sang tài khoản này?",
+          "movableUnknown": "Cách đăng nhập này đang được dùng cho một tài khoản trống. Chuyển sang tài khoản này?",
+          "alreadyLinked": "Tài khoản này đã liên kết một tài khoản khác cùng loại. Gỡ liên kết tài khoản đó trước rồi thử lại.",
+          "emailUnverified": "Xác minh email của bạn trước, rồi liên kết.",
+          "sessionMismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại.",
+          "notConfigured": "Cách đăng nhập này chưa được bật trên UniWork của bạn."
+        }
+      },
+      "stepUp": {
+        "title": "Xác nhận là bạn",
+        "description": "Để bảo vệ tài khoản, xác nhận là bạn trước khi {{action}}.",
+        "descriptionGeneric": "Để bảo vệ tài khoản, xác nhận là bạn trước khi tiếp tục.",
+        "windowHint": "Trong 10 phút tới, bạn không cần xác nhận lại.",
+        "windowHintOneAction": "Mã trong email chỉ xác nhận việc này.",
+        "actions": {
+          "set_password": "đặt mật khẩu",
+          "change_password": "đổi mật khẩu",
+          "link_google": "liên kết Google",
+          "link_apple": "liên kết Apple",
+          "unlink_google": "gỡ liên kết Google",
+          "unlink_apple": "gỡ liên kết Apple",
+          "enable_mfa": "bật xác thực hai lớp",
+          "delete_account": "xóa tài khoản",
+          "transfer_ownership": "chuyển quyền sở hữu"
+        },
+        "password": {
+          "label": "Mật khẩu hiện tại",
+          "forgot": "Quên mật khẩu?",
+          "required": "Nhập mật khẩu hiện tại."
+        },
+        "totp": {
+          "label": "Mã từ ứng dụng xác thực",
+          "hint": "Mã 6 số, hoặc một mã khôi phục dạng xxxxx‑xxxxx.",
+          "required": "Nhập mã từ ứng dụng xác thực."
+        },
+        "emailCode": {
+          "send": "Gửi mã tới {{email}}",
+          "sendRelay": "Gửi mã tới email ẩn của Apple",
+          "sending": "Đang gửi mã…",
+          "sent": "Đã gửi mã tới {{email}}. Mã có hiệu lực 10 phút.",
+          "sentRelay": "Đã gửi mã tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
+          "resent": "Đã gửi mã mới tới {{email}}. Mã có hiệu lực 10 phút.",
+          "resentRelay": "Đã gửi mã mới tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
+          "label": "Mã trong email",
+          "required": "Nhập mã 6 số trong email.",
+          "resend": "Gửi lại mã",
+          "resendIn_one": "Gửi lại sau {{count}} giây",
+          "resendIn_other": "Gửi lại sau {{count}} giây",
+          "relayHint": "Apple chuyển mã từ email ẩn tới hộp thư thật của bạn."
+        },
+        "provider": {
+          "apple": "Xác nhận bằng Apple",
+          "google": "Xác nhận bằng Google",
+          "hint": "Chọn đúng tài khoản {{provider}} đã liên kết."
+        },
+        "useAnother": "Dùng cách khác",
+        "submit": "Xác nhận",
+        "submitting": "Đang xác nhận…",
+        "cancel": "Hủy",
+        "errors": {
+          "generic": "Chưa xác nhận được. Thử lại.",
+          "proofRequired": "Xác nhận là bạn để tiếp tục.",
+          "passwordIncorrect": "Mật khẩu chưa đúng. Nhập lại.",
+          "totpIncorrect": "Mã chưa đúng. Nhập mã mới từ ứng dụng.",
+          "emailCodeIncorrect": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
+          "providerInvalid": "Tài khoản vừa chọn không phải tài khoản đã liên kết. Thử lại, hoặc dùng cách khác.",
+          "locked": "Tạm khóa xác nhận vì nhập sai nhiều lần.",
+          "tooManyCodes": "Đã tạm dừng gửi mã tới email của bạn."
         }
       }
     },
@@ -3561,14 +3952,8 @@
     "guestAdmitted": "Đã cho vào phòng",
     "allGuestsAdmitted": "Đã cho tất cả vào phòng",
     "joinRequestsPendingTitle": "{{count}} yêu cầu đang chờ",
-    "viewAllJoinRequestsCount": "Xem tất cả ({{count}})",
-    "waitingToJoin": "Đang chờ vào phòng",
-    "waitingToJoinHostHint": "Chỉ chủ trì mới thấy",
     "waitingToBeAdmitted": "Đang chờ vào phòng",
-    "admitAll": "Cho tất cả vào",
     "unconfirmedGuest": "Khách chưa xác nhận",
-    "unconfirmedUsers_one": "{{count}} người đang chờ",
-    "unconfirmedUsers_other": "{{count}} người đang chờ",
     "joinRequestActions": "Thao tác yêu cầu vào phòng",
     "pendingCount": "{{count}} đang chờ",
     "transferConfirmTitle": "Chuyển quyền chủ trì?",
@@ -3740,7 +4125,9 @@
       "recordingReady": "Sẵn sàng"
     },
     "exit": {
-      "left": { "title": "Bạn đã rời phòng" },
+      "left": {
+        "title": "Bạn đã rời phòng"
+      },
       "ended": {
         "title": "Cuộc họp đã kết thúc",
         "by": "{{name}} kết thúc lúc {{time}}",
@@ -3970,7 +4357,63 @@
     },
     "captions": "Phụ đề",
     "captionsListening": "Đang nghe…",
-    "record": "Ghi hình",
+    "recordVideo": "Ghi hình",
+    "record": {
+      "ready": "Sẵn sàng ghi âm",
+      "consentFirst": "Tích ô xác nhận ở trên để bắt đầu",
+      "liveElsewhere": "Máy này đang ghi buổi họp này ở một thẻ khác",
+      "placementHint": "Đặt máy giữa bàn, cắm sạc và giữ trang này mở đến hết buổi.",
+      "micOk": "Micro đang thu tốt",
+      "recording": "Đang ghi âm",
+      "paused": "Đã tạm dừng",
+      "saved": "Đã lưu trên máy",
+      "screenOn": "Màn hình luôn sáng",
+      "people_one": "{{count}} người dự",
+      "people_other": "{{count}} người dự",
+      "end": "Kết thúc",
+      "pause": "Tạm dừng",
+      "resume": "Ghi tiếp",
+      "device": "Thiết bị",
+      "interrupted": "Ghi âm bị ngắt",
+      "savedUpTo": "{{time}} đã lưu an toàn",
+      "endAndSend": "Kết thúc và gửi",
+      "endTitle": "Kết thúc và gửi bản ghi?",
+      "endBody": "Bản ghi {{duration}} được gửi để Thư ký UNI soạn tóm tắt, việc đề xuất và biên bản.",
+      "continue": "Ghi tiếp",
+      "sendingTitle": "Đang gửi bản ghi",
+      "sendingBody": "Gửi xong, Thư ký UNI bắt đầu ghi lời và soạn tóm tắt.",
+      "fileLabel": "Ghi âm tại phòng · {{duration}}",
+      "sentOfTotal": "{{sent}} / {{total}}",
+      "percent": "{{percent}}%",
+      "keepOpen": "Giữ trang này mở đến khi gửi xong.",
+      "stopSending": "Dừng gửi",
+      "sending": "Đang gửi…",
+      "waitingTitle": "Chờ mạng để gửi",
+      "waitingBody": "Bản ghi an toàn trên máy này. Có mạng lại là tự gửi tiếp.",
+      "pausedShort": "Tạm dừng",
+      "offline": "Mất mạng · tự gửi tiếp khi có mạng",
+      "later": "Để sau",
+      "retryNow": "Thử lại ngay",
+      "failedTitle": "Chưa gửi được bản ghi",
+      "failedBody": "Bản ghi vẫn an toàn trên máy này.",
+      "transcribingTitle": "Thư ký UNI đang ghi lời bản ghi {{minutes}} phút",
+      "transcribingEta_one": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "transcribingEta_other": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "summaryTranscribing": "Thư ký UNI đang ghi lời và tách người nói",
+      "summarySteps": "Nhận bản ghi ✓ · Ghi lời · Tóm tắt và việc đề xuất",
+      "unnamedSpeakers_one": "{{count}} người nói chưa có tên",
+      "unnamedSpeakers_other": "{{count}} người nói chưa có tên",
+      "unnamedHint": "Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người.",
+      "unsentTitle": "Còn bản ghi {{duration}} chưa gửi trên máy này",
+      "unsentSub": "Lưu lúc {{time}} · chỉ bạn thấy trên máy này",
+      "deleteLocal": "Xóa bản ghi trên máy…",
+      "deleteLocalConfirm": "Xóa bản ghi này khỏi máy? Không lấy lại được.",
+      "logoutTitle_one": "Còn {{count}} bản ghi chưa gửi",
+      "logoutTitle_other": "Còn {{count}} bản ghi chưa gửi",
+      "logoutBody": "Bản ghi vẫn nằm trên máy này. Đăng nhập lại để gửi.",
+      "logoutAnyway": "Vẫn đăng xuất",
+      "stay": "Ở lại"
+    },
     "startRecording": "Bắt đầu ghi hình",
     "stopRecording": "Dừng ghi hình",
     "recording": "Đang ghi",
@@ -4216,7 +4659,6 @@
     "inviteOnlyHint": "Nhờ người chủ trì mời bạn rồi vào lại cuộc họp.",
     "endedHint": "Ghi chú và bản ghi (nếu có) nằm ở trang cuộc họp.",
     "waitingApprovalNotStartedHint": "Cuộc họp chưa bắt đầu. Người chủ trì sẽ thấy yêu cầu của bạn khi vào phòng. Trang này tự cập nhật.",
-    "joinRequestNoticeDismiss": "Ẩn thông báo",
     "canceledHint": "Hỏi người tổ chức nếu vẫn cần họp.",
     "pastScheduledEndHint": "Người chủ trì có thể gia hạn để mọi người vào tiếp.",
     "joinRequestChime": "Âm báo khi có người xin vào",
@@ -4951,7 +5393,6 @@
         "selMetaNoDue_one": "{{count}} người",
         "selMetaNoDue_other": "{{count}} người",
         "selClear": "Bỏ chọn",
-        "selReview": "Xem lại và giao",
         "keys": "Phím tắt",
         "keyMove": "↑ ↓ chuyển giữa các việc",
         "keyToggle": "Space chọn hoặc bỏ chọn",
@@ -4994,7 +5435,6 @@
           "votes_other": "{{count}} kết quả biểu quyết"
         },
         "running": "Đang soạn tóm tắt",
-        "runningFrom": "Đang soạn tóm tắt từ {{sources}}",
         "none": "Chưa có tóm tắt cho cuộc họp này.",
         "noneFrom": "Thư ký UNI soạn từ {{sources}}",
         "generate": "Soạn tóm tắt",
@@ -5014,7 +5454,8 @@
         "itemsTitle": "Việc cần làm",
         "itemsAfterRunning": "Việc cần làm có sau khi soạn xong",
         "itemsAfterNone": "Việc cần làm có sau khi soạn tóm tắt",
-        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt"
+        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt",
+        "itemsAfterTranscribing": "Việc đề xuất có sau khi Thư ký UNI soạn xong"
       },
       "evidence": {
         "chipLabelMany_one": "Xem căn cứ lúc {{time}}, {{count}} căn cứ",
@@ -5170,6 +5611,7 @@
       },
       "rail": {
         "label": "Thông tin cuộc họp",
+        "venue": "Hình thức",
         "host": "Chủ trì",
         "secretary": "Thư ký",
         "you": " · bạn",
@@ -5404,6 +5846,16 @@
       "optionClose": "Bỏ {{name}}",
       "rollHint": "Đặt tỉ lệ có mặt tối thiểu. Chưa đủ chỉ cảnh báo, không chặn cuộc họp."
     },
+    "venue": {
+      "label": "Hình thức",
+      "online": "Online",
+      "onlineHint": "Phòng họp có link",
+      "inPerson": "Trực tiếp",
+      "inPersonHint": "Ghi âm tại phòng",
+      "prepare": "Chuẩn bị ghi âm",
+      "startRecording": "Bắt đầu ghi âm",
+      "haveFile": "Đã có file ghi âm"
+    },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",
       "titleHint": "Không bắt buộc. Để trống sẽ là “Cuộc họp tức thì”.",
@@ -5569,6 +6021,47 @@
       },
       "chat": {
         "placeholder": "Nhắn cho mọi người…"
+      }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "Đã họp {{time}}",
+        "inRoom_one": "{{count}} người trong phòng",
+        "inRoom_other": "{{count}} người trong phòng",
+        "scribeLive": "Thư ký UNI đang ghi"
+      },
+      "upcoming": {
+        "startsAt": "Bắt đầu {{time}}",
+        "startsIn": "Bắt đầu sau {{time}}",
+        "waiting": "chờ"
+      },
+      "create": {
+        "peopleRest_one": "người · gồm bạn",
+        "peopleRest_other": "người · gồm bạn"
+      },
+      "summary": {
+        "outOf": "/{{count}}",
+        "source": "Nguồn {{n}}"
+      },
+      "assign": {
+        "selected": "việc",
+        "changeOwner": "Đổi người nhận",
+        "setDue": "Đặt hạn",
+        "done_one": "Đã giao {{count}} việc",
+        "done_other": "Đã giao {{count}} việc",
+        "groupDone": "{{name}} · đã giao hết",
+        "undoPartial_one": "Không hoàn tác được {{count}} việc",
+        "undoPartial_other": "Không hoàn tác được {{count}} việc"
+      },
+      "prejoin": {
+        "scribeChip": "Thư ký UNI ghi lời"
+      },
+      "room": {
+        "notices": "Thông báo trong phòng",
+        "joined": "<b>{{name}}</b> vào phòng",
+        "left": "<b>{{name}}</b> rời phòng",
+        "hand": "<b>{{name}}</b> giơ tay",
+        "knock": "<b>{{name}}</b> xin vào"
       }
     }
   },
@@ -5966,6 +6459,7 @@
     "composer_flag_group": "Đánh dấu tin",
     "voice_recording_aria": "Thời lượng đang ghi âm, tối đa 2 phút",
     "composer_staged_files": "Tệp sẽ gửi kèm",
+    "composer_preview_image": "Xem {{name}}",
     "composer_remove_file": "Gỡ {{name}}",
     "poll_option_aria": "{{label}} — {{count}} phiếu",
     "poll_closed_status": "Đã đóng",
@@ -6146,6 +6640,9 @@
     "document_open_in_documents": "Mở trong Tài liệu",
     "document_no_access": "Không có quyền truy cập",
     "document_request_access": "Yêu cầu quyền truy cập",
+    "document_locked_title": "Bạn chưa mở được tài liệu này",
+    "document_access_sent": "Đã gửi yêu cầu. Bạn sẽ nhận thông báo khi người quản lý trả lời.",
+    "document_access_failed": "Chưa gửi được yêu cầu. Hãy thử lại.",
     "document_share_as_document": "Chia sẻ dạng tài liệu",
     "document_shared_with_count_one": "Đã chia sẻ với {{count}} người",
     "document_shared_with_count_other": "Đã chia sẻ với {{count}} người",
@@ -6295,6 +6792,7 @@
       "selected_count_one": "Đã chọn {{count}}",
       "selected_count_other": "Đã chọn {{count}}",
       "copy_selected": "Sao chép tin đã chọn thành văn bản",
+      "create_task_selected": "Tạo việc từ tin đã chọn",
       "forward_selected": "Chuyển tiếp tin đã chọn",
       "delete_selected": "Xóa tin đã chọn",
       "clear": "Bỏ chọn",
@@ -6485,15 +6983,32 @@
       "source_message": "Tin nhắn gốc",
       "source_sender_unknown": "Một thành viên",
       "create_task_title": "Tạo việc từ tin nhắn",
+      "create_task_title_multi_one": "Tạo việc từ {{count}} tin nhắn",
+      "create_task_title_multi_other": "Tạo việc từ {{count}} tin nhắn",
       "create_task_description": "Việc sẽ gắn với tin nhắn này và giữ liên kết ngược về chat.",
+      "create_task_description_multi": "Việc gắn với tin mới nhất trong lựa chọn; các tin còn lại đưa vào mô tả.",
       "link_task_title": "Gắn việc đã có",
       "link_task_description": "Chọn một việc trong workspace để hiện thẻ dưới tin nhắn.",
       "title_label": "Tiêu đề",
+      "description_label": "Mô tả",
+      "description_placeholder": "Thêm mô tả…",
+      "ai_draft": "Gợi ý bằng AI",
+      "ai_drafting": "Đang phân tích…",
+      "ai_draft_error": "Không gợi ý được từ tin đã chọn. Thử lại sau giây lát.",
+      "source_more_one": "+{{count}} tin khác",
+      "source_more_other": "+{{count}} tin khác",
       "project_label": "Project",
       "project_none": "Không gắn",
       "assignee_label": "Người nhận",
       "assignee_none": "Chưa gán",
       "due_label": "Hạn",
+      "due_placeholder": "YYYY-MM-DD",
+      "priority_label": "Độ ưu tiên",
+      "priority_none": "Không ưu tiên",
+      "priority_low": "Thấp",
+      "priority_medium": "Trung bình",
+      "priority_high": "Cao",
+      "priority_urgent": "Khẩn cấp",
       "sync_thread": "Đồng bộ thread với bình luận của việc",
       "sync_thread_hint": "Trả lời trong thread thành bình luận của việc và ngược lại.",
       "search_label": "Tìm việc",
@@ -6988,7 +7503,6 @@
       "new_owner": "Chủ sở hữu mới",
       "pick_placeholder": "Chọn thành viên",
       "confirm_label": "Gõ tên tổ chức để xác nhận",
-      "password_label": "Mật khẩu hiện tại của bạn",
       "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
       "done": "Đã chuyển quyền sở hữu",
       "confirm_mismatch": "Chưa khớp với \"{{name}}\".",
@@ -7001,14 +7515,10 @@
         "you_admin": "Bạn trở thành quản trị.",
         "no_undo": "Bạn không tự lấy lại quyền sở hữu được."
       },
-      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
-      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
       "confirm_lede": "Không có gì bị xóa, nhưng tổ chức không còn do bạn nắm.",
       "action_pending": "Đang chuyển quyền…",
       "reason_pick": "Chọn chủ sở hữu mới để tiếp tục.",
-      "reason_name": "Gõ đúng tên tổ chức để tiếp tục.",
-      "reason_password": "Nhập mật khẩu hiện tại để tiếp tục.",
-      "reason_no_password": "Chưa thể chuyển quyền khi tài khoản chưa có mật khẩu."
+      "reason_name": "Gõ đúng tên tổ chức để tiếp tục."
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
@@ -7137,7 +7647,6 @@
       "unknown": "Chưa xử lý được {{name}} ở trang này. Tải lại trang để thử lại.",
       "incomplete": "Hoàn tất từng mục ở trên để tiếp tục.",
       "blocked_reason": "Chưa thể tiếp tục khi còn tổ chức đang tạm ngưng.",
-      "no_password_reason": "Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.",
       "confirm_heading": "Xác nhận chuyển tổ chức",
       "confirm_leave": "Rời {{name}}",
       "confirm_transfer": "Chuyển quyền sở hữu {{name}} cho {{person}}, rồi rời tổ chức",
@@ -7696,6 +8205,10 @@
       "list_members_label": "Đang xem danh sách thành viên “{{label}}”…",
       "member_workload": "Đang xem khối lượng việc của thành viên…",
       "member_workload_label": "Đang xem khối lượng việc của “{{label}}”…",
+      "list_documents": "Đang xem danh sách tài liệu…",
+      "list_documents_label": "Đang xem danh sách tài liệu “{{label}}”…",
+      "list_templates": "Đang xem danh sách mẫu…",
+      "list_templates_label": "Đang xem danh sách mẫu “{{label}}”…",
       "thinking": "UNI đang suy nghĩ…",
       "retry": "Đang kiểm tra lại câu trả lời…",
       "writing": "Đang viết câu trả lời…",
@@ -7727,6 +8240,10 @@
       "list_members_label": "Đã xem danh sách thành viên “{{label}}”",
       "member_workload": "Đã xem khối lượng việc của thành viên",
       "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
+      "list_documents": "Đã xem danh sách tài liệu",
+      "list_documents_label": "Đã xem danh sách tài liệu “{{label}}”",
+      "list_templates": "Đã xem danh sách mẫu",
+      "list_templates_label": "Đã xem danh sách mẫu “{{label}}”",
       "default": "Đã xử lý",
       "retry": "Đã kiểm tra lại câu trả lời",
       "summary_other": "Xong sau {{count}} bước",
@@ -8005,6 +8522,15 @@
         "4": "Việc ưu tiên cao nào còn đang mở?"
       }
     },
+    "handoff": {
+      "start_text": "Soạn tài liệu theo việc Hỏi UNI giao: {{title}}",
+      "status": {
+        "sent": "Đã giao cho AI trong trình soạn",
+        "running": "AI trong trình soạn đang soạn…",
+        "idle": "AI trong trình soạn đã xong lượt. Xem tài liệu rồi bấm Lưu.",
+        "refused": "AI trong trình soạn không nhận việc. Bạn có thể tự soạn trong tài liệu."
+      }
+    },
     "proposal": {
       "header_ask": "UNI đề xuất · cần bạn xác nhận",
       "header_plan": "Kế hoạch của UNI · chọn bước cần làm",
@@ -8057,9 +8583,13 @@
         "proposal_expired": "Đề xuất đã hết hạn. Hỏi lại UNI.",
         "proposal_ref_pending": "Bước này dùng kết quả của một bước trước chưa được áp dụng. Áp dụng bước đó trước.",
         "proposal_not_pending": "Đề xuất này đã được xử lý, có thể ở một tab khác.",
+        "ask_uni_office_off": "Hỏi UNI chưa được bật soạn tệp Office ở tổ chức này. Nhờ quản trị tổ chức liên hệ UniWork.",
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
+        "template_unavailable": "Tài liệu này không còn là mẫu. Hỏi UNI chọn mẫu khác.",
+        "documents_unavailable": "Tài liệu đang tắt cho tổ chức của bạn.",
+        "office_not_configured": "Chưa tạo được tệp trống lúc này. Hãy thử lại sau.",
         "default": "Không áp dụng được. Hỏi lại UNI."
       },
       "tool": {
@@ -8077,7 +8607,9 @@
         "update_document": "Sửa tài liệu",
         "add_document_comment": "Bình luận vào tài liệu",
         "send_chat_message": "Gửi tin nhắn",
-        "other": "Thay đổi"
+        "other": "Thay đổi",
+        "create_office_document": "Tạo tệp mới",
+        "save_attachment_template": "Lưu vào Mẫu văn bản"
       },
       "field": {
         "title": "Tiêu đề",
@@ -8100,14 +8632,47 @@
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
         "user_ids": "Người được mời",
-        "mode": "Nội dung"
+        "mode": "Nội dung",
+        "template_id": "Mẫu",
+        "attachment_id": "Tệp đính kèm",
+        "format": "Định dạng",
+        "location": "Thư mục",
+        "visibility": "Ai xem được",
+        "instructions": "Yêu cầu",
+        "editor_ai": "AI trong trình soạn",
+        "sources": "Tư liệu"
       },
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
         "replace": "Thay toàn bộ tài liệu"
       },
       "details": "Xem chi tiết",
-      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua",
+      "location": {
+        "my_folder": "Thư mục của tôi",
+        "workspace_root": "Tài liệu của workspace"
+      },
+      "visibility": {
+        "restricted": "Chỉ mình tôi",
+        "workspace": "Cả workspace"
+      },
+      "apply_create_open": "Tạo và mở",
+      "apply_open_compose": "Mở và soạn",
+      "apply_open_build": "Mở và dựng",
+      "apply_create_open_self": "Tạo và mở để tự soạn",
+      "editor_ai": {
+        "compose": "Sẵn sàng soạn",
+        "build": "Sẵn sàng dựng",
+        "plan": "Gói của tổ chức chưa có AI trong trình soạn",
+        "off": "AI trong trình soạn chưa bật",
+        "format_off": "AI trong trình soạn chưa bật cho định dạng này",
+        "credits": "Tổ chức đã hết credit AI"
+      },
+      "apply_save_template": "Lưu vào Mẫu",
+      "outline": "Dàn ý",
+      "edit_outline": "Sửa dàn ý",
+      "outline_save": "Lưu dàn ý",
+      "outline_label": "Dàn ý của tệp mới"
     },
     "memory": {
       "button": "Bộ nhớ",
@@ -10991,7 +11556,6 @@
           "meeting_ai_summary": "Tóm tắt họp bằng AI",
           "documents_public_links": "Liên kết công khai cho tài liệu",
           "meeting_transcription": "Phút ghi lời cuộc họp",
-          "office_ai_byok": "Khóa AI riêng cho Office",
           "office_ai_cloud": "Công cụ AI đám mây cho Office"
         }
       }
@@ -11103,7 +11667,7 @@
       "pillar3Title": "Work Products là kết quả thực",
       "pillar3Desc": "Tạo, chỉnh sửa, phê duyệt tài liệu, phân tích và trình bày ngay tại chỗ công việc sinh ra chúng.",
       "pillar4Title": "Linh hoạt triển khai",
-      "pillar4Desc": "Cloud, private cloud, on-premise và BYOK, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
+      "pillar4Desc": "Cloud, private cloud và on-premise, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -11664,7 +12228,7 @@
         "demo": "Xem sáu trình soạn thảo",
         "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
         "trustAccount": "Dùng chung tài khoản UniWork",
-        "trustAi": "AI theo gói UniWork hoặc khóa riêng",
+        "trustAi": "AI chạy bằng UniWork AI, tính vào credit của gói",
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
@@ -11758,7 +12322,7 @@
         "sub": "UniOffice dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "Công cụ AI trên cloud chạy qua UniWork theo cấu hình và gói của tổ chức. Khi dùng khóa API riêng trên web, yêu cầu vẫn đi qua UniWork tới nhà cung cấp bạn chọn. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
+          "description": "Công cụ AI trên cloud chạy bằng UniWork AI theo cấu hình và gói của tổ chức, tính vào credit của gói. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
         },
         "files": {
           "title": "File của nhóm lưu trong workspace",
@@ -11775,7 +12339,7 @@
         },
         "ai": {
           "title": "AI theo nhu cầu",
-          "description": "Dùng gói của tổ chức hoặc khóa API riêng."
+          "description": "Chạy bằng UniWork AI, tính vào credit của gói."
         },
         "permissions": {
           "title": "Quyền truy cập nhất quán",
@@ -11804,7 +12368,7 @@
         "q3": "Có dùng được khi không có mạng không?",
         "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
-        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được máy chủ UniWork gửi tới nhà cung cấp mô hình, theo gói của tổ chức. Nếu bạn nhập khóa AI riêng trong app desktop, nội dung đi thẳng từ máy bạn tới nhà cung cấp đó.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
         "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
         "q6": "Làm sao mở file từ UniWork trên web?",
@@ -12049,7 +12613,7 @@
         "title": "Tin nhắn ở lại trong workspace của nhóm.",
         "body": "Lưu trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
         "account": "Một tài khoản UniWork",
-        "accountBody": "Đăng nhập qua trình duyệt, không cần tài khoản riêng",
+        "accountBody": "Đăng nhập bằng email, Google hoặc Apple, không cần tài khoản riêng",
         "workspace": "Đúng workspace của bạn",
         "workspaceBody": "Chỉ thấy các workspace bạn là thành viên",
         "revoke": "Hết quyền là hết truy cập",
@@ -12072,7 +12636,7 @@
       "faq": {
         "title": "Câu hỏi thường gặp",
         "q1": "Tôi có cần tài khoản riêng cho UniChat không?",
-        "a1": "Không. Bạn đăng nhập bằng tài khoản UniWork qua trình duyệt và thấy đúng các workspace bạn là thành viên.",
+        "a1": "Không. Bạn đăng nhập bằng tài khoản UniWork (email, Google hoặc Apple) và thấy đúng các workspace bạn là thành viên.",
         "q2": "UniChat khác gì chat trong UniWork trên web?",
         "a2": "Cùng một chat: tin nhắn, kênh, việc gắn với tin và cuộc gọi là một, dù bạn mở trên web hay trong UniChat. UniChat chỉ tập trung vào chat; việc, cuộc họp và tài liệu vẫn mở đầy đủ trên web.",
         "q3": "Tin nhắn của nhóm được lưu ở đâu?",
@@ -12220,7 +12784,7 @@
           "q1": "Tôi có phải cài ứng dụng nào không?",
           "a1": "Không bắt buộc. Mọi thứ chạy trên web trong UniWork. Cài UniOffice nếu bạn soạn tài liệu, bảng tính hay trình chiếu trên máy; cài UniChat nếu muốn chat của nhóm có ứng dụng riêng trên máy tính và điện thoại.",
           "q2": "Mỗi ứng dụng có cần tài khoản riêng không?",
-          "a2": "Không. Tất cả dùng tài khoản UniWork, đăng nhập qua trình duyệt, và thấy đúng các workspace bạn là thành viên.",
+          "a2": "Không. Tất cả dùng tài khoản UniWork, đăng nhập bằng email, Google hoặc Apple, và thấy đúng các workspace bạn là thành viên.",
           "q3": "Dữ liệu nằm ở đâu?",
           "a3": "Tài liệu, tin nhắn và việc của nhóm nằm trong workspace UniWork, theo phân quyền của tổ chức. File bạn mở từ máy tính trong UniOffice vẫn ở trên máy bạn.",
           "q4": "Đã có bản cho điện thoại chưa?",

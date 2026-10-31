@@ -1056,3 +1056,86 @@ func TestDocumentSourceMeetingMinutesParityWithLevelFor(t *testing.T) {
 	assertParity("restored (aclOwner)", tn.aclOwner, true)
 	assertParity("restored (foreign member)", tn.member, false)
 }
+
+// ParentID keeps only the files held by one task (its comments included), room,
+// meeting or thread, and never widens what the viewer's own gate lets through.
+func TestDocumentSourcesFilterByParent(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn, other: env.f.tenant(t, "srx"+strings.ToLower(util.NewID()[20:]))}
+	svc, _ := sourceService(t, env)
+	tn := env.tn
+	taskA := s.task(tn, tn.wsA)
+	taskB := s.task(tn, tn.wsA)
+	commentID := util.NewID()
+	s.exec(`INSERT INTO task_comments (id, organization_id, workspace_id, task_id, author_id, body, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'c', now())`, commentID, tn.orgID, tn.wsA, taskA, tn.owner.ID)
+	onTask := "task:" + s.attachment(tn, tn.wsA, taskA, "", "on-task.pdf")
+	onComment := "task:" + s.attachment(tn, tn.wsA, "", commentID, "on-comment.pdf")
+	s.attachment(tn, tn.wsA, taskB, "", "on-b.pdf")
+	r1 := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	r2 := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	inR1 := "chat:" + s.fileMessage(tn.orgID, tn.wsA, r1, tn.owner.ID, "r1.pdf", false)
+	s.fileMessage(tn.orgID, tn.wsA, r2, tn.owner.ID, "r2.pdf", false)
+	private := s.room(tn.orgID, tn.wsA, "group", "private", "", false)
+	s.roomMember(tn.orgID, tn.wsA, private, tn.owner.ID, "active")
+	s.fileMessage(tn.orgID, tn.wsA, private, tn.owner.ID, "private.pdf", false)
+	foreignTask := s.task(s.other, s.other.wsA)
+	s.attachment(s.other, s.other.wsA, foreignTask, "", "foreign.pdf")
+
+	ids := func(parent string) map[string]bool {
+		t.Helper()
+		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{ParentID: parent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]bool{}
+		for _, it := range page.Items {
+			out[it.ID] = true
+		}
+		return out
+	}
+	if got := ids(taskA); len(got) != 2 || !got[onTask] || !got[onComment] {
+		t.Fatalf("task A files = %v, want the task's and its comment's", got)
+	}
+	if got := ids(r1); len(got) != 1 || !got[inR1] {
+		t.Fatalf("room 1 files = %v, want only its own", got)
+	}
+	if got := ids(private); len(got) != 0 {
+		t.Fatalf("a room the viewer is not in lists %v", got)
+	}
+	if got := ids(foreignTask); len(got) != 0 {
+		t.Fatalf("a task of another organization lists %v", got)
+	}
+	// An email thread id returns only that thread's attachment.
+	acc, err := env.f.q.CreateEmailHubAccount(s.ctx, db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: tn.member.ID, OrganizationID: tn.orgID, EmailAddress: strings.ToLower(util.NewID()) + "@example.com",
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
+	})
+	mustf(t, err, "mail account")
+	threadFile := map[string]string{}
+	for i := int32(1); i <= 2; i++ {
+		th, err := env.f.q.UpsertEmailHubThread(s.ctx, db.UpsertEmailHubThreadParams{
+			ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: i,
+			Subject: "Thư", FromAddr: "a@example.com", ToAddrs: []string{acc.EmailAddress},
+			SentAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, HasAttachments: true, ImapLabels: []string{}, ConversationKey: util.NewID(),
+		})
+		mustf(t, err, "mail thread")
+		att, err := env.f.q.CreateEmailHubAttachment(s.ctx, db.CreateEmailHubAttachmentParams{
+			ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: tn.orgID,
+			Filename: "thu.pdf", MimeType: "application/pdf", SizeBytes: 4, PartID: "2",
+		})
+		mustf(t, err, "mail attachment")
+		threadFile[th.ID] = "email:" + att.ID
+	}
+	svc = NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: svc.tasks, Chat: svc.chat, EmailHub: NewEmailHubService(env.f.q, env.svc.ws, testEmailHubBox(t))})
+	for thread, want := range threadFile {
+		if got := ids(thread); len(got) != 1 || !got[want] {
+			t.Fatalf("email thread %s files = %v, want only %s", thread, got, want)
+		}
+	}
+	all, blank := ids(""), ids("  ")
+	if len(all) != 7 || len(blank) != 7 {
+		t.Fatalf("no parent lists %d files and blank lists %d, want the 7 the viewer may see", len(all), len(blank))
+	}
+}

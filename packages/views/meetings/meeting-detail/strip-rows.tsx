@@ -1,22 +1,27 @@
 "use client";
-import { Ban, CalendarX, Lock, Play, RotateCcw, TriangleAlert, Video } from "lucide-react";
+import { Ban, CalendarX, CloudUpload, Lock, Mic, Play, RotateCcw, TriangleAlert, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useReducedMotion } from "motion/react";
 import { Trans, useTranslation } from "react-i18next";
 import { useExtendMeeting, useRestoreMeeting, useStartMeeting } from "@uniwork/core/meetings";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../../toast-api-error";
+import { useNow } from "../use-now";
 import { MeetingCalendarButton } from "../meeting-calendar-button";
 import { MeetingRecordHeldButton } from "../meeting-record-held-dialog";
 import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
 import { dueWords } from "./close-out/action-item-row";
 import { useDetail } from "./detail-context";
 import { clock, dayWord, shortDay, untilWords } from "./format";
+import { NameSpeakersButton, TranscribingRow, UnsentRow } from "./in-person-rows";
 import type { StripJob } from "./next-step-jobs";
 import { PhonePrimary, usePhoneBar } from "./phone-frame";
 import { kitButton } from "./ui/kit-buttons";
+import { COUNTDOWN_MS, UpcomingBrief } from "./scheduled/start-countdown";
 import { useSeriesStrip } from "./scheduled/use-series-strip";
 import { StripRow } from "./ui/strip";
 
@@ -31,6 +36,8 @@ export type StripHandlers = {
   /** Đặt lại lịch: the page's edit sheet, which outlives the missed row once the meeting is scheduled again. */
   onEdit: () => void;
   onFollowUpCreated: (meetingId: string) => void;
+  /** Bắt đầu ghi âm of an in-person meeting; without it the page offers no recording. */
+  onRecord?: (opts?: { send?: boolean }) => void;
   hostName: string;
   /** Who can assign (host, secretaries), for "chờ Lan Phạm hoặc Hà Vũ giao". */
   clerkNames: string[];
@@ -45,6 +52,9 @@ function firstNames(names: string[]): string {
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown;
 }
 const SOON_MS = 15 * 60_000;
+/** The due start button's brand halo (proposal B). */
+const START_GLOW =
+  "shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_14%,transparent),0_8px_22px_-8px_color-mix(in_oklab,var(--brand)_60%,transparent)]";
 
 /** A strip sentence led by an icon in ink (kit `.notice` without a tone): missed, canceled, the outsider's lock. */
 function StripNotice({ icon: Icon, muted, children }: { icon: LucideIcon; muted?: boolean; children: ReactNode }) {
@@ -70,23 +80,39 @@ function dayOf(iso: string, now: number, t: ReturnType<typeof useTranslation>["t
 function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: StripHandlers }) {
   const { t } = useTranslation();
   const { meeting, now, workspaceId } = useDetail();
+  const reduce = useReducedMotion() ?? false;
   const start = useStartMeeting(workspaceId);
   const startsAt = Date.parse(meeting.starts_at);
-  const due = now >= startsAt - SOON_MS;
+  // In the last hour the row shares the countdown's 1s clock, so the button turns due on the second the ring shows 15:00.
+  const tick = useNow(startsAt - now <= COUNTDOWN_MS ? 1_000 : 60_000);
+  const due = Math.max(now, tick) >= startsAt - SOON_MS;
   const until = untilWords(meeting.starts_at, now, t);
   // A follow-up, not yet due: what it carries on from instead of when it starts (SeriesBrief).
   const series = useSeriesStrip(job.canStart && !due);
+  // The last hour before the start: the countdown ring and the invitees' faces lead the row.
+  const counting = !series && startsAt > now && startsAt - now <= COUNTDOWN_MS;
+  // Due (≤ 15 min): the start button glows, and a light runs round its edge unless motion is reduced.
+  const beam = due && !reduce;
   const lead = now < startsAt ? (
     <Timed k="meetings.detail.strip.startsAt" values={{ day: dayOf(meeting.starts_at, now, t), time: clock(meeting.starts_at) }} />
   ) : (
     <Timed k="meetings.detail.strip.startsLate" values={{ time: clock(meeting.starts_at) }} />
   );
-  const primary = job.canStart ? (
+  const primary = job.inPerson ? (
+    // In person there is no room to start or join: a clerk records it, where the page can.
+    job.canRecord && h.onRecord ? (
+      <Button type="button" size="lg" variant={due ? "brand" : "outline"} className={lg(due ? "" : kitButton.outline)} onClick={() => h.onRecord?.()}>
+        <Mic aria-hidden />
+        {t("meetings.venue.startRecording")}
+      </Button>
+    ) : null
+  ) : job.canStart ? (
     <Button
       type="button"
       size="lg"
       variant={due ? "brand" : "outline"}
-      className={lg(due ? "" : kitButton.outline)}
+      className={lg(due ? START_GLOW : kitButton.outline, beam ? "border-beam" : "")}
+      data-motion-loop={beam ? "" : undefined}
       aria-disabled={start.isPending || undefined}
       onClick={() => {
         if (!start.isPending) start.mutate(meeting.id, { onError: (err) => toastApiError(err, t("common.error")) });
@@ -105,7 +131,7 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
   return (
     <StripRow
       title={
-        series ? (
+        counting ? undefined : series ? (
           <>
             <strong>{series.lead}</strong>
             {t("meetings.detail.strip.tail", { text: series.rest })}
@@ -118,7 +144,9 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
         )
       }
       caption={
-        series
+        counting
+          ? undefined
+          : series
           ? series.caption || undefined
           : job.pendingNames.length > 0
           ? t("meetings.detail.strip.notAnswered", { count: job.pendingNames.length, names: firstNames(job.pendingNames) })
@@ -127,13 +155,23 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
       actions={
         <>
           <MeetingCalendarButton meetingId={meeting.id} title={meeting.title} className={lg(kitButton.ghost)} />
-          {job.canStart && now >= startsAt ? (
-            <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" className={lg(kitButton.outline)} />
+          {/* Any clerk may record it held (the server's RecordHeld); online keeps the runner's gate. */}
+          {(job.canStart || (job.inPerson && job.canRecord)) && now >= startsAt ? (
+            <MeetingRecordHeldButton
+              workspaceId={workspaceId}
+              meeting={meeting}
+              size="lg"
+              className={lg(kitButton.outline)}
+              label={job.inPerson ? t("meetings.venue.haveFile") : undefined}
+              icon={job.inPerson ? CloudUpload : undefined}
+            />
           ) : null}
           <PhonePrimary>{primary}</PhonePrimary>
         </>
       }
-    />
+    >
+      {counting ? <UpcomingBrief /> : undefined}
+    </StripRow>
   );
 }
 
@@ -220,7 +258,13 @@ function MissedRow({ job, h }: { job: Extract<StripJob, { kind: "missed" }>; h: 
       actions={
         job.canAct ? (
           <>
-            <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" className={lg(kitButton.outline, "[&>svg]:hidden")} />
+            <MeetingRecordHeldButton
+              workspaceId={workspaceId}
+              meeting={meeting}
+              size="lg"
+              className={lg(kitButton.outline, "[&>svg]:hidden")}
+              label={meetingVenue(meeting) === "in_person" ? t("meetings.venue.haveFile") : undefined}
+            />
             <PhonePrimary>
               <Button type="button" size="lg" variant="brand" className={lg()} onClick={h.onEdit}>
                 {t("meetings.detail.strip.reschedule")}
@@ -326,23 +370,37 @@ function CloseOutRow({ job, h }: { job: Extract<StripJob, { kind: "closeOut" }>;
     .filter(Boolean)
     .join(" · ");
   const review = job.pending > 0;
+  // In person, the speakers come first: the items follow, the minutes wait until they are named (board p09).
+  const unnamed = job.unnamedSpeakers ?? 0;
+  const head =
+    unnamed > 0
+      ? {
+          lead: t("meetings.record.unnamedSpeakers", { count: unnamed }),
+          rest: review ? t("meetings.detail.strip.pendingItems", { count: job.pending }) : null,
+        }
+      : { lead, rest };
   return (
     <StripRow
       title={
-        lead ? (
+        head.lead ? (
           <>
-            <strong>{lead}</strong>
-            {rest ? t("meetings.detail.strip.tail", { text: rest }) : null}
+            <strong>{head.lead}</strong>
+            {head.rest ? t("meetings.detail.strip.tail", { text: head.rest }) : null}
           </>
         ) : undefined
       }
-      caption={caption || undefined}
+      caption={unnamed > 0 ? t("meetings.record.unnamedHint") : caption || undefined}
       actions={
         <>
-          {job.canFollowUp && !phone ? (
+          {unnamed > 0 && (!phone || !review) ? (
+            <PhonePrimary>
+              <NameSpeakersButton primary={!review} />
+            </PhonePrimary>
+          ) : null}
+          {job.canFollowUp && !phone && unnamed === 0 ? (
             <ScheduleFollowUpButton workspaceId={workspaceId} meeting={meeting} participants={participants} onCreated={h.onFollowUpCreated} />
           ) : null}
-          {job.canFinalize && (!phone || !review) ? (
+          {job.canFinalize && unnamed === 0 && (!phone || !review) ? (
             <PhonePrimary>
               <Button
                 type="button"
@@ -425,6 +483,10 @@ export function StripJobRow({ job, handlers }: { job: StripJob; handlers: StripH
       return <CloseOutRow job={job} h={handlers} />;
     case "memberItems":
       return <MemberItemsRow job={job} h={handlers} />;
+    case "transcribing":
+      return <TranscribingRow job={job} h={handlers} />;
+    case "unsent":
+      return <UnsentRow job={job} h={handlers} />;
     case "outsider":
       return <OutsiderRow />;
     default:

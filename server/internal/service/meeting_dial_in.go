@@ -74,8 +74,9 @@ func (s *MeetingService) dialInOn(ctx context.Context, orgID string) bool {
 	return s.dialInConfigured() && s.orgFlagOn(ctx, orgID, dialInFlag)
 }
 
+// dialInOpen: an in-person meeting opens no room, so it never takes a call.
 func dialInOpen(m db.Meeting) bool {
-	return m.Status == MeetingScheduled || m.Status == MeetingInProgress
+	return m.Venue != MeetingVenueInPerson && (m.Status == MeetingScheduled || m.Status == MeetingInProgress)
 }
 
 func isDialInGuest(guestID string) bool { return strings.HasPrefix(guestID, dialInGuestPrefix) }

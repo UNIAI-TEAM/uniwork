@@ -195,7 +195,7 @@ func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	for _, x := range in.Resolve {
 		resolve = append(resolve, service.SwitchResolution{
 			OrganizationID: x.OrganizationID, Action: x.Action,
-			TransferToUserID: x.TransferToUserID, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
+			TransferToUserID: x.TransferToUserID, StepUpToken: x.StepUpToken, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
 		})
 	}
 	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"), resolve)

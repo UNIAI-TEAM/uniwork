@@ -110,6 +110,8 @@ export function SheetEditor({
     };
   }, []);
   const [confirm, setConfirm] = useState<"discard" | "reload" | null>(null);
+  // The meeting exists and the primary shows its ✓; the sheet closes LANDING_MS later.
+  const [landed, setLanded] = useState(false);
 
   const meeting = setup.mode === "edit" ? setup.meeting : null;
   const ended = meeting ? meeting.status === "ENDED" || meeting.status === "CANCELED" : false;
@@ -121,7 +123,7 @@ export function SheetEditor({
   const [panelRunId, setPanelRunId] = useState<string | null>(null);
   if (panelNow && panelRunId !== run!.id) setPanelRunId(run!.id);
   const showResult = Boolean(run && !run.phase1Error && (panelNow || panelRunId === run.id));
-  const readOnly = phase1Busy || phase2 || ended;
+  const readOnly = phase1Busy || phase2 || ended || landed;
   const timeTouched = (["date", "start", "end", "timezone"] as const).some((k) => draft[k] !== snapshot[k]);
   const issues = validateDraft(draft, { nowMs, checkPast: setup.mode !== "edit" || timeTouched, timeLocked: Boolean(live) });
   const nameOf = (id: string) => members.find((m) => m.user_id === id)?.display_name ?? t("meetings.formerMember");
@@ -143,13 +145,27 @@ export function SheetEditor({
       if (!attached.current) toast.error(t("meetings.sheet.unknownOutcome"), { position: "bottom-center" });
       return;
     }
-    const id = done.meetingId!;
     const failed = runRows(done).some((r) => r.status === "failed");
     if (attached.current) {
       if (needsPanel(done)) return;
+      if (done.plan.mode === "create") {
+        // The primary lands on its ✓ (drawn in 300 ms, held 600) before the sheet goes.
+        setLanded(true);
+        setTimeout(() => {
+          dropRun(done.id);
+          onClose();
+          report(done, failed);
+        }, LANDING_MS);
+        return;
+      }
       dropRun(done.id);
       onClose();
     }
+    report(done, failed);
+  };
+
+  const report = (done: SubmitRun, failed: boolean) => {
+    const id = done.meetingId!;
     const toastOf = outcomeToast(done, failed, t);
     if (failed) {
       toast.warning(toastOf, { position: "bottom-center", duration: Infinity, action: { label: t("meetings.sheet.seeResult"), onClick: () => onReopen(done.id) } });
@@ -163,7 +179,7 @@ export function SheetEditor({
   };
 
   const submit = () => {
-    if (phase1Busy || phase2 || confirm) return;
+    if (phase1Busy || phase2 || confirm || landed) return;
     if (ended) return onClose();
     if (setup.mode === "edit" && changes.length === 0) return onClose();
     const now = Date.now();
@@ -190,7 +206,7 @@ export function SheetEditor({
   };
 
   const requestClose = () => {
-    if (confirm) return;
+    if (confirm || landed) return;
     if (run && run.phase !== "done" && !run.phase1Error) {
       // Phase 1 holds the sheet until it answers or turns slow; phase 2 only while a link's secret is still to come.
       if ((phase1Busy && !run.slow) || (phase2 && linksPending(run))) return;
@@ -230,7 +246,7 @@ export function SheetEditor({
     return () => el.removeEventListener("keydown", onKey);
   }, []);
 
-  const xLocked = Boolean(run && ((phase1Busy && !run.slow) || (phase2 && linksPending(run))));
+  const xLocked = landed || Boolean(run && ((phase1Busy && !run.slow) || (phase2 && linksPending(run))));
   const title = t(setup.mode === "edit" ? "meetings.edit" : setup.mode === "followUp" ? "meetings.sheet.followUpTitle" : "meetings.new");
   const caption = setup.mode === "followUp" ? headCaption(setup.previous, seriesShortTitle(setup.previous.title), nowMs, t) : null;
   const failures = run ? runRows(run).filter((r) => r.status === "failed") : [];
@@ -389,6 +405,9 @@ export function SheetEditor({
             primaryLabel={ended ? t("common.close") : t(setup.mode === "edit" ? "meetings.saveChanges" : setup.mode === "followUp" ? "meetings.sheet.followUpSubmit" : "meetings.createSubmit")}
             busy={phase1Busy || phase2}
             busyLabel={t(setup.mode === "edit" ? "meetings.saving" : "meetings.creating")}
+            morph={setup.mode !== "edit"}
+            landed={landed}
+            doneLabel={t("meetings.created")}
           />
         </form>
       )}
@@ -412,6 +431,9 @@ export function SheetEditor({
     </div>
   );
 }
+
+/** The created ✓: drawn in 300 ms, then held 600 ms before the sheet closes (proposal C). */
+const LANDING_MS = 900;
 
 /** The result panel shows when a step failed or a guest link's secret must be seen once. */
 function needsPanel(run: SubmitRun): boolean {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -281,25 +282,6 @@ func TestMotionListIsNotOnTheCredentialBudget(t *testing.T) {
 	}
 }
 
-// The BYOK proxy forwards these request headers to the vendor
-// (provider/byok_client.go). From a browser they only arrive when the CORS
-// preflight lists them.
-func TestCORSPreflightAllowsTheForwardedVendorHeaders(t *testing.T) {
-	cfg := config.Config{FrontendOrigin: "http://localhost:3000"}
-	mux := New(Deps{Cfg: cfg}, stubRoutes())
-	for _, header := range []string{"anthropic-beta", "openai-organization", "openai-project", "http-referer", "x-title"} {
-		req := httptest.NewRequest(http.MethodOptions, "/api/v1/orgs/o1/ai/byok/anthropic/messages", nil)
-		req.Header.Set("Origin", cfg.FrontendOrigin)
-		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-		req.Header.Set("Access-Control-Request-Headers", header)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.EqualFold(got, header) {
-			t.Errorf("preflight for %s: Access-Control-Allow-Headers = %q (status %d)", header, got, rec.Code)
-		}
-	}
-}
-
 // The access report export (UNI-1643) names its file and counts in response
 // headers; a cross-origin browser reads them only when CORS exposes them.
 func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
@@ -317,6 +299,33 @@ func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
 		if !exposed[strings.ToLower(header)] {
 			t.Errorf("Access-Control-Expose-Headers lacks %s (got %q)", header, rec.Header().Get("Access-Control-Expose-Headers"))
 		}
+	}
+}
+
+// The Ask UNI handoff (ADR 0048): the frame sends the package id on a UniWork
+// AI turn and reads how many parts are left. The literal names are the wire
+// the fork speaks.
+func TestCORSCarriesTheUniworkHandoffHeaders(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000"}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+	path := "/api/v1/office-frame/documents/d1/ai/uniwork/chat/completions"
+	req := httptest.NewRequest(http.MethodOptions, path, nil)
+	req.Header.Set("Origin", cfg.FrontendOrigin)
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "x-uniwork-ai-handoff")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.EqualFold(got, "x-uniwork-ai-handoff") {
+		t.Errorf("preflight: Access-Control-Allow-Headers = %q (status %d)", got, rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, path, nil)
+	req.Header.Set("Origin", cfg.FrontendOrigin)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	exposed := strings.ToLower(rec.Header().Get("Access-Control-Expose-Headers"))
+	if !slices.Contains(strings.Split(strings.ReplaceAll(exposed, " ", ""), ","), "x-uniwork-ai-handoff-remaining") {
+		t.Errorf("Access-Control-Expose-Headers lacks X-UniWork-AI-Handoff-Remaining (got %q)", exposed)
 	}
 }
 

@@ -80,6 +80,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
+| `document.text_index_requested` | 1 | `document_id`, `version_id`, `organization_id`, `workspace_id` | — | - | outbox |
 | `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
 | `document.download_job_requested` | 1 | `job_id`, `organization_id`, `workspace_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |

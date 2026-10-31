@@ -308,6 +308,10 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
+	summaryPoints, err := json.Marshal(points(res.SummaryPoints))
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
 	rawItems, err := json.Marshal(res.ActionItems)
 	if err != nil {
 		return db.MeetingSummary{}, err
@@ -327,7 +331,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: actor.ID,
 		UsageEventID: strText(resp.UsageEventID), Partial: partial, CreatedByKind: string(actor.Kind),
-		Topics: string(topicsJSON), OpenQuestions: string(questions),
+		Topics: string(topicsJSON), OpenQuestions: string(questions), SummaryPoints: string(summaryPoints),
 	})
 	if err != nil {
 		return db.MeetingSummary{}, err

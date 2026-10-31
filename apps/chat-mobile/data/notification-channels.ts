@@ -40,7 +40,8 @@ export async function ensureNotificationChannels(
         importance: IMPORTANCE[channel.importance],
         lockscreenVisibility:
           channel.lockscreen === "public" ? Notifications.AndroidNotificationVisibility.PUBLIC : Notifications.AndroidNotificationVisibility.PRIVATE,
-        sound: quiet ? null : "default",
+        // No sound key is the system default. The string "default" is a custom filename Android does not have.
+        ...(quiet ? { sound: null } : {}),
         enableVibrate: !quiet,
         showBadge: true,
       });

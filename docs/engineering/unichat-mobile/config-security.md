@@ -17,6 +17,15 @@
   khai `UIBackgroundModes: audio` và hiện giao diện gọi; thiếu thì iPhone không bao giờ hiện gọi, dù flag
   `unichat_mobile_calls_ios` bật; `app.config.ts › iosCallsBuilt` từ chối `1` khi `modules/unichat-calls` chưa có phần
   iOS), `UNICHAT_CRITICAL_UPDATE` (chỉ workflow OTA đặt, xem `release.md`), `UNICHAT_PERF_MARKS`,
+  `UNICHAT_GOOGLE_IOS_CLIENT_ID`/`UNICHAT_GOOGLE_WEB_CLIENT_ID` (Google trong app, ADR 0049: client iOS của bundle id
+  biến thể đó và client web mà server kiểm token, `GOOGLE_CLIENT_ID` của nó; không phải bí mật;
+  `plugins/with-google-sign-in.js` ghi vào Info.plist — `GIDClientID`, `GIDServerClientID`, scheme đảo của client iOS —
+  và meta-data của manifest Android, không qua `extra`, nên binary mang cấu hình của chính nó và OTA không làm lệch được;
+  sai dạng thì ném lỗi; thiếu client web thì không nền tảng nào mở sheet Google, thiếu client iOS thì iPhone không mở,
+  và app đi Google qua trình duyệt; client iOS và Android còn phải có trong `GOOGLE_NATIVE_CLIENT_IDS` của server;
+  plugin chạy ở mọi bản build, có client hay không, vì module luôn link GoogleSignIn: nó khai module map cho các pod
+  Objective-C mà `AppCheckCore` (Swift, GoogleSignIn kéo theo) cần ngay sau `use_expo_modules!` trong Podfile, thiếu
+  thì `pod install` đỏ),
   `EXPO_BUNDLE_IDENTIFIER_*`/`EXPO_APPLE_TEAM_ID` (ghi đè, hiếm dùng); mọi biến ấy có dòng trong khối "UniChat
   mobile (build-time)" của `.env.example` (`app.config.test.ts › the build variables app.config.ts reads`);
   kết quả nằm ở `extra` (`apiUrl`,
@@ -28,7 +37,10 @@
   (iOS `CFBundleLocalizations`, Android 13+ `locales_config.xml`) và `ios.infoPlist.CFBundleDevelopmentRegion: "vi"`
   (chuỗi xin quyền gốc tiếng Việt, `locales.en` dịch). Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
-  với id prod.
+  với id prod. `associatedDomains` có `applinks:` và `webcredentials:` của `app.uniworkos.com`: AASA của web
+  (`apps/web/platform/well-known.ts`, `UNICHAT_IOS_TEAM_ID`) nêu app trong `webcredentials.apps` và assetlinks
+  (`UNICHAT_ANDROID_SHA256`, gồm cả chứng chỉ Play App Signing) có `get_login_creds`, nên AutoFill và Credential
+  Manager gợi ý mật khẩu đã lưu cho web ở ô của màn đăng nhập; cũng chỉ với id prod.
   Bảo mật của config (audit "Security & privacy"): staging/production chỉ nhận `UNICHAT_API_URL`/`UNICHAT_APP_URL`
   `https://` (ném lỗi ở mọi nơi đọc config; socket là `wss://` suy từ API), và `transport.start` chỉ mở trang đăng nhập
   cùng origin với `appUrl`; chứng chỉ ký OTA `certs/eas-update-certificate.pem` đã commit (2026-10-22, hạn 10 năm,

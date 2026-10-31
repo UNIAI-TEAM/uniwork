@@ -7,6 +7,7 @@ import {
   AiUsageSummarySchema,
   AskUniResponseSchema,
   ChatCatchUpResponseSchema,
+  ChatTaskDraftResponseSchema,
   type AiCapabilities,
   type AiConversation,
   type AiMessage,
@@ -15,6 +16,8 @@ import {
   type AskUniResponse,
   type ChatCatchUpInput,
   type ChatCatchUpResponse,
+  type ChatTaskDraftInput,
+  type ChatTaskDraftResponse,
 } from "../../types/ai";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -42,6 +45,14 @@ const EMPTY_CATCH_UP: ChatCatchUpResponse = {
   message_count: 0,
   mode: "unread",
   since: "",
+  usage: { input_tokens: 0, output_tokens: 0 },
+};
+const EMPTY_TASK_DRAFT: ChatTaskDraftResponse = {
+  title: "",
+  description: "",
+  priority: "medium",
+  due_date: "",
+  message_count: 0,
   usage: { input_tokens: 0, output_tokens: 0 },
 };
 
@@ -73,6 +84,14 @@ export async function chatCatchUp(wsId: string, body: ChatCatchUpInput): Promise
   const raw = await request(`/api/v1/workspaces/${wsId}/ai/chat/catch-up`, { method: "POST", body });
   return parseWithFallback(raw, ChatCatchUpResponseSchema, EMPTY_CATCH_UP, {
     endpoint: "POST /api/v1/workspaces/{id}/ai/chat/catch-up",
+  });
+}
+
+/** Draft degrades to empty fields on malformed payloads (form keeps the user's text). */
+export async function chatTaskDraft(wsId: string, body: ChatTaskDraftInput): Promise<ChatTaskDraftResponse> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/chat/task-draft`, { method: "POST", body });
+  return parseWithFallback(raw, ChatTaskDraftResponseSchema, EMPTY_TASK_DRAFT, {
+    endpoint: "POST /api/v1/workspaces/{id}/ai/chat/task-draft",
   });
 }
 

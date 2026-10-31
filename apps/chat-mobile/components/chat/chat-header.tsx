@@ -22,11 +22,14 @@ export function HeaderIconButton({
   icon,
   label,
   onPress,
+  disabled = false,
   testID,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
+  /** something the screen started must answer first (a save under way): dimmed, ignoring taps */
+  disabled?: boolean;
   testID?: string;
 }) {
   const { colorScheme } = useColorScheme();
@@ -35,11 +38,13 @@ export function HeaderIconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       testID={testID}
       hitSlop={hitSlopFor(44, Platform.OS)}
       android_ripple={ripple}
-      className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
+      className={cn("h-11 w-11 items-center justify-center rounded-full active:bg-secondary", disabled && "opacity-40")}
     >
       <Ionicons name={icon} size={24} color={THEME[colorScheme].primary} />
     </Pressable>
@@ -58,6 +63,10 @@ interface Props {
   backBadge?: number;
   /** What the back button reads out (default: "Quay lại"). */
   backLabel?: string;
+  /** Where back goes (default: the screen before); a screen that may open on its own has somewhere to land. */
+  onBack?: () => void;
+  /** Back waits for something the screen started (a save under way). */
+  backDisabled?: boolean;
   centered?: boolean;
   flat?: boolean;
   /** A tap on the avatar and title (MobileChat board: the conversation's details live behind its name). */
@@ -74,6 +83,8 @@ export function ChatHeader({
   right,
   backBadge = 0,
   backLabel,
+  onBack = () => router.back(),
+  backDisabled = false,
   centered,
   flat,
   onPressTitle,
@@ -87,7 +98,8 @@ export function ChatHeader({
       <HeaderIconButton
         icon={backIcon(Platform.OS)}
         label={backBadge > 0 ? `${label}, ${t("chat.unread_badge_aria", { count: backBadge })}` : label}
-        onPress={() => router.back()}
+        onPress={onBack}
+        disabled={backDisabled}
       />
       {backBadge > 0 ? (
         <View
