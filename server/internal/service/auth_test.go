@@ -79,7 +79,7 @@ func TestLoginRejectsUserWithoutPassword(t *testing.T) {
 	ctx := context.Background()
 	_, err := s.q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{
 		ID: "01GOOGLEONLY", Email: "g@example.com", DisplayName: "G",
-		GoogleID: pgtype.Text{String: "sub-1", Valid: true},
+		GoogleID: pgtype.Text{String: "sub-1", Valid: true}, EmailVerified: true,
 	})
 	if err != nil {
 		t.Fatal(err)

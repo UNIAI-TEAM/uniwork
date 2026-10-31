@@ -133,9 +133,18 @@ describe("result schemas", () => {
         job_id: "JOB4",
         state: "completed",
         operation: "extract_text",
-        result: { text: "x", truncated: false, format: "pdf" },
+        result: { text: "x", truncated: false, format: "md" },
       }),
     ).toThrow();
+    expect(
+      extractTextResultSchema.parse({
+        job_id: "JOB4",
+        state: "completed",
+        operation: "extract_text",
+        format: "pdf",
+        result: { text: "a\fb", truncated: false, format: "pdf" },
+      }).result.format,
+    ).toBe("pdf");
   });
 });
 

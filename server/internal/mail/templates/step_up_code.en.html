@@ -1,0 +1,14 @@
+{{define "preheader"}}Code {{.Data.Code}} to {{.Data.ActionName}} · expires in {{expires .Data.Expires .Locale}}{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Confirm it's you</h1></td></tr>
+<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#646464">Someone just asked for a code to <strong style="color:#202020;font-weight:600">{{.Data.ActionName}}</strong> on your UniWork account. The code works for that and nothing else.</td></tr>
+<tr><td align="center" style="padding-bottom:24px">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center"><tr>
+    <td class="code" style="background:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:18px 28px;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:36px;line-height:44px;font-weight:700;letter-spacing:0.28em;text-indent:0.28em;color:#202020;text-align:center">{{.Data.Code}}</td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">The code is valid for <strong style="color:#202020;font-weight:600">{{expires .Data.Expires .Locale}}</strong> and can be used once.<br>{{if .Data.Device}}Device: <strong style="color:#202020;font-weight:600">{{.Data.Device}}</strong><br>{{end}}{{if .Data.IP}}IP address: <strong style="color:#202020;font-weight:600">{{.Data.IP}}</strong><br>{{end}}When: <strong style="color:#202020;font-weight:600">{{.Data.At.Format "2006-01-02 15:04 MST"}}</strong></td></tr>
+<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;padding-bottom:16px;font-size:13px;line-height:20px;color:#646464"><strong style="color:#202020;font-weight:600">Never share this code</strong>, not even with someone who says they are from UniWork. If you did not just ask for it, do not enter it: someone is using your signed-in session. Review your open sessions and change your password.</td></tr>
+<tr><td style="padding-bottom:8px">{{button .Data.SecurityURL "Review security"}}</td></tr>
+{{end}}
+{{define "footer"}}You received this email because a confirmation was requested on your UniWork account.{{end}}

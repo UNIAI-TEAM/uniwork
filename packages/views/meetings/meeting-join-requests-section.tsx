@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Bell, BellOff, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import { MeetingJoinRequestRow, requestDisplayName } from "./meeting-join-reques
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useUserAvatarOf } from "./meeting-room-avatars";
 import { useJoinRequestActions } from "./use-join-request-actions";
+import { useJoinRequestChimeSetting } from "./use-join-request-chime";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 /**
@@ -27,6 +28,8 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
   const { approveOne, rejectOne, admitAll, approving, isApproving, isRejecting } = useJoinRequestActions(meetingId);
   const avatarOf = useUserAvatarOf();
   const [open, setOpen] = useState(false);
+  // The toggle only: the chip in the stage header plays the chime.
+  const { muted, setMuted } = useJoinRequestChimeSetting();
 
   if (count === 0) return null;
   const only = pending.length === 1 ? pending[0] : undefined;
@@ -65,6 +68,18 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
             onClick={() => (only ? approveOne(only.id) : void admitAll(pending))}
           >
             {t("meetings.panel.people.admit")}
+          </Button>
+          {/* One fixed name; the pressed state says whether the knock chime is on. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-[10px] text-warning-soft-foreground hover:bg-warning-soft"
+            aria-label={t("meetings.joinRequestChime")}
+            aria-pressed={!muted}
+            onClick={() => setMuted(!muted)}
+          >
+            {muted ? <BellOff aria-hidden className="size-4" /> : <Bell aria-hidden className="size-4" />}
           </Button>
           <CollapsibleTrigger
             render={

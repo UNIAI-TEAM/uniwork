@@ -46,18 +46,11 @@ func frameAIPath(doc, rest string) string {
 func TestOfficeFrameAIRoutesBindTheirHandlers(t *testing.T) {
 	h, _ := frameAIMux(t)
 	cases := map[string]string{
-		"GET /credentials":                   "OfficeFrameAiCredentialsList",
-		"PUT /credentials/openai":            "OfficeFrameAiCredentialSave",
-		"DELETE /credentials/openai":         "OfficeFrameAiCredentialDelete",
-		"POST /byok/openai/chat/completions": "OfficeFrameAiByokChatCompletions",
-		"POST /byok/anthropic/messages":      "OfficeFrameAiByokMessages",
-		"POST /byok/gemini/generate":         "OfficeFrameAiByokGenerate",
-		"GET /byok/openai/models":            "OfficeFrameAiByokModels",
-		"GET /cloud":                         "OfficeFrameAiCloudStatus",
-		"POST /cloud/search":                 "OfficeFrameAiCloudSearch",
-		"POST /cloud/images":                 "OfficeFrameAiCloudImages",
-		"POST /cloud/media/analyze":          "OfficeFrameAiCloudAnalyzeMedia",
-		"POST /cloud/transcribe":             "OfficeFrameAiCloudTranscribe",
+		"GET /cloud":                "OfficeFrameAiCloudStatus",
+		"POST /cloud/search":        "OfficeFrameAiCloudSearch",
+		"POST /cloud/images":        "OfficeFrameAiCloudImages",
+		"POST /cloud/media/analyze": "OfficeFrameAiCloudAnalyzeMedia",
+		"POST /cloud/transcribe":    "OfficeFrameAiCloudTranscribe",
 	}
 	for route, want := range cases {
 		method, rest, _ := strings.Cut(route, " ")
@@ -85,7 +78,7 @@ func TestOfficeFrameAIRoutesAreNotFoundWithoutFrameAuth(t *testing.T) {
 		Cfg:          config.Config{FrontendOrigin: "http://localhost:3000"},
 		FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_")),
 	}, stubRoutes())
-	req := httptest.NewRequest(http.MethodGet, frameAIPath("doc-1", "/credentials"), nil)
+	req := httptest.NewRequest(http.MethodGet, frameAIPath("doc-1", "/cloud"), nil)
 	req.Header.Set("Authorization", "Bearer frame-alice")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -94,20 +87,14 @@ func TestOfficeFrameAIRoutesAreNotFoundWithoutFrameAuth(t *testing.T) {
 	}
 }
 
-// The frame AI budgets are GO-A7's buckets keyed by the person: a new
-// document or provider does not reset them, and the session routes draw on
-// the same budget (a frame and a host tab of one user share it).
+// The frame AI budgets are keyed by the person: a new document does not
+// reset them, and the session routes draw on the same budget (a frame and a
+// host tab of one user share it).
 func TestOfficeFrameAIBudgetsArePerPersonAndSharedWithTheSessionRoutes(t *testing.T) {
 	h, minter := frameAIMux(t)
 	const office = "10.20.0.31"
 	alice := caller{ip: office, bearer: "frame-alice"}
 	aliceSession := caller{ip: office, bearer: mustMint(t, minter, "alice")}
-
-	// BYOK: 60/min.
-	alice.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/byok/openai/chat/completions"), 30)
-	alice.spend(t, h, http.MethodGet, frameAIPath("doc-b", "/byok/gemini/models"), 20)
-	aliceSession.spend(t, h, http.MethodPost, "/api/v1/orgs/o1/ai/byok/anthropic/messages", 10)
-	alice.wantRefused(t, h, http.MethodPost, frameAIPath("doc-c", "/byok/anthropic/messages"), "one BYOK budget across documents, providers and the session routes")
 
 	// Cloud tools: 20/min; the status GET is outside the tool budget.
 	alice.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/cloud/search"), 10)
@@ -115,13 +102,14 @@ func TestOfficeFrameAIBudgetsArePerPersonAndSharedWithTheSessionRoutes(t *testin
 	alice.spend(t, h, http.MethodGet, frameAIPath("doc-a", "/cloud"), 5)
 	alice.wantRefused(t, h, http.MethodPost, frameAIPath("doc-b", "/cloud/transcribe"), "one cloud tool budget")
 
-	// Credentials: 30/min.
-	alice.spend(t, h, http.MethodGet, frameAIPath("doc-a", "/credentials"), 20)
-	aliceSession.spend(t, h, http.MethodGet, "/api/v1/orgs/o1/ai/credentials", 10)
-	alice.wantRefused(t, h, http.MethodPut, frameAIPath("doc-b", "/credentials/openai"), "one credentials budget")
+	// UniWork AI: 60/min across the turn, the writer and the session turn.
+	alice.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/uniwork/chat/completions"), 30)
+	alice.spend(t, h, http.MethodPost, frameAIPath("doc-b", "/uniwork/write"), 20)
+	aliceSession.spend(t, h, http.MethodPost, "/api/v1/orgs/o1/ai/uniwork/chat/completions", 10)
+	alice.wantRefused(t, h, http.MethodPost, frameAIPath("doc-c", "/uniwork/chat/completions"), "one UniWork AI budget across documents and the session routes")
 
 	// Another person behind the same address keeps whole budgets.
 	bob := caller{ip: office, bearer: "frame-bob"}
-	bob.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/byok/openai/chat/completions"), 60)
-	bob.wantRefused(t, h, http.MethodPost, frameAIPath("doc-a", "/byok/openai/chat/completions"), "bob's own budget")
+	bob.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/cloud/search"), 20)
+	bob.wantRefused(t, h, http.MethodPost, frameAIPath("doc-a", "/cloud/search"), "bob's own budget")
 }

@@ -1,10 +1,22 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/testutil"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestDesktopAuthUnavailableResponsesAreNoStore(t *testing.T) {
@@ -32,5 +44,58 @@ func TestDesktopAuthUnavailableResponsesAreNoStore(t *testing.T) {
 				t.Fatalf("unavailable response contains a token-like field: %s", rec.Body.String())
 			}
 		})
+	}
+}
+
+// The app's provider button rides the authorization URL of the PKCE start
+// (spec §3.5); a provider that is not one is 400 invalid_request.
+func TestDesktopStartPassesTheProviderHint(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	minter := auth.TokenMinter{Secret: []byte("desktop-handler-test"), TTL: time.Minute}
+	cfg := config.Config{FrontendOrigin: "http://localhost:13380", DesktopAuthClientID: "uniwork-office", DesktopAuthRedirectURIs: []string{"uniwork-office://auth/callback"}, DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour}
+	h := &handlers{Deps: Deps{DesktopAuth: service.NewDesktopAuthService(pool, q, minter, cfg), Log: slog.Default()}}
+	sum := sha256.Sum256([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"))
+	start := func(provider string, intent ...string) (*httptest.ResponseRecorder, map[string]any) {
+		v := url.Values{"client_id": {"uniwork-office"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])}, "code_challenge_method": {"S256"},
+			"state": {"s-" + provider + strings.Join(intent, "")}, "redirect_uri": {"uniwork-office://auth/callback"}, "deployment_id": {"default"}}
+		if provider != "" {
+			v.Set("provider", provider)
+		}
+		if len(intent) > 0 {
+			v.Set("intent", intent[0])
+		}
+		rec := httptest.NewRecorder()
+		h.desktopStart(rec, httptest.NewRequest(http.MethodGet, "/api/v1/auth/desktop/start?"+v.Encode(), nil))
+		var out map[string]any
+		_ = json.NewDecoder(rec.Body).Decode(&out)
+		return rec, out
+	}
+	authorizeQuery := func(out map[string]any) url.Values {
+		raw, _ := out["authorization_url"].(string)
+		u, err := url.Parse(raw)
+		if err != nil || raw == "" {
+			t.Fatalf("authorization_url = %q", raw)
+		}
+		return u.Query()
+	}
+	rec, out := start("apple")
+	if q := authorizeQuery(out); rec.Code != http.StatusOK || q.Get("provider") != "apple" || q.Get("attempt_id") == "" {
+		t.Fatalf("apple: %d %v", rec.Code, out)
+	}
+	rec, out = start("")
+	if q := authorizeQuery(out); rec.Code != http.StatusOK || q.Has("provider") {
+		t.Fatalf("no hint: %d %v", rec.Code, out)
+	}
+	if rec, out := start("github"); rec.Code != http.StatusBadRequest || errorCode(out) != "invalid_request" {
+		t.Fatalf("github: %d %v", rec.Code, out)
+	}
+	// The register screen's button: the web starts the provider to sign up.
+	rec, out = start("apple", "sign_up")
+	if q := authorizeQuery(out); rec.Code != http.StatusOK || q.Get("provider") != "apple" || q.Get("intent") != "sign_up" {
+		t.Fatalf("sign_up: %d %v", rec.Code, out)
+	}
+	if rec, out := start("apple", "register"); rec.Code != http.StatusBadRequest || errorCode(out) != "invalid_request" {
+		t.Fatalf("intent register: %d %v", rec.Code, out)
 	}
 }

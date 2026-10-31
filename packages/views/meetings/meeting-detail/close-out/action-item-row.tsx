@@ -1,5 +1,6 @@
 "use client";
 import { ArrowUpRight, CircleCheck, CircleDashed, EyeOff, Pencil, TriangleAlert, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
@@ -8,6 +9,7 @@ import { paths } from "@uniwork/core/paths";
 import type { TaskPriority } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
+import { UI_EASE_SETTLE } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../../common/date-field";
 import { useOptionalWorkspace } from "../../../layout/workspace-context";
@@ -19,6 +21,7 @@ import { meetingAvatarTint } from "../avatar-tint";
 import { useDetail } from "../detail-context";
 import { shortDay } from "../format";
 import { EvidenceTimeChip } from "../overview/evidence-chip";
+import { DrawnCheck } from "./assign-motion";
 import type { EffectiveValues } from "./use-close-out";
 
 type Override = { assignee_id?: string | null; due_date?: string | null };
@@ -126,7 +129,8 @@ function TimeChip({ item }: { item: MeetingActionItem }) {
  * then "Chờ giao", the owner and due chips (inline pickers for a clerk), the
  * priority flag and the row's actions. A member reads `waitFor` in place of
  * the chips. With `onOpen` the whole row opens the item. On a phone the title
- * wraps to two lines and the chips are plain text.
+ * wraps to two lines and the chips are plain text. `sent`: the server just
+ * made its task; the row draws ✓, and folds away once the list drops it.
  */
 export function PendingItemRow({
   item,
@@ -138,6 +142,7 @@ export function PendingItemRow({
   phone,
   onOpen,
   menu,
+  sent,
 }: {
   item: MeetingActionItem;
   values: EffectiveValues;
@@ -152,9 +157,11 @@ export function PendingItemRow({
   /** The row opens the item (on a phone, outside select mode). */
   onOpen?: () => void;
   menu?: ReactNode;
+  sent?: boolean;
 }) {
   const { t } = useTranslation();
   const due = useDueWords();
+  const reduced = useReducedMotion() ?? false;
   const titleId = rowTitleId(item.id);
   const date = due(values.due_date);
   const said = item.due_text?.trim() ?? "";
@@ -191,16 +198,29 @@ export function PendingItemRow({
       : t("meetings.detail.closeOut.dueNoneLabel");
   const dueTitle = values.guessed ? t("meetings.detail.closeOut.dueGuessedTitle", { said, date }) : undefined;
   return (
-    <li
+    <motion.li
       data-close-out-row={item.id}
+      data-sent={sent ? "" : undefined}
+      // Folds only for a row the server just assigned (300ms of ✓ first); any other row leaves at once.
+      exit={
+        sent && !reduced
+          ? { height: 0, minHeight: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, transition: { delay: 0.3, duration: 0.32, ease: UI_EASE_SETTLE } }
+          : undefined
+      }
       className={cn(
         "group/row relative hover:bg-surface-hover",
         phone && !selectable ? "-mx-2 flex flex-col gap-0.5 rounded-md px-2 py-1.5" : ROW,
         ticked && "bg-surface-selected hover:bg-surface-selected",
         !selectable && !phone && "grid-cols-[16px_minmax(0,1fr)_auto] items-start hover:bg-transparent",
+        sent && "overflow-hidden bg-success-soft transition-colors duration-(--duration-standard) hover:bg-success-soft",
       )}
     >
-      {selectable ? (
+      {sent ? (
+        // Its own presence: the list's initial={false} would otherwise keep the ✓ from drawing on a row there since load.
+        <AnimatePresence>
+          <DrawnCheck className="-m-0.5 size-5" />
+        </AnimatePresence>
+      ) : selectable ? (
         <Checkbox aria-labelledby={titleId} checked={ticked} onCheckedChange={(on) => onTick(on === true)} className={ABOVE} />
       ) : phone ? null : (
         <CircleDashed aria-hidden className="mt-0.5 size-4 text-muted-foreground" />
@@ -243,7 +263,7 @@ export function PendingItemRow({
         <PriorityFlag priority={values.priority} />
         {phone ? <span className="relative z-1 ml-auto"><TimeChip item={item} /></span> : menu}
       </div>
-    </li>
+    </motion.li>
   );
 }
 

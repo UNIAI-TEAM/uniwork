@@ -119,8 +119,12 @@ chứ không im; mọi lượt Maestro trong CI đi qua nó): mở lạnh tới 
 simulator iOS với bản Release ký ad-hoc, cùng điều kiện native ở PR (nơi gọi chỉ Android thì bỏ qua), Xcode ghim ở
 `XCODE_VERSION` qua `scripts/select-xcode.sh`; cuối job, ở font_scale 2.0 và dark mode,
 `flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
-uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop không thấy được trong dump nên nightly audit phòng ở
-44 dp, chỉ cảnh báo; `ios-release` chạy cùng flow trên simulator ở Dynamic Type lớn nhất
+uiautomator: mọi điều khiển của app có tên và ≥ 48 dp, không `--warn`; dump cho khung đang vẽ trên màn, nên điều khiển
+bị mép scroll view cắt theo chiều cuộn thì không đo, chỉ in "not measured" — vì vậy flow cuộn tiếp tới link pháp lý để
+nút trình duyệt nằm trọn trên màn được đo; hitSlop không thấy được trong dump, nên mọi điều
+khiển của màn đăng nhập vẽ đủ 48 dp trên Android — `TextButton`, nút hiện/ẩn mật khẩu, `LegalLink` qua `minTouchTarget`,
+không hit slop — và điều khiển mới nào có thể nằm trên màn cuối của flow đó cũng vậy; nightly audit phòng ở 44 dp, chỉ
+cảnh báo; `ios-release` chạy cùng flow trên simulator ở Dynamic Type lớn nhất
 `accessibility-extra-extra-extra-large` + dark, và nightly chạy `flows/message-menu-large-text.yaml` — Android ở
 font_scale 2.0, dark và cửa sổ 360 × 640 dp (`wm size 720x1280`, `wm density 320`), iOS ở AX5 + dark: thanh cảm xúc
 còn trên màn, cuộn được tới "Xóa", và chạm vào lề nền cạnh cột thì menu đóng mà không chạy lệnh nào — chạm theo điểm, không
@@ -142,7 +146,8 @@ Khi `native`, và cả khi PR chỉ chạm thứ các luồng đó chạy ngoài
 code chat và đăng nhập desktop của server, trang đồng ý của web: output `e2e` của `scripts/mobile-native-scope.mjs`),
 `android-e2e` chạy các luồng đã đăng nhập trên một UniWork dựng ngay trong job (server Go trên
 service container Postgres/Redis, bản build Next production cho trang đăng nhập), seed qua API bằng
-`scripts/mobile-e2e-seed.mjs`: đăng nhập qua trình duyệt hệ thống, đọc và gửi (`chat-read-send.yaml`), gửi offline sống
+`scripts/mobile-e2e-seed.mjs`: đăng nhập trên màn native của app (`maestro/subflows/sign-in.yaml`, testID `login-email`,
+`login-password`), đọc và gửi (`chat-read-send.yaml`), gửi offline sống
 qua kill (`offline-send-relaunch.yaml`), tin người khác viết lúc app ở nền (`background-resume.yaml`). APK là biến thể
 dev build Release (cleartext chỉ ở biến thể này, `app.config.test.ts`), API ở `10.0.2.2`, trang web qua `adb reverse`;
 không secret. Chi tiết và cách đọc khi đỏ: runbook › Luồng đã đăng nhập trên PR.

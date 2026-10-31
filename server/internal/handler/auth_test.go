@@ -138,18 +138,28 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	adminSvc.SetOrganizationDeletionQueue(privacy)
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	ents := service.NewEntitlementService(pool, q)
-	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))
+	sealer, err := auth.NewSecretSealer(minter.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authSvc.SetSealer(sealer)
+	orgMembers := service.NewOrganizationMemberService(pool, q, orgs)
+	orgMembers.SetStepUp(authSvc)
+	ws.SetStepUp(authSvc)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
 		Minter:        minter,
 		Auth:          authSvc,
-		GoogleAuth:    service.NewGoogleAuthService(q, authSvc),
+		Sealer:        sealer,
+		GoogleAuth:    service.NewGoogleAuthService(authSvc),
+		SignInTickets: service.NewSignInTicketService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
+		SignInMethods: service.NewSignInMethodsService(pool, q, authSvc),
 		Verification:  verification,
 		PasswordReset: service.NewPasswordResetService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
 		Google:        google,
 		Organizations: orgs,
-		OrgMembers:    service.NewOrganizationMemberService(pool, q, orgs),
+		OrgMembers:    orgMembers,
 		People:        service.NewPeopleService(pool, q, orgs),
 		Departments:   service.NewDepartmentService(pool, q, orgs),
 		Workspaces:    ws,
@@ -174,9 +184,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 		Signatures:    service.NewSignatureService(pool, q, orgs),
-		AICredentials: aiCredentials,
 		// Wired so a non-member meets the membership refusal, not "not configured".
-		AIBYOK:  service.NewAIBYOKService(orgs, ents, aiCredentials, gateway),
 		AICloud: service.NewAICloudService(orgs, ents, gateway),
 	}
 	d.Graph = service.NewGraphService(q, orgs, ws, chatSvc)

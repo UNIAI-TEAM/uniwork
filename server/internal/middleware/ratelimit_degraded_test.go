@@ -187,16 +187,16 @@ func TestRateLimitByIdentityBucket_OneBudgetAcrossPaths(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		return rec.Code
 	}
-	for i, path := range []string{"/api/v1/orgs/o1/ai/byok/openai/models", "/api/v1/orgs/o2/ai/byok/gemini/generate"} {
+	for i, path := range []string{"/api/v1/orgs/o1/ai/cloud/search", "/api/v1/orgs/o2/ai/cloud/images"} {
 		if code := send(group, path); code != http.StatusOK {
 			t.Fatalf("request %d: status %d, want 200", i+1, code)
 		}
 	}
 	// A third path of the same group draws on the same two-request budget.
-	if code := send(group, "/api/v1/orgs/o3/ai/byok/anthropic/messages"); code != http.StatusTooManyRequests {
+	if code := send(group, "/api/v1/orgs/o3/ai/cloud/transcribe"); code != http.StatusTooManyRequests {
 		t.Fatalf("third path in the group: status %d, want 429", code)
 	}
-	if code := send(other, "/api/v1/orgs/o3/ai/cloud/search"); code != http.StatusOK {
+	if code := send(other, "/api/v1/orgs/o3/ai/uniwork/chat/completions"); code != http.StatusOK {
 		t.Fatalf("another group: status %d, want 200", code)
 	}
 }

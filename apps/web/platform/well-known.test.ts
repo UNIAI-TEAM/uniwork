@@ -13,7 +13,7 @@ describe("appleAppSiteAssociation", () => {
     expect(await res.text()).toBe("");
   });
 
-  it("serves the applinks document for the team's app id", async () => {
+  it("serves the links and the shared web credentials for the team's app id", async () => {
     vi.stubEnv("UNICHAT_IOS_TEAM_ID", "ABCDE12345");
     const res = appleAppSiteAssociation();
     expect(res.status).toBe(200);
@@ -25,6 +25,7 @@ describe("appleAppSiteAssociation", () => {
           components: [{ "/": "/*/*/chat*" }, { "/": "/invite/*" }],
         }],
       },
+      webcredentials: { apps: ["ABCDE12345.com.uniworkos.chat"] },
     });
   });
 });
@@ -42,13 +43,13 @@ describe("assetLinks", () => {
     expect(assetLinks().status).toBe(404);
   });
 
-  it("serves one statement with the comma-separated fingerprints trimmed", async () => {
+  it("serves one statement, links and saved sign-ins, with the comma-separated fingerprints trimmed", async () => {
     vi.stubEnv("UNICHAT_ANDROID_SHA256", " AA:BB , ,CC:DD");
     const res = assetLinks();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toEqual([{
-      relation: ["delegate_permission/common.handle_all_urls"],
+      relation: ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
       target: {
         namespace: "android_app",
         package_name: "com.uniworkos.chat",

@@ -109,11 +109,14 @@ func validateServiceGrant(g ServiceGrant) error {
 	if g.Operation == OperationExtractText {
 		if !validGrantStr(g.GrantID, 128) || !validGrantStr(g.JobID, 128) ||
 			!validGrantStr(g.ActorID, 128) || !validActorKind(g.ActorKind) ||
-			!validGrantStr(g.OrganizationID, 128) || !validGrantStr(g.WorkspaceID, 128) ||
-			!validGrantStr(g.DriveFileID, 128) {
+			!validGrantStr(g.OrganizationID, 128) || !validGrantStr(g.WorkspaceID, 128) {
 			return ErrGrantInvalid
 		}
-		if g.DocumentID != "" || g.BaseRevision != 0 || g.BaseVersionID != "" || g.Output != nil || !validGrantInput(g.Input) {
+		// Exactly one source: a Drive file or a UniWork document.
+		if (g.DriveFileID == "") == (g.DocumentID == "") || len(g.DriveFileID) > 128 || len(g.DocumentID) > 128 {
+			return ErrGrantInvalid
+		}
+		if g.BaseRevision != 0 || g.BaseVersionID != "" || g.Output != nil || !validGrantInput(g.Input) {
 			return ErrGrantInvalid
 		}
 		return nil

@@ -28,8 +28,8 @@ const (
 	// created_at, whatever the traffic.
 	ConversationAbsoluteTTL = 24 * time.Hour
 	// ConversationKeyEnv names the base64 32-byte key the transcript is
-	// sealed with (never AI_CREDENTIAL_KEY). Missing key means UniWork AI is
-	// not configured: fail closed, never store plaintext.
+	// sealed with. Missing key means UniWork AI is not configured: fail
+	// closed, never store plaintext.
 	ConversationKeyEnv = "AI_CONVERSATION_KEY"
 )
 

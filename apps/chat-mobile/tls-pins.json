@@ -41,7 +41,7 @@
     }
   ],
   "hosts": {
-    "staging": ["uniworkos.com", "livekit.vn247.info:7880", "uniwork.unicomhub.com", "livekit.ubos.vn"],
-    "production": ["uniworkos.com", "livekit.vn247.info:7880"]
+    "staging": ["uniworkos.com", "livekit.uniworkos.com:7880", "uniwork.unicomhub.com", "livekit.ubos.vn"],
+    "production": ["uniworkos.com", "livekit.uniworkos.com:7880"]
   }
 }

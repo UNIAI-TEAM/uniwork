@@ -13,6 +13,7 @@ SET file_version_id = sqlc.arg(file_version_id),
     current_version = sqlc.arg(current_version),
     title = sqlc.arg(title),
     search_text = sqlc.arg(search_text),
+    content_text = '',
     revision = revision + 1,
     content_revision = revision + 1,
     updated_by = sqlc.arg(updated_by),
@@ -44,3 +45,39 @@ SELECT EXISTS (
     AND a.workspace_id = sqlc.arg(workspace_id)
     AND a.file_id = sqlc.arg(file_id)
 ) AS in_use;
+
+-- The text index of a file document (document.text_index_requested consumer):
+-- the extracted text and the folded search column. A derived column, not a
+-- content change, so revision, content_revision and updated_at stay as they
+-- are. The file_version_id guard drops a result for a version that is no
+-- longer current; zero rows is not an error.
+-- name: SetDocumentFileText :execrows
+UPDATE documents
+SET content_text = sqlc.arg(content_text),
+    search_text = sqlc.arg(search_text)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND kind = 'file'
+  AND file_version_id = sqlc.arg(file_version_id);
+
+-- cmd/document-text-reindex: one keyset page of file documents across
+-- organizations (or one, when organization_id is set), to request the text
+-- index of files uploaded before document.text_index_requested existed.
+-- name: ListFileDocumentsForTextIndex :many
+-- tenant: system
+SELECT id, organization_id, workspace_id, file_version_id
+FROM documents
+WHERE kind = 'file'
+  AND file_version_id IS NOT NULL
+  AND (sqlc.narg(organization_id)::text IS NULL OR organization_id = sqlc.narg(organization_id))
+  AND id > sqlc.arg(after_id)
+ORDER BY id
+LIMIT sqlc.arg(page_limit);
+
+-- cmd/document-text-reindex: how many requests of one topic still wait for or
+-- sit in a consumer, so the command can pace itself behind the slow lane.
+-- name: CountOpenOutboxByTopic :one
+-- tenant: system
+SELECT count(*)::bigint FROM outbox_events
+WHERE topic = sqlc.arg('topic') AND status IN ('PENDING', 'PROCESSING');

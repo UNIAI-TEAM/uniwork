@@ -54,6 +54,7 @@ function StreamError({ code, openUrl }: { code: string | null; openUrl?: string 
 /** One stored turn: while it is being regenerated the live cell takes its place; a failed regenerate shows it again with the error. */
 function StoredTurn({
   message,
+  question,
   replacement,
   error,
   openUrl,
@@ -71,6 +72,8 @@ function StoredTurn({
   wsId,
 }: {
   message: AiMessage;
+  /** The stored question this answer replies to, if the turn before it is one. */
+  question?: string;
   replacement: AskUniTurnMessage | null;
   /** Error code of a failed regenerate of this answer; undefined when there is none. */
   error: string | null | undefined;
@@ -106,6 +109,7 @@ function StoredTurn({
     <>
       <AskUniMessageTurn
         message={message}
+        question={question}
         conversationId={conversationId}
         transient={transient}
         steps={stream.message?.id === message.id && stream.steps.length > 0 ? stream.steps : undefined}
@@ -261,10 +265,11 @@ export function AskUniThread({
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming && sameConversation}>
-        {stored.map((m) => (
+        {stored.map((m, i) => (
           <StoredTurn
             key={m.id}
             message={m}
+            question={stored[i - 1]?.role === "user" ? stored[i - 1]!.content : undefined}
             replacement={regen === m.id && streaming ? liveAnswer : null}
             error={regen === m.id && state.status === "error" ? state.errorCode : undefined}
             openUrl={focus?.openUrl}

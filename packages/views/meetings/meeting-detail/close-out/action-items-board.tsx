@@ -1,9 +1,12 @@
 "use client";
 import { Plus } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMeetingActionItems, type MeetingActionItem } from "@uniwork/core/meetings/action-items";
+import { toast } from "sonner";
+import { useMeetingActionItems, useUndoConvertActionItems, type MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { useProject } from "@uniwork/core/tasks";
+import { apiErrorCopy } from "../../../api-error-copy";
 import { CreateTaskDialog } from "../../../tasks/create-task-dialog";
 import { useActionItemConversion } from "../../meeting-action-items/use-action-item-conversion";
 import { MeetingRowsSkeleton, MeetingSectionError } from "../../meeting-section-state";
@@ -11,6 +14,7 @@ import { useDetail } from "../detail-context";
 import { Byline, Section } from "../ui/section";
 import { TextButton } from "../ui/text-button";
 import { PendingItemRow, RowActions, useDueWords } from "./action-item-row";
+import { Rolling } from "./assign-motion";
 import { ConvertedFold, DismissDialog, DismissedFold, GroupHeader, groupMeta, MemberItems, OutsiderItems } from "./board-parts";
 import { earliestDue, FLAT_AFTER_OWNERS, GROUP_ROWS, ownerGroups, ownerOf } from "./owner-groups";
 import { ReviewSheet } from "./review-sheet";
@@ -58,6 +62,9 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
   const due = useDueWords();
   const { data: project } = useProject(workspaceId, meeting.project_id || "");
   const flow = useActionItemConversion({ workspaceId, meetingId: meeting.id, projectId: project?.id, items, announce: () => {} });
+  const undo = useUndoConvertActionItems(workspaceId, meeting.id);
+  // Rows the server just made tasks of: they draw ✓, then fold as the refetched list drops them.
+  const sent = new Set(closeOut.assigned?.ids);
   const addRef = useRef<HTMLButtonElement>(null);
   const [selecting, setSelecting] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -124,18 +131,37 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
       onOverride={(patch) => closeOut.setOverride(item.id, patch)}
       onOpen={() => flow.edit(item.id)}
       menu={<RowActions itemId={item.id} onEdit={() => flow.edit(item.id)} onDismiss={() => setDismissing(item)} />}
+      sent={sent.has(item.id)}
     />
   );
 
   const picked = closeOut.picked;
-  const people = new Set(picked.map((item) => closeOut.valuesOf(item).assignee_id).filter(Boolean)).size;
+  const owners = [...new Set(picked.map((item) => closeOut.valuesOf(item).assignee_id).filter((id): id is string => Boolean(id)))];
   const earliest = due(earliestDue(picked.map((item) => closeOut.valuesOf(item).due_date)));
+  // Focus lands after the list without scrolling, as after assigning.
+  const focusAdd = () => addRef.current?.focus({ preventScroll: true });
+  const takeBack = () => {
+    if (undo.isPending) return;
+    // Read on the wall clock: after a system sleep the server's window may be over.
+    const ids = closeOut.undoIds();
+    if (!ids) return;
+    undo.mutate([...ids], {
+      onSuccess: (restored) => {
+        closeOut.clearAssigned();
+        focusAdd();
+        // The server keeps what it cannot take back (a task touched since, another's conversion): say how many, once.
+        const kept = restored ? ids.length - restored.length : 0;
+        if (kept > 0) toast.warning(t("meetings.motion.assign.undoPartial", { count: kept }), { position: "bottom-center" });
+      },
+      onError: (err) => toast.error(apiErrorCopy(err) ?? t("notifications.undo_failed"), { position: "bottom-center" }),
+    });
+  };
 
   return (
     <Section
       id={ACTION_ITEMS_ANCHOR}
       title={t("meetings.detail.closeOut.heading")}
-      count={count || undefined}
+      count={count ? <Rolling text={count} /> : undefined}
       end={end}
       className={besideSheet ? "[&>div:first-child>div]:ml-4" : undefined}
       byline={
@@ -157,25 +183,34 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- arrow keys delegate to the rows' checkboxes */}
       <div className="flex flex-col" onKeyDown={closeOut.onListKeyDown}>
         {flat ? (
-          <ul className="flex flex-col">{[...pending].sort((a, b) => nameOf(ownerOf(a)).localeCompare(nameOf(ownerOf(b)))).map(row)}</ul>
+          <ul className="flex flex-col">
+            <AnimatePresence initial={false}>{[...pending].sort((a, b) => nameOf(ownerOf(a)).localeCompare(nameOf(ownerOf(b)))).map(row)}</AnimatePresence>
+          </ul>
         ) : (
           groups.map((group) => {
             const ids = group.pending.map((p) => p.id);
             const groupTicked = ids.length > 0 && ids.every((id) => closeOut.isTicked(id));
             const open = expanded.has(group.ownerId);
             const shown = open ? group.pending : group.pending.slice(0, GROUP_ROWS);
+            // The list stays while a just-assigned row of the group folds out of it.
+            const folding = group.converted.some((item) => sent.has(item.id));
             return (
               <div key={group.ownerId} className="mt-2 flex flex-col first:mt-0">
-                <GroupHeader label={groupMeta(t, nameOf(group.ownerId), group)} className={besideSheet ? "justify-start" : undefined}>
+                <GroupHeader
+                  name={nameOf(group.ownerId)}
+                  label={groupMeta(t, nameOf(group.ownerId), group)}
+                  allAssigned={ids.length === 0 && group.converted.length > 0 ? nameOf(group.ownerId) : undefined}
+                  className={besideSheet ? "justify-start" : undefined}
+                >
                   {ids.length > 0 && canTick ? (
                     <TextButton onClick={() => closeOut.setMany(ids, !groupTicked)}>
                       {t(groupTicked ? "meetings.detail.closeOut.clearGroup" : "meetings.detail.closeOut.selectGroup")}
                     </TextButton>
                   ) : null}
                 </GroupHeader>
-                {shown.length > 0 ? (
+                {shown.length > 0 || folding ? (
                   <ul aria-label={t("meetings.detail.closeOut.groupLabel", { name: nameOf(group.ownerId) })} className="flex flex-col">
-                    {shown.map(row)}
+                    <AnimatePresence initial={false}>{shown.map(row)}</AnimatePresence>
                   </ul>
                 ) : null}
                 {group.pending.length > shown.length ? (
@@ -200,17 +235,23 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         </button>
         <DismissedFold items={items.filter((item) => item.status === "DISMISSED")} canRestore />
       </div>
-      {picked.length > 0 ? (
-        <SelectionBar
-          count={picked.length}
-          people={people}
-          earliest={earliest}
-          phone={isPhone}
-          besideSheet={besideSheet}
-          onClear={closeOut.clear}
-          onReview={() => closeOut.setReviewOpen(true)}
-        />
-      ) : null}
+      <SelectionBar
+        count={picked.length}
+        owners={owners}
+        people={owners.length}
+        earliest={earliest}
+        assigned={closeOut.assigned ? { ...closeOut.assigned, count: closeOut.assigned.ids.length } : null}
+        phone={isPhone}
+        besideSheet={besideSheet}
+        onClear={closeOut.clear}
+        onReview={() => closeOut.setReviewOpen(true)}
+        onSetOwner={(id) => picked.forEach((item) => closeOut.setOverride(item.id, { assignee_id: id || null }))}
+        onSetDue={(date) => picked.forEach((item) => closeOut.setOverride(item.id, { due_date: date }))}
+        onUndo={takeBack}
+        undoing={undo.isPending}
+        onHoldUndo={closeOut.holdUndo}
+        onFocusAway={focusAdd}
+      />
       <ReviewSheet
         closeOut={closeOut}
         projectId={project?.id}
@@ -218,7 +259,8 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         allItems={items}
         onAssigned={() => {
           setSelecting(false);
-          addRef.current?.focus();
+          // The clerk watches the assigned rows fold in place.
+          focusAdd();
         }}
       />
       <DismissDialog item={dismissing} onClose={() => setDismissing(null)} />

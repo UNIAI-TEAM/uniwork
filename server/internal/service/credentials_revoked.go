@@ -1,0 +1,135 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// ErrCredentialsRevoked: the bearer is a browser access token issued before
+// the account's credentials last changed (a reclaim, a password change, an
+// unlink), or its session has ended. It still reads, until it expires, but no
+// sensitive command takes it.
+var ErrCredentialsRevoked = errors.New("credentials_revoked")
+
+// errCredentialsRevoked is 401 invalid_token: the client refreshes, which
+// only the session the change kept can do, and its newer token passes.
+func errCredentialsRevoked() error {
+	return CodedError{
+		Code: "invalid_token", Status: http.StatusUnauthorized,
+		Msg: "this session started before the account's sign-in changed; sign in again", Err: ErrCredentialsRevoked,
+	}
+}
+
+// markCredentialsRevoked marks userID's credentials as changed now, in q's
+// transaction: the sensitive commands refuse a browser token issued before.
+// The mark is this server's clock, truncated to the second as a token's iat
+// is — the clock TokenMinter stamps iat with — so a token the same command
+// (or anything after it) mints is never older than the mark, whatever the
+// database's clock says.
+func markCredentialsRevoked(ctx context.Context, q *db.Queries, userID string) error {
+	return q.MarkCredentialsRevoked(ctx, db.MarkCredentialsRevokedParams{
+		ID: userID, MarkedAt: pgtype.Timestamptz{Time: time.Now().Truncate(time.Second), Valid: true},
+	})
+}
+
+// requireCurrentCredentials is the gate of the sensitive commands (ADR 0049
+// §5, spec §3.7: step-up and every command that takes its token, the
+// sign-in method commands, desktop and MCP consent): a browser access token
+// issued before its account's credentials_revoked_at is refused
+// (bearerAfterMark). It judges the bearer's own account, the one whose
+// credentials the mark is about.
+//
+// A native device token is not judged here: a revoke ends its device
+// session, which the auth middleware checks on every request. Without a
+// token on the context (a job, a test calling the service) there is nothing
+// to judge; the auth middleware puts one on every bearer request.
+func requireCurrentCredentials(ctx context.Context, q *db.Queries) error {
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || !at.Web {
+		return nil
+	}
+	u, err := q.GetUserByID(ctx, at.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return bearerAfterMark(ctx, q, at, u)
+}
+
+// bearerAfterMark judges the browser bearer at against u, its account's row:
+// a token issued before u's credentials_revoked_at is refused. The mark and
+// a token's iat are both whole seconds, so a token of the mark's own second
+// is either the session the change itself handed out or one the change
+// ended; only the session tells them apart, so it must still be live
+// (liveBearerSession). A token issued after the mark passes unread.
+func bearerAfterMark(ctx context.Context, q *db.Queries, at auth.AccessToken, u db.User) error {
+	if !u.CredentialsRevokedAt.Valid || at.IssuedAt.After(u.CredentialsRevokedAt.Time) {
+		return nil
+	}
+	if at.IssuedAt.Before(u.CredentialsRevokedAt.Time) {
+		return errCredentialsRevoked()
+	}
+	_, err := liveBearerSession(ctx, q, at)
+	return err
+}
+
+// requireLiveBearer is requireCurrentCredentials for a command that hands
+// out a session of its own — desktop and MCP consent: the bearer's session
+// must also still be live (liveBearerSession, 401 invalid_token), so the
+// last minutes of an access token whose session was signed out or revoked
+// (sign out other sessions, a password change or reset, a reclaim) cannot
+// buy a device session or a grant that outlives it. It answers when that
+// session signed in, which the device session a consent opens inherits.
+// Without a token on the context there is nothing to judge, nor in a token
+// that names no session: nothing mints one any more (every sign-in names its
+// session), and the bearer middleware lets the shape through as it always
+// has; the answer is then the zero time, never a sign-in.
+func requireLiveBearer(ctx context.Context, q *db.Queries) (time.Time, error) {
+	if err := requireCurrentCredentials(ctx, q); err != nil {
+		return time.Time{}, err
+	}
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || at.SessionID == "" {
+		return time.Time{}, nil
+	}
+	sess, err := liveBearerSession(ctx, q, at)
+	return sess.signedInAt, err
+}
+
+// requireBearerUnderLock re-runs, once a sign-in method command holds its
+// account's row lock (locked), the bearer gates it checked before taking it:
+// a reclaim, a password change or reset, or an unlink takes that lock first
+// and commits its revocations under it, so a command that passed its gates
+// while one was in flight would otherwise write into the account it left
+// behind — a squatter's link into the reclaimed account, a stolen session's
+// password over the owner's new one. Under the lock the browser token is
+// judged against the mark again (bearerAfterMark) and the session must still
+// be live (liveBearerSession): 401 invalid_token. A bearer of another
+// account, or none, is not this command's to judge, nor a token that names
+// no session (see requireLiveBearer).
+func requireBearerUnderLock(ctx context.Context, q *db.Queries, locked db.User) error {
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || at.UserID != locked.ID {
+		return nil
+	}
+	if at.Web {
+		if err := bearerAfterMark(ctx, q, at, locked); err != nil {
+			return err
+		}
+	}
+	if at.SessionID == "" {
+		return nil
+	}
+	_, err := liveBearerSession(ctx, q, at)
+	return err
+}

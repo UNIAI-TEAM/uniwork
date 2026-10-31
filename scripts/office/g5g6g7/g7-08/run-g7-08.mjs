@@ -38,7 +38,7 @@ export function primaryRequirementForRow(rowOrEntry) {
 
 export function parseRunArgs(argv = process.argv.slice(2), env = process.env) {
   let rowsArg = 'all';
-  let providersArg = 'uniwork,byok';
+  let providersArg = 'uniwork';
   let host = 'web';
   let runDir = env.HARNESS_RUN_DIR || '';
   let dryRun = false;

@@ -1,4 +1,4 @@
-// G7-08 (UNI-1385) W2 web frame driver per format family and provider ('uniwork' | 'byok').
+// G7-08 (UNI-1385) W2 web frame driver per format family (provider 'uniwork').
 // Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions, strict), g7-10/tracer.mjs, docx-roundtrip.mjs;
 // the Save/undo/old-version tail of the edit rows is web-edit-flow.mjs, its pure decisions
 // save-observe.mjs, and the AI-turn wire observation wire-observe.mjs.
@@ -380,7 +380,7 @@ export async function runWebMatrixRow(runEntry, {
       return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` }, frame: { met: false } });
     }
 
-    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs });
+    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, runDir, serverEvidence, timeoutMs });
     const preconditions = precondVerdict.preconditions;
     const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
     if (precondVerdict.status !== VERDICT.PASS) return { ...precondVerdict, documentId, preconditions, screenshotPath };
@@ -388,16 +388,6 @@ export async function runWebMatrixRow(runEntry, {
     // w2l (F-E1): what the pinned PDF frame renders decides, never a made-up tool list. Available -> the real
     // edit path runs; unavailable -> the AI turn still runs and the real offered tools must not name a text-edit tool.
     const pdfTextEdit = row.id === 'F-E1' ? await observePdfTextEdit(frame, { notes: () => frameConsole }) : null;
-
-    if (provider === 'byok') {
-      const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
-      if (!modelChip) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id }), preconditions, screenshotPath };
-      await modelChip.click().catch(() => {});
-      await sleep(200);
-      const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
-      if (!byokOpt) return { ...missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id }), preconditions, screenshotPath };
-      await byokOpt.click().catch(() => {});
-    }
 
     const ackBefore = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
     if (ackBefore) { await ackBefore.click().catch(() => {}); await sleep(150); }

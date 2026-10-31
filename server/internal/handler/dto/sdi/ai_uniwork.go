@@ -6,7 +6,10 @@ package sdi
 // for Swagger and the client. The server ignores model/temperature/
 // max_tokens (its own policy decides, G6-D1 A1) and never reads history from
 // messages: only the newest user question, or the tool results of the last
-// call the server made, are used (security rule 7).
+// call the server made, are used (security rule 7). On the document-bound
+// routes the X-UniWork-AI-Handoff header names an Ask UNI handoff package
+// (ADR 0048): the server expands the question with it and answers
+// X-UniWork-AI-Handoff-Remaining; the body itself does not change.
 type AiUniworkChatCompletionsSDI struct {
 	Model    string                `json:"model,omitempty" description:"Tên model; server bỏ qua, policy của server quyết (AI_MODEL_OFFICE_UNIWORK_AI)" example:"gpt-4o"`
 	Messages []AiUniworkMessageSDI `json:"messages" minItems:"1" description:"Câu hỏi mới của người dùng (role user, đúng 1, message cuối) hoặc kết quả công cụ (role tool + tool_call_id) trả cho lượt assistant ngay trước của server. Lượt assistant do client gửi bị bỏ qua; role system/developer bị từ chối 400"`
@@ -53,4 +56,16 @@ type AiUniworkToolSpecFunctionSDI struct {
 	Name        string         `json:"name" description:"Tên công cụ của module" example:"get_cell"`
 	Description string         `json:"description" description:"Mô tả cho model" example:"Đọc giá trị của một ô"`
 	Parameters  map[string]any `json:"parameters" description:"JSON Schema tham số của công cụ" example:"{\"type\":\"object\",\"properties\":{\"cell\":{\"type\":\"string\"}}}"`
+}
+
+// AiUniworkWriteSDI is the body of the writer route (plan 5): one of the
+// Office editors' one-shot writers, run under UniWork AI. The client names the
+// writer and sends its material; the system prompt is the server's, and every
+// input text reaches the model inside one untrusted block. The conversation
+// and the run the call belongs to travel in X-UniWork-AI-Conversation and
+// X-UniWork-AI-Run, never in the body.
+type AiUniworkWriteSDI struct {
+	Kind  string         `json:"kind" enum:"docs.write_document,markdown.write_document,html.page,html.brief,slides.deck_style,slides.deck_outline,slides.page" description:"Bộ viết; phải thuộc module của frame token (khác module → 400 invalid_request)" example:"docs.write_document"`
+	Lang  string         `json:"lang,omitempty" enum:"vi,en" description:"Ngôn ngữ giao diện; thiếu là vi" example:"vi"`
+	Input map[string]any `json:"input" description:"Tư liệu của bộ viết, chỉ các trường của kind (trường lạ, thiếu trường bắt buộc, sai kiểu → 400 invalid_request); mỗi trường có trần riêng, vượt trần → 413 payload_too_large" example:"{\"plan\":\"Báo cáo quý: tổng quan, doanh thu, chi phí\",\"title\":\"Báo cáo quý ba\"}"`
 }

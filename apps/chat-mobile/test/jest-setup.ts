@@ -23,11 +23,14 @@ jest.mock("expo-router", () => {
   };
   const colors = { primary: "", background: "", card: "", text: "", border: "", notification: "" };
   const router = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), canGoBack: jest.fn(() => true) };
+  // The screen's own navigation, for a component that sets the screen's options (use-step-back.ts).
+  const navigation = { setOptions: jest.fn(), isFocused: jest.fn(() => true) };
   return {
     DefaultTheme: { dark: false, colors, fonts },
     DarkTheme: { dark: true, colors, fonts },
     router,
     useRouter: () => router,
+    useNavigation: () => navigation,
     useLocalSearchParams: () => ({}),
     useGlobalSearchParams: () => ({}),
     useSegments: () => [],

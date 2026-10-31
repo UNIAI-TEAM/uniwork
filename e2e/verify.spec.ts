@@ -3,13 +3,18 @@ import { register, VERIFICATION_CODE } from "./auth-nav";
 import { auditText } from "./contrast";
 
 /**
- * Màn xác thực email: cổng đầu tiên sau đăng ký. Mã sai hiện lỗi và xoá ô nhập,
- * nút gửi lại bị khoá 60s ngay khi vào (đăng ký vừa gửi một mã), mã đúng đưa
- * tới onboarding, và các trang sau cổng đẩy ngược về /verify khi chưa xác thực.
+ * The email verification screen, the first gate after sign-up. A wrong code
+ * is said and the boxes are cleared; resend waits out the server's minute
+ * only after a code this browser just had mailed (the sign-up's), and a page
+ * opened afresh, which cannot know of one, lets a code be asked at once; the
+ * right code goes on to onboarding; and the screens behind the gate send an
+ * unverified account back to /verify.
  */
-test("mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực", async ({ page }) => {
+test("mã sai → lỗi; gửi lại chờ sau mã vừa gửi; mã đúng → onboarding; cổng chặn khi chưa xác thực", async ({ page }) => {
   await register(page, "Verify Bot");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Xác thực email");
+  // Sign-up mailed a code from this page a moment ago.
+  await expect(page.getByRole("button", { name: /Gửi lại sau \d+s/ })).toHaveAttribute("aria-disabled", "true");
 
   // Chưa xác thực thì không vào được onboarding hay workspace.
   await page.goto("/onboarding");
@@ -17,8 +22,8 @@ test("mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; c�
   await page.goto("/workspaces");
   await expect(page).toHaveURL(/\/verify$/);
 
-  const resend = page.getByRole("button", { name: /Gửi lại sau \d+s/ });
-  await expect(resend).toHaveAttribute("aria-disabled", "true");
+  // A fresh load knows of no code just mailed: nobody back days later waits for nothing.
+  await expect(page.getByRole("button", { name: "Gửi lại mã", exact: true })).not.toHaveAttribute("aria-disabled", "true");
 
   const code = page.getByLabel("Mã xác thực");
   await expect(code).toBeFocused();

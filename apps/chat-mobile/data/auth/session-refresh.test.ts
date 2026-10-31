@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 import { installReportSink } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import { createMemoryStorage, fail, fakeSession, resetFakeSessions, setup, stored } from "./fakes";
-import { ACCESS_TOKEN_SKEW_MS, RATE_LIMIT_WAIT_CAP_MS, RECOVERY_MIN_MS } from "./session";
+import { RECOVERY_MIN_MS } from "./recovery";
+import { RATE_LIMIT_WAIT_CAP_MS } from "./session";
+import { ACCESS_TOKEN_SKEW_MS } from "./stored-session";
 import { TransportError, type DesktopSession, type TransportErrorCode } from "./transport";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());

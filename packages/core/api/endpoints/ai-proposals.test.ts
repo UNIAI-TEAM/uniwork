@@ -75,6 +75,17 @@ describe("ai proposal endpoints", () => {
     ]);
   });
 
+  it("reads result.handoff_id as a string and degrades a number or a missing one to empty", async () => {
+    const withResult = (r: Record<string, unknown>) => row({ status: "applied", result: { object_id: "d1", ...r } });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(withResult({ handoff_id: "h1" })))
+      .mockResolvedValueOnce(json(withResult({ handoff_id: 7 })))
+      .mockResolvedValueOnce(json(withResult({})));
+    expect((await applyAiProposal("p1")).result.handoff_id).toBe("h1");
+    expect((await applyAiProposal("p1")).result.handoff_id).toBe("");
+    expect((await applyAiProposal("p1")).result.handoff_id).toBe("");
+  });
+
   it("edit PATCHes the changes", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(row()));
     await editAiProposal("p1", { title: "v2" });

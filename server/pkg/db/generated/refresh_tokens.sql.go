@@ -104,6 +104,34 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 	return i, err
 }
 
+const getWebSessionStart = `-- name: GetWebSessionStart :one
+SELECT min(created_at)::timestamptz AS started_at,
+       COALESCE(bool_or(revoked_at IS NULL AND expires_at > now()), false)::bool AS live
+FROM refresh_tokens
+WHERE user_id = $1 AND session_id = $2
+`
+
+type GetWebSessionStartParams struct {
+	UserID    string `json:"user_id"`
+	SessionID string `json:"session_id"`
+}
+
+type GetWebSessionStartRow struct {
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+	Live      bool               `json:"live"`
+}
+
+// When a browser session started (its first refresh token: rotation keeps
+// the session id and no row is ever deleted) and whether any of its tokens
+// is still live. A sign-in ticket links only into a session that started
+// after the ticket was issued (ADR 0049).
+func (q *Queries) GetWebSessionStart(ctx context.Context, arg GetWebSessionStartParams) (GetWebSessionStartRow, error) {
+	row := q.db.QueryRow(ctx, getWebSessionStart, arg.UserID, arg.SessionID)
+	var i GetWebSessionStartRow
+	err := row.Scan(&i.StartedAt, &i.Live)
+	return i, err
+}
+
 const listActiveSessionsForUser = `-- name: ListActiveSessionsForUser :many
 SELECT s.session_id, s.user_agent, s.ip, s.last_seen_at, s.created_at
 FROM (
@@ -176,6 +204,10 @@ type RevokeOtherSessionsForUserParams struct {
 	SessionID string `json:"session_id"`
 }
 
+// Second half of revoking every session but the caller's: call
+// revokeOtherUserSessions (service), which closes the other device sessions
+// first so the locks come in one order. session_id is the kept session (a
+// browser session id, or the caller's device family).
 func (q *Queries) RevokeOtherSessionsForUser(ctx context.Context, arg RevokeOtherSessionsForUserParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeOtherSessionsForUser, arg.UserID, arg.SessionID)
 	if err != nil {

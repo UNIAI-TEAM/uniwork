@@ -8,19 +8,25 @@ import type { Workspace } from "@uniwork/core/types/workspace";
 import { Text } from "react-native";
 import AppLayout from "@/app/(app)/_layout";
 import AccountSettings from "@/app/(app)/account";
+import Password from "@/app/(app)/password";
 import LicensesScreen from "@/app/(app)/licenses";
 import SelectWorkspace from "@/app/(app)/select-workspace";
+import Invitation from "@/app/(app)/invite/[token]";
 import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
 import Index from "@/app/index";
 import { ApiError, api } from "@/data/api";
-import { appleSignInOffered } from "@/data/auth/flow";
+import { signInOffer } from "@/data/auth/flow";
+import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
+import { invitationsApi } from "@/data/invitations/api";
+import { signInMethodsApi } from "@/data/auth/methods-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { setPendingLink, takePendingLink } from "@/lib/deep-link";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
-import { renderRoutes } from "@/test/route-render";
+import { renderRoutes, type RenderedRoutes } from "@/test/route-render";
 import { viText } from "@/test/render";
 
 jest.unmock("expo-router");
@@ -46,7 +52,10 @@ jest.mock("expo-apple-authentication", () => {
     ),
   };
 });
-jest.mock("@/data/auth/flow", () => ({ ...jest.requireActual("@/data/auth/flow"), appleSignInOffered: jest.fn(async () => false) }));
+jest.mock("@/data/auth/flow", () => ({
+  ...jest.requireActual("@/data/auth/flow"),
+  signInOffer: jest.fn(async () => ({ apple: null, google: null })),
+}));
 
 const ChatStandIn = () => <Text testID="chat-tab">chat</Text>;
 
@@ -58,25 +67,42 @@ const ROUTES = {
   "(app)/select-workspace": SelectWorkspace,
   "(app)/account": AccountSettings,
   "(app)/licenses": LicensesScreen,
+  "(app)/invite/[token]": Invitation,
+  "(app)/password": Password,
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
-const user = { id: "u1", email: "an@example.com", name: "An" };
+const user = { id: "u1", email: "an@example.com", name: "An", email_verified_at: "2026-10-01T00:00:00Z" };
 const workspace = (id: string, slug: string): Workspace =>
   ({ id, slug, name: `Không gian ${slug}`, organization_id: "o1", organization_slug: "acme", organization_name: "Acme" }) as Workspace;
 
 beforeEach(() => {
   jest.spyOn(api, "listWorkspaces").mockResolvedValue([workspace("w1", "main"), workspace("w2", "sales")]);
   jest.spyOn(chatApi, "unreadSummary").mockResolvedValue(EMPTY_UNREAD_SUMMARY);
+  // No invitation waits, and the account is in an organization: the empty picker says to wait for an admin.
+  jest.spyOn(invitationsApi, "mine").mockResolvedValue([]);
+  jest.spyOn(invitationsApi, "organizations").mockResolvedValue([{ id: "o1", slug: "acme", name: "Acme", status: "active" }]);
 });
 
 const realLogin = useAuthStore.getState().login;
+
+/**
+ * The empty picker asks for its invitations while renderRouter's fake timers are still on (test/route-render.tsx),
+ * and TanStack's notice that they arrived rides a timer that never fires once real timers are back; asked again
+ * under real timers, the screen hears the answer.
+ */
+async function readInvitationsAgain(routes: RenderedRoutes): Promise<RenderedRoutes> {
+  await act(async () => {
+    await routes.queryClient.refetchQueries({ queryKey: ["invitations"] });
+  });
+  return routes;
+}
 
 afterEach(async () => {
   // Unmount first: a mounted gate would redirect on the reset below.
   await cleanup();
   useAuthStore.setState({ user: null, isLoading: true, login: realLogin });
-  jest.mocked(appleSignInOffered).mockResolvedValue(false);
+  jest.mocked(signInOffer).mockResolvedValue({ apple: null, google: null });
   useWorkspaceStore.setState({ current: null });
   onlineManager.setOnline(true);
   jest.useRealTimers();
@@ -91,32 +117,34 @@ describe("the entry gate", () => {
     expect(routes.pathname()).toBe("/login");
   });
 
-  // iOS AX5 (a11y-large-text-dark.yaml): uncapped, the 28 pt title reached 100 pt and broke "Welcome" mid-word.
-  it("caps only the welcome title's growth with the text size: the hint and the button keep scaling", async () => {
+  // iOS AX5 (a11y-large-text-dark.yaml): uncapped, the 28 pt title reached 100 pt and broke words mid-word.
+  it("caps only the sign-in title's growth with the text size: the line under it and the button keep scaling", async () => {
     useAuthStore.setState({ user: null, isLoading: false });
     await renderRoutes(ROUTES, "/login");
-    const title = await screen.findByTestId("login-title");
+    const title = await screen.findByTestId("auth-title");
     expect(title.props.maxFontSizeMultiplier).toBe(DISPLAY_MAX_FONT_SCALE);
-    expect(screen.getByText(viText("mobile.login_hint")).props.maxFontSizeMultiplier).toBeUndefined();
-    expect(screen.getByText(viText("auth.desktop.unichat_login_button")).props.maxFontSizeMultiplier).toBeUndefined();
+    expect(screen.getByText(viText("mobile.sign_in.subtitle")).props.maxFontSizeMultiplier).toBeUndefined();
+    expect(screen.getByText(viText("auth.login")).props.maxFontSizeMultiplier).toBeUndefined();
   });
 
-  it("offers Sign in with Apple above the browser, and says why a refused one cannot go on", async () => {
-    jest.mocked(appleSignInOffered).mockResolvedValue(true);
-    const login = jest.fn(async (method?: string) => {
-      if (method === "apple") throw Object.assign(new Error("refused"), { code: "apple_account_conflict" });
+  it("offers Sign in with Apple above every other way in, and says why a refused one cannot go on", async () => {
+    jest.mocked(signInOffer).mockResolvedValue({ apple: "native", google: null });
+    const login = jest.fn(async (request?: SignInRequest): Promise<SignInOutcome> => {
+      if (request?.method === "apple") throw Object.assign(new Error("refused"), { name: "TransportError", code: "sign_in_account_conflict", status: 409 });
+      return { kind: "dismissed" };
     });
     useAuthStore.setState({ user: null, isLoading: false, login });
     await renderRoutes(ROUTES, "/login");
     const apple = await screen.findByTestId("apple-native-button");
     const tree = JSON.stringify(screen.toJSON());
-    expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-button"));
+    expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-email"));
+    expect(tree.indexOf("login-email")).toBeLessThan(tree.indexOf("login-browser"));
     await fireEvent.press(apple);
-    expect(login).toHaveBeenCalledWith("apple");
-    expect(await screen.findByText(viText("chat.mobile.login_apple_conflict"))).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("login-button"));
-    expect(login).toHaveBeenLastCalledWith("browser");
-    expect(screen.queryByText(viText("chat.mobile.login_apple_conflict"))).toBeNull();
+    expect(login).toHaveBeenCalledWith({ method: "apple" });
+    expect(await screen.findByText(viText("auth.social.errors.sign_in_conflict"))).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-browser"));
+    expect(login).toHaveBeenLastCalledWith({ method: "browser" });
+    expect(screen.queryByText(viText("auth.social.errors.sign_in_conflict"))).toBeNull();
   });
 
   it("shows no Apple button where it is not offered", async () => {
@@ -211,7 +239,7 @@ describe("the entry gate", () => {
   it("lets a person with no workspace reach Settings: the legal pages, the licenses and account deletion", async () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
     useAuthStore.setState({ user: user as never, isLoading: false });
-    const routes = await renderRoutes(ROUTES, "/");
+    const routes = await readInvitationsAgain(await renderRoutes(ROUTES, "/"));
     expect(await screen.findByText(viText("mobile.account.no_workspace"))).toBeTruthy();
     expect(routes.pathname()).toBe("/select-workspace");
     await act(async () => fireEvent.press(screen.getByTestId("select-workspace-settings")));
@@ -228,11 +256,106 @@ describe("the entry gate", () => {
   // person's work email names another account; the empty list says so instead of "ask an admin".
   it("tells a Hide My Email account why an invitation to its work email does not reach it", async () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    jest.mocked(invitationsApi.organizations).mockResolvedValue([]);
     const relay = "q7x@privaterelay.appleid.com";
     useAuthStore.setState({ user: { ...user, email: relay } as never, isLoading: false });
-    await renderRoutes(ROUTES, "/select-workspace");
+    await readInvitationsAgain(await renderRoutes(ROUTES, "/select-workspace"));
     expect(await screen.findByText(viText("mobile.account.no_workspace_relay", { email: relay }))).toBeTruthy();
     expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+  });
+
+  // Spec §5.2: an account with no workspace answers its invitations on the picker itself.
+  it("lists the invitations waiting for an account with no workspace, and joins one into its workspace", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValueOnce([]).mockResolvedValue([workspace("w1", "main")]);
+    jest.mocked(invitationsApi.mine).mockResolvedValue([
+      {
+        id: "i1",
+        role: "member",
+        token: "t1",
+        expires_at: "2099-01-01T00:00:00Z",
+        org_role: "member",
+        workspaces: [{ id: "w1", slug: "main", name: "Không gian main" }],
+        organization: { id: "o1", slug: "acme", name: "Acme" },
+        invited_by: { display_name: "Bình" },
+      },
+    ]);
+    const accept = jest.spyOn(invitationsApi, "accept").mockResolvedValue({ organization: { id: "o1", slug: "acme", name: "Acme" }, workspace: workspace("w1", "main") });
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await readInvitationsAgain(await renderRoutes(ROUTES, "/select-workspace"));
+    const join = await screen.findByTestId("invitation-join-i1");
+    // The join, the workspace list read again, the current workspace kept and the chat opened, all inside act.
+    await act(async () => {
+      void fireEvent.press(join);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(await screen.findByTestId("chat-tab")).toBeTruthy();
+    expect(accept).toHaveBeenCalledWith("t1");
+    expect(routes.pathname()).toBe("/acme/main/chat");
+  });
+
+  // Spec §5.2: a /invite/{token} link waits through sign-in (app/_layout.tsx keeps it) and opens its preview, which
+  // joins nothing by itself.
+  it("opens an invitation link kept through sign-in on its preview, joining nothing", async () => {
+    jest.spyOn(invitationsApi, "preview").mockResolvedValue({
+      invitation: { id: "i1", status: "pending", expires_at: "2099-01-01T00:00:00Z", organization: { id: "o2", slug: "beta", name: "Beta" }, workspaces: [], org_role: "member" },
+      conflicts: [],
+    });
+    const accept = jest.spyOn(invitationsApi, "accept");
+    useAuthStore.setState({ user: null, isLoading: false });
+    const out = await renderRoutes(ROUTES, "/invite/t1");
+    expect(await screen.findByTestId("login-screen")).toBeTruthy();
+    expect(out.pathname()).toBe("/login");
+    await cleanup();
+
+    setPendingLink("/invite/t1");
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/");
+    expect(await screen.findByTestId("invitation-preview")).toBeTruthy();
+    expect(routes.pathname()).toBe("/invite/t1");
+    expect(invitationsApi.preview).toHaveBeenCalledWith("t1", expect.anything());
+    expect(accept).not.toHaveBeenCalled();
+    expect(takePendingLink()).toBeNull();
+  });
+
+  it("leaves an invitation's preview opened from a link for the start screen", async () => {
+    jest.spyOn(invitationsApi, "preview").mockResolvedValue({
+      invitation: { id: "i1", status: "pending", expires_at: "2099-01-01T00:00:00Z", organization: { id: "o2", slug: "beta", name: "Beta" }, workspaces: [], org_role: "member" },
+      conflicts: [],
+    });
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/invite/t1");
+    await act(async () => fireEvent.press(await screen.findByTestId("auth-back")));
+    expect(await screen.findByTestId("select-workspace-settings")).toBeTruthy();
+    expect(routes.pathname()).toBe("/select-workspace");
+  });
+
+  // Spec §5.2: the password is set or changed on the account's own screen, from Settings › Sign-in methods.
+  it("opens the password screen from the account's Settings, and comes back", async () => {
+    jest.spyOn(signInMethodsApi, "getSignInMethods").mockResolvedValue({
+      password: { set: true, changed_at: null },
+      google: { linked: false, email: null, linked_at: null },
+      apple: { linked: false, email: null, linked_at: null, private_relay: false },
+      account_email_is_relay: false,
+      proofs: ["password", "email_code"],
+    });
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/account");
+    await act(async () => fireEvent.press(await screen.findByTestId("sign-in-method-action-password")));
+    expect(await screen.findByTestId("password-form")).toBeTruthy();
+    expect(routes.pathname()).toBe("/password");
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: viText("common.back") })));
+    expect(await screen.findByTestId("account-logout")).toBeTruthy();
+    expect(routes.pathname()).toBe("/account");
+  });
+
+  it("leaves the password screen opened on its own for the start screen", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/password");
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: viText("common.back") })));
+    expect(await screen.findByTestId("select-workspace-settings")).toBeTruthy();
+    expect(routes.pathname()).toBe("/select-workspace");
   });
 
   it("signs out from the account's own Settings", async () => {

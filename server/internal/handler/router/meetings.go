@@ -345,6 +345,13 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 			"409 action_item_not_pending liệt kê fields.action_item_ids; 409 active_duplicate_task cũng vậy.",
 		sdi: sdi.ConvertActionItemsSDI{}, sdo: sdo.ConvertActionItemsSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/action-items/undo-convert", h.UndoConvertActionItems, apiOp{
+		summary: "Take back a fresh conversion (clerk)", tags: []string{"meetings"},
+		description: "Đưa 1–50 việc vừa giao về chờ xử lý và chuyển task của chúng vào thùng rác, trong một giao dịch. Chỉ việc chính người gọi giao " +
+			"trong 2 phút gần nhất, task được tạo lúc giao, chưa bị sửa, chưa vào thùng rác, chưa có task con, bình luận, tệp đính kèm, phụ thuộc hay việc khác nối vào; việc khác bị bỏ qua, " +
+			"không báo lỗi. restored liệt kê các việc đã về chờ xử lý.",
+		sdi: sdi.UndoConvertActionItemsSDI{}, sdo: sdo.UndoConvertActionItemsSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/dismiss", h.DismissActionItem, apiOp{
 		summary: "Dismiss a pending action item (clerk)", tags: []string{"meetings"},
 		description: "Chỉ từ chờ xử lý, không thì 409 action_item_not_pending. Lý do không bắt buộc, tối đa 500 ký tự.",

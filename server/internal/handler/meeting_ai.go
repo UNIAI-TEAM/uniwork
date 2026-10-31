@@ -46,6 +46,7 @@ func toSummaryDTO(s db.MeetingSummary, starts map[string]time.Time) sdo.MeetingS
 		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial,
 		Decisions:     points(service.DecodeSummaryDecisions(s.Decisions)),
 		OpenQuestions: points(service.DecodeSummaryDecisions(s.OpenQuestions)),
+		SummaryPoints: points(service.DecodeSummaryDecisions(s.SummaryPoints)),
 		Topics:        []sdo.MeetingSummaryTopicDTO{},
 	}
 	if s.TranscriptChangedAt.Valid {

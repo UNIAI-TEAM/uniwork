@@ -1,9 +1,0 @@
-{{define "preheader"}}Sign in with Apple now opens your UniWork account{{end}}
-{{define "content"}}
-<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Sign in with Apple linked</h1></td></tr>
-<tr><td style="padding-bottom:16px;font-size:15px;line-height:24px;color:#646464">Your UniWork account was just signed in with the Apple ID that uses this email address, so that Apple ID now opens your account too. A phone signed in with it:</td></tr>
-<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Device: <strong style="color:#202020;font-weight:600">{{.Data.Device}}</strong><br>IP address: <strong style="color:#202020;font-weight:600">{{.Data.IP}}</strong><br>When: <strong style="color:#202020;font-weight:600">{{.Data.At.Format "2006-01-02 15:04 MST"}}</strong></td></tr>
-<tr><td style="padding-bottom:24px">{{button .Data.SessionsURL "Review active sessions"}}</td></tr>
-<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:20px;color:#646464">If this was you, nothing to do. If not, revoke the session under Settings → Security now and secure the Apple ID that uses this address.</td></tr>
-{{end}}
-{{define "footer"}}You received this email because Sign in with Apple was just linked to your UniWork account.{{end}}

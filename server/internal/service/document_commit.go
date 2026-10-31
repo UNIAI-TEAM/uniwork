@@ -1081,12 +1081,13 @@ func (s *DocumentService) pointAtNewFileVersion(
 		params.ConvertedFromVersion = pgtype.Int4{Int32: converted.fromVersion, Valid: converted.fromVersion > 0}
 		params.ConvertedFromChecksum = nullText(converted.fromChecksum)
 	}
-	version, err := q.InsertDocumentVersion(ctx, params)
+	version, err := insertFileVersion(ctx, q, actor, params)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
 	title := doc.Title
-	searchText := doc.SearchText
+	// A new file version voids the indexed text; the indexer refills it.
+	searchText := documentSearchText(doc.Title, "")
 	titleChanged := false
 	priorTitle := doc.Title
 	if converted != nil {
@@ -1096,7 +1097,7 @@ func (s *DocumentService) pointAtNewFileVersion(
 				return DocumentFileResult{}, err
 			}
 			title = normTitle
-			searchText = documentSearchText(normTitle, doc.ContentText)
+			searchText = documentSearchText(normTitle, "")
 			titleChanged = true
 		}
 	}

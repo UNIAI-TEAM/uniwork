@@ -339,6 +339,42 @@
           "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: a task created from a message that mentions someone now shows @Name in its title instead of the raw mention code, and the task card no longer overflows on long strings.",
           "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Documents: selecting several documents and downloading them as a zip no longer fails when saving the file; if the download fails, the app shows an error and does not save an empty file."
         }
+      },
+      "v1_13_0": {
+        "title": "Unified sign-in with Google and Apple, Ask UNI hands Office drafting to the editor's AI, tasks from several messages",
+        "summary": "Signing in with email, Google or Apple works the same way on the web, desktop and phones; Apple works on the web, and Settings has a Sign-in methods section. Ask UNI hands Office drafting to the editor's AI on the web, which can now write whole documents and build presentations from the approved outline. Chat creates tasks from one or more messages with AI suggestions. Meetings get new motion, summaries with a source for each sentence and an 8-second undo for assigned tasks, plus fixes for muting guests and Ask UNI in the room.",
+        "note": "Ask UNI handing Office drafting to the editor needs the organization's AI features and Ask UNI actions to be turned on; the editor's AI only drafts when the organization has UniWork AI in the editor turned on for that format and has credits left, otherwise the file is still created for you to draft yourself. Writing whole documents and building presentations with AI is only on the web, not yet in the desktop app. Google sign-in inside the phone app needs UniChat version 0.4.0 or later and only works once it has been set up for the app.",
+        "features": {
+          "ccafd2d2d6272afb2cf5e7b3cc4a7552d4af9320b": "Ask UNI hands Office drafting to the editor's AI on the web: the plan card shows the outline and the sources Ask UNI read; choose Open and draft (or Open and build for presentations), the new file opens and the editor's AI writes it part by part from the approved outline, then you review and choose Save yourself. The card says when the AI can't draft and why; the button then reads Create and open to draft yourself.",
+          "c13d78a4c97f08eba8a8674b2c7e47c76ec6a2785": "The editor's AI in Office on the web, when using UniWork AI, can now write whole Word and Markdown documents, HTML pages and briefs, and build presentations: a style, an outline and each slide, or redo a single slide. This lets work Ask UNI hands to the editor build whole presentations. The AI only returns content to the editor; you decide whether to keep it, including when a write stops partway. AI usage in Settings lists this as Document writer (UniWork AI).",
+          "c8db92bb8a8ad1ffa8a9dd39f5951eb6db2f0335c": "Unified sign-in on the web, the desktop app and phones with email and password, Google or Apple; Apple now works on the web too. When a sign-in doesn't match any account, UniWork no longer creates or links one on its own: you choose to link it to an existing account, create a new account, or get a code at another email. Settings has a Sign-in methods section; changing how you sign in, deleting your account or transferring an organization asks you to confirm it's you. The UniChat phone app from version 0.4.0 signs you in inside the app instead of opening a browser.",
+          "c5126171f6582348dd244670217291d422d0a2686": "Chat on the web: create a task from one or more selected messages (Create task from selected) with the full task form, including description, priority, due date, assignee and project. When your organization has AI features turned on, AI pre-fills the title, description, priority and due date from the selected messages for you to edit before creating. The task links to the newest selected message, and task cards in chat look like the ones on the task board."
+        },
+        "improvements": {
+          "cc0356f93e315ce39b5478dfd61f25c6e2e74d106": "Meetings get clearer motion and feedback across the list, the lobby, the room, the summary and task assignment. A meeting in progress shows who is in the room, whether UNI Scribe is there and how long it has run. Someone asking to join appears as a card you can admit or reject right away; the button to admit everyone moves to the People tab. Each sentence in the summary has a source number that opens what was actually said. After assigning tasks from a meeting you have 8 seconds to Undo; the tasks go to the trash if no one has edited or commented on them yet. Animations stop when Reduce motion is on."
+        },
+        "fixes": {
+          "c3c21599462278b2ddb9964171e122957d72b14c7": "Email Hub: a starred Gmail message no longer shows up twice in the Starred folder when the same message is in both the Inbox and All Mail. Chat: click an image attached in the message composer to view it full size before sending.",
+          "cba1c2d4ab3842539e2d2e33682c45413c75f847f": "Meetings: the host can now mute guests who joined by link, including with Mute everyone, and guests follow the new host after a host transfer. Ask UNI in the meeting room: asking a second question no longer hides the first, the waiting state no longer covers the answer, characters such as & display correctly, and a task created from an answer takes that answer's own question as its title.",
+          "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "UniChat app on iPhone: the Contacts tab no longer switches to an error screen when the list grows, such as when members finish loading, when you clear the search box or tap the tab again.",
+          "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Sign in with Apple: Apple's new hidden email addresses (ending in @private.icloud.com) are recognized like the older hidden addresses, so Settings correctly shows them as Apple hidden email and the Apple linking rules apply correctly."
+        }
+      },
+      "v1_14_0": {
+        "title": "Find files by their content in Documents and Ask UNI, Office editor AI runs only on UniWork AI, link guests get into meetings faster",
+        "summary": "The Documents search box and Ask UNI now find Word, Excel, PowerPoint and text files by the words inside them, with a snippet around the match. AI in the Office editor on the web runs only on UniWork AI; the option to use the organization's own AI key has been removed. Ask UNI drafting Office files has its own switch for each organization. Guests joining a meeting by link no longer wait long after the host admits them.",
+        "note": "Content search reads only the first 20,000 characters of each file and doesn't yet cover PDF, HTML, images, video or files larger than 20 MiB; files that already existed are found by their content only after they have been re-indexed. Ask UNI drafting Office files is off by default until UniWork turns it on for your organization. The desktop app still accepts an AI key you enter yourself.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Documents: the search box and Ask UNI now find files by the text inside DOCX, XLSX, PPTX, ODT, CSV, Markdown and TXT files. Results show a short snippet around the match so you can see why a file was found, even when the matching words are deep inside the file. Restricted files you can't read still don't reveal their content in results."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI in the Office editor on the web now runs only on UniWork AI: the option to use the organization's own AI key (BYOK) has been removed, along with any saved keys. Web search, image search and image generation in the editor follow the organization's access to UniWork AI. The desktop app still accepts an AI key you enter yourself, and the privacy page explains that content is then sent straight to the AI provider.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Ask UNI drafting Office files has its own switch, off by default, which UniWork turns on for each organization. While it's off, Ask UNI doesn't offer to draft files, and applying existing drafting suggestions, including within a plan or in Auto mode, is refused with a clear message instead of being applied partway. Reading attached files and the Templates section are not affected."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
+        }
       }
     }
   },
@@ -394,16 +430,14 @@
     }
   },
   "auth": {
-    "login": "Log in",
+    "login": "Sign in",
     "register": "Sign up",
-    "logout": "Log out",
+    "logout": "Sign out",
     "email": "Email",
     "password": "Password",
     "displayName": "Display name",
     "noAccount": "No account yet?",
     "hasAccount": "Already have an account?",
-    "invalidCredentials": "That email or password isn't right",
-    "emailTaken": "That email is already registered",
     "loginSubtitle": "Pick up where you left off.",
     "meetingInviteReason": "Sign in to join the meeting you were invited to. You'll return to the invite and enter the room if you're allowed in.",
     "registerSubtitle": "Create an account to get started with UniWork.",
@@ -434,9 +468,6 @@
     "emailRequired": "Enter your email",
     "emailInvalid": "That email doesn't look right, e.g. you@company.com",
     "passwordRequired": "Enter your password",
-    "networkError": "Can't reach UniWork. Check your connection and try again.",
-    "serverError": "UniWork is having trouble. Try again in a few minutes.",
-    "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
     "legal": {
       "signUp": "By signing up, you agree to the",
       "signIn": "By signing in, you agree to the",
@@ -445,9 +476,8 @@
       "privacy": "Privacy policy"
     },
     "desktop": {
-      "eyebrow": "Desktop sign-in",
       "title": "Allow {{app}} to sign in?",
-      "description": "Check the app and device details before continuing. This approval is valid for this device only.",
+      "description": "Check the app and device details before you continue. This approval only applies to this device.",
       "app": "App",
       "device": "Device",
       "account": "Account",
@@ -456,32 +486,45 @@
       "build": "Build",
       "unknown": "Not provided",
       "loading": "Loading…",
-      "approve": "Allow desktop app",
+      "approve": "Allow {{app}}",
       "approving": "Allowing…",
-      "resultTitle": "Desktop sign-in result",
-      "approved": "Allowed {{app}} to sign in",
-      "cancelledResult": "Desktop sign-in was cancelled.",
-      "errorResult": "The desktop sign-in request could not be completed. Try again.",
-      "expired": "This desktop sign-in request has expired.",
+      "approvedTitle": "You allowed {{app}}",
+      "approved": "If {{app}} didn't open, choose \"Open {{app}}\".",
+      "approvedReturn": "Go back to {{app}} to continue.",
+      "cancelledTitle": "Sign-in cancelled",
+      "cancelled": "{{app}} wasn't signed in.",
+      "expiredTitle": "This request has expired",
+      "expired": "Go back to {{app}} and try again.",
+      "expiredUnknown": "Go back to the app and try again.",
+      "errorTitle": "Couldn't finish signing in",
+      "error": "Try again. If it still fails, start signing in again from the app.",
       "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
-      "accountUnknown": "Account name unavailable",
-      "emailUnknown": "Email unavailable",
+      "accountUnknown": "UniWork account",
+      "emailUnknown": "No email",
       "libraryWorkspace": "Document library",
       "unichat_login_title": "Welcome to UniChat",
       "unichat_login_hint": "Message and call your team, right from your desktop.",
       "unichat_login_button": "Sign in",
       "unichat_login_waiting": "Finish signing in with the browser that just opened.",
       "unichat_login_reopen": "Open browser again",
-      "unichat_login_failed": "Could not open the browser to sign in. Try again.",
+      "unichat_login_failed": "Couldn't open the browser to sign in. Try again.",
       "unichat_login_feature_chats": "Direct messages, groups and every workspace's channels in one place",
       "unichat_login_feature_calls": "Voice and video calls, and screen sharing",
       "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
       "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
-      "unichat_login_step_allow": "Choose “Allow desktop app” there",
-      "unichat_login_step_return": "Come back here: UniChat opens your conversations",
+      "unichat_login_step_allow": "Choose \"Allow UniChat\" there",
+      "unichat_login_step_return": "UniChat opens again, right into your conversations",
       "unichat_login_cancel": "Cancel",
-      "unichat_login_version": "UniChat {{version}}"
+      "unichat_login_version": "UniChat {{version}}",
+      "details": "Details",
+      "notYouQuestion": "Not you?",
+      "useAnother": "Use another account",
+      "signingOut": "Signing out…",
+      "phone": {
+        "title": "Allow {{app}} on this phone to sign in?",
+        "closePage": "Close this page to return to {{app}}."
+      }
     },
     "connect": {
       "eyebrow": "Connect an AI assistant",
@@ -521,8 +564,8 @@
       "sending": "Sending…",
       "sentTitle": "Check your inbox",
       "sentBody": "If {{email}} has a UniWork account, an email with a reset link is on its way. The link works for 60 minutes.",
-      "googleHint": "Signed in with Google? Use the Google button on the login page — no password needed.",
-      "backToLogin": "Back to login",
+      "googleHint": "Signed in with Google or Apple? Use that button on the sign-in page, no password needed. Want a password too? Enter your email above and we'll send a link to set one.",
+      "backToLogin": "Back to sign in",
       "spamHint": "No email? Check your spam folder.",
       "resend": "Resend link",
       "resendIn": "Resend in {{seconds}}s",
@@ -543,7 +586,13 @@
       "hint": "At least {{min}} characters",
       "tooShort": "Password needs at least {{min}} characters",
       "invalidTitle": "This link no longer works",
-      "invalidHint": "Each link works once and expires after 60 minutes."
+      "invalidHint": "Each link works once and expires after 60 minutes.",
+      "set": {
+        "title": "Set a password",
+        "subtitle": "Choose a password to sign in with your email. The way you sign in now stays as it is.",
+        "submit": "Set password",
+        "submitting": "Setting…"
+      }
     },
     "verify": {
       "title": "Verify your email",
@@ -557,25 +606,183 @@
       "resendTooSoon": "A code was just sent — wait a minute and try again.",
       "verifying": "Verifying…",
       "wrongAccount": "Wrong account?",
-      "spamHint": "No email? Check your spam folder."
-    },
-    "google": {
-      "continueWith": "Continue with Google",
-      "or": "or",
-      "denied": "You cancelled the Google sign-in.",
-      "failed": "Google sign-in didn't go through. Try again or use your email and password.",
-      "unverified": "Google hasn't verified this account's email. Use another account or sign up with email.",
-      "signingIn": "Signing in with Google…"
+      "spamHint": "No email? Check your spam folder.",
+      "deleteInSettings": "Delete the account in Settings"
     },
     "mfa": {
       "title": "Two-factor authentication",
       "subtitle": "Enter the 6-digit code from your authenticator app, or a recovery code.",
       "codeLabel": "Verification code",
-      "hint": "The 6-digit app code, or a recovery code like xxxxx-xxxxx.",
-      "invalidCode": "That code is wrong or the challenge expired. Try again or sign in again.",
+      "hint": "The 6-digit app code, or a recovery code like xxxxx‑xxxxx.",
       "submit": "Confirm",
       "verifying": "Confirming…",
       "back": "Back to sign in"
+    },
+    "social": {
+      "continueWithGoogle": "Continue with Google",
+      "continueWithApple": "Continue with Apple",
+      "continueWithEmail": "Continue with email",
+      "divider": "or use email",
+      "or": "or",
+      "browserOpened": "The browser opened the {{provider}} sign-in page",
+      "groupLabel": "Sign in with Google or Apple",
+      "signingIn": "Signing you in…",
+      "reclaimed": "You've taken back your account. The old password, set before your email was verified, has been removed.",
+      "provider": {
+        "google": "Google",
+        "apple": "Apple"
+      },
+      "linkSkipped": {
+        "generic": "You're signed in, but the sign-in method you just used couldn't be linked. Try again in Settings.",
+        "withProvider": "You're signed in, but {{provider}} couldn't be linked. Try again in Settings."
+      },
+      "retry": {
+        "later": "Wait a moment, then try again.",
+        "seconds_one": "Try again in {{count}} second.",
+        "seconds_other": "Try again in {{count}} seconds.",
+        "minutes_one": "Try again in {{count}} minute.",
+        "minutes_other": "Try again in {{count}} minutes.",
+        "hours_one": "Try again in {{count}} hour.",
+        "hours_other": "Try again in {{count}} hours."
+      },
+      "errors": {
+        "generic": "Couldn't sign you in. Try again.",
+        "network": "Couldn't connect. Check your connection and try again.",
+        "server": "UniWork is having trouble. Try again in a few minutes.",
+        "session_ended": "Your session ended. Sign in again to continue.",
+        "invalid_credentials": "That email or password isn't right.",
+        "second_factor_invalid": "That code isn't right, or this sign-in expired. Try again, or start over.",
+        "second_factor_locked": "Two-factor authentication is temporarily locked after too many wrong codes.",
+        "rate_limited": "Too many tries in a row.",
+        "provider_token_invalid": "Couldn't confirm the account you chose. Try again.",
+        "provider_unavailable": "This sign-in method isn't available right now. Use another one.",
+        "native_unavailable": "Signing in from the app isn't available right now. Sign in with your browser.",
+        "email_taken": "This email already has an account. Sign in, or reset your password if you forgot it.",
+        "register_invalid": "Check the email address. Passwords need at least 8 characters.",
+        "google_denied": "You cancelled the Google sign-in.",
+        "google_failed": "Couldn't sign in with Google. Try again, or use your email.",
+        "google_unverified": "Google hasn't verified this account's email. Use another Google account, or sign in with email.",
+        "apple_denied": "You cancelled the Apple sign-in.",
+        "apple_failed": "Couldn't sign in with Apple. Try again, or use your email.",
+        "sign_in_conflict": "This email already has a UniWork account with another sign-in method. Sign in with that method.",
+        "sign_in_unverified": "This account's email isn't verified. Use another sign-in method.",
+        "sign_in_account_unverified": "This email has a UniWork account that was never verified. Choose \"Forgot password?\" to get a link by email and take the account back.",
+        "sign_in_failed": "Sign-in didn't finish. Try again.",
+        "google_no_account": "No UniWork account signs in with this Google account. Sign in the way you usually do.",
+        "apple_no_account": "No UniWork account signs in with this Apple account. Sign in the way you usually do."
+      }
+    },
+    "apple": {
+      "relayEmail": "Apple's hidden email",
+      "hideMyEmail": "Hide My Email",
+      "relayHint": "You chose Hide My Email: Apple forwards mail sent to this address to your real inbox.",
+      "signingIn": "Signing in with Apple…"
+    },
+    "continue": {
+      "loading": "Loading your sign-in…",
+      "loadErrorTitle": "Couldn't load your sign-in",
+      "title": "Continue with {{provider}}",
+      "description": "This {{provider}} account isn't linked to any UniWork account yet.",
+      "identityLabel": "{{provider}} account",
+      "choicesLabel": "Choose how to continue",
+      "relayHint": "Did your organization invite your work email? Choose \"I was invited with another email\".",
+      "existing": {
+        "title": "I already have a UniWork account",
+        "body": "Sign in once to link {{provider}}. Next time, {{provider}} is all you need."
+      },
+      "invited": {
+        "title": "I was invited with another email",
+        "body": "Use the work email your organization invited."
+      },
+      "create": {
+        "title": "Create a new account",
+        "body": "Use {{email}} to sign in to UniWork.",
+        "bodyRelay": "Use Apple's hidden email to sign in to UniWork.",
+        "displayNameLabel": "Display name",
+        "displayNameHint": "The name your colleagues see.",
+        "displayNameRequired": "Enter a display name.",
+        "displayNameTooLong": "Display names can be up to {{max}} characters.",
+        "submit": "Create account",
+        "submitting": "Creating your account…"
+      },
+      "linkRequired": {
+        "title": "This email already has a UniWork account",
+        "body": "Sign in to {{email}} to link {{provider}}.",
+        "bodyRelay": "Sign in to your UniWork account to link {{provider}}.",
+        "action": "Sign in to link"
+      },
+      "claim": {
+        "emailTitle": "Enter your work email",
+        "emailBody": "Enter the email your organization invited. We'll send a 6-digit code there.",
+        "emailLabel": "Work email",
+        "emailPlaceholder": "name@company.com",
+        "send": "Send code",
+        "sending": "Sending code…",
+        "codeTitle": "Enter the code",
+        "codeBody": "Enter the 6-digit code we sent to {{email}}. It expires in 15 minutes.",
+        "codeLabel": "Confirmation code",
+        "verify": "Continue",
+        "verifying": "Checking the code…",
+        "resend": "Resend code",
+        "resendIn_one": "Resend in {{count}} second",
+        "resendIn_other": "Resend in {{count}} seconds",
+        "resent": "We sent a new code to {{email}}.",
+        "changeEmail": "Change email",
+        "spamHint": "Can't find it? Check your spam folder."
+      },
+      "link": {
+        "title": "Link {{provider}}",
+        "question": "Link {{provider}} ({{providerEmail}}) to {{accountEmail}}?",
+        "questionRelay": "Link {{provider}} (Apple's hidden email) to {{accountEmail}}?",
+        "signedInAs": "You're signed in as {{accountEmail}}.",
+        "body": "After that, you can sign in with {{provider}} or the way you do now.",
+        "confirm": "Link",
+        "decline": "Don't link",
+        "linking": "Linking…",
+        "done": "{{provider}} is linked. Next time, {{provider}} is all you need.",
+        "notLinked": "{{provider}} isn't linked to {{accountEmail}}.",
+        "nothingLeft": "There's nothing left to link. Continue to UniWork.",
+        "nothingLeftTitle": "You're all set",
+        "continue": "Continue",
+        "movableTitle": "Move {{provider}} to this account?",
+        "movable": "This {{provider}} account is used by an empty account, {{masked}}.",
+        "movableUnknown": "This {{provider}} account is used by an empty account.",
+        "movableNote": "That empty account never joined an organization and will be deleted.",
+        "move": "Move it here",
+        "moveDecline": "Don't move it",
+        "moving": "Moving…",
+        "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
+        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first."
+      },
+      "signedIn": {
+        "linkTo": "Link {{provider}} to {{account}}",
+        "linkToBody": "Next time, {{provider}} takes you straight into this account.",
+        "otherAccount": "Use another account",
+        "otherAccountBody": "Sign out of {{account}} and choose again."
+      },
+      "loginMode": {
+        "banner": "Sign in to your UniWork account to link {{provider}} ({{email}}).",
+        "bannerRelay": "Sign in to your UniWork account to link {{provider}}.",
+        "decline": "Don't link",
+        "mfaSubtitle": "Sign in to {{email}} to link {{provider}}."
+      },
+      "expired": {
+        "title": "This sign-in has expired",
+        "body": "This sign-in has expired or was already completed. Start again from the sign-in page.",
+        "bodyProvider": "Your {{provider}} sign-in has expired.",
+        "retry": "Try again"
+      },
+      "cancel": "Cancel",
+      "cancelling": "Cancelling…",
+      "errors": {
+        "generic": "Couldn't finish this step. Try again.",
+        "expired": "This sign-in has expired. Start again.",
+        "channel": "This sign-in belongs to another device. Start again here.",
+        "conflict": "An account was just created with this email. Sign in to link it.",
+        "invalidEmail": "That email doesn't look right.",
+        "invalidCode": "That code isn't right or has expired. Try again, or send a new one.",
+        "tooManyCodes": "Codes for this address are paused."
+      }
     }
   },
   "workspace": {
@@ -864,6 +1071,7 @@
     },
     "page": {
       "title": "Settings",
+      "accountTitle": "Account settings",
       "tabs": {
         "notifications": "Notifications",
         "profile": "Profile",
@@ -1245,7 +1453,6 @@
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
         "documents_public_links": "Public links for documents",
-        "office_ai_byok": "Office AI with your own key",
         "office_ai_cloud": "Office cloud AI tools"
       },
       "errors": {
@@ -1645,6 +1852,7 @@
         "agent_evaluation": "Agent evaluation",
         "embedding": "Embedding",
         "office_uniwork_ai": "UniWork AI in Office",
+        "office_uniwork_writer": "Document writer (UniWork AI)",
         "office_byok": "Office on the web (own key)",
         "office_byok_desktop": "Office desktop app (own key)"
       },
@@ -1804,7 +2012,8 @@
         "recoveryCopyFailed": "Could not copy. Copy them by hand or download them.",
         "codeLength_one": "Enter the {{count}} digit the app shows.",
         "codeLength_other": "Enter all {{count}} digits the app shows.",
-        "disableCodeRequired": "Enter an app code or a recovery code."
+        "disableCodeRequired": "Enter an app code or a recovery code.",
+        "emailUnverified": "Verify your email first, then turn on two-factor authentication."
       },
       "sessions": {
         "section": "Sessions",
@@ -1839,24 +2048,185 @@
         "open": "Delete account",
         "title": "Delete your account?",
         "body": "You will be signed out everywhere and cannot sign in again. This cannot be undone.",
-        "proof": {
-          "password": "Enter your current password to confirm",
-          "code": "Enter your two-factor code to confirm",
-          "email": "Type your email address to confirm"
-        },
         "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
         "failed": "Could not delete the account",
-        "required": {
-          "password": "Enter your password to confirm.",
-          "code": "Enter your two-factor code to confirm.",
-          "email": "Type your email address to confirm."
+        "deleting": "Deleting…",
+        "consequences": {
+          "erased": "Your email, name, photo and every way to sign in are erased.",
+          "kept": "Work and messages you created stay with the organization, shown as \"Deleted user\".",
+          "owner": "If you own an organization, transfer it first, or close it if you're its only member."
         },
-        "incorrect": {
-          "password": "That password isn't right. Enter it again to delete the account.",
-          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
-          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
+        "ownerTransfer": "You own {{name}}, and it has other members. Transfer ownership in Settings › Organization members, then come back to delete your account.",
+        "closeNotice": "You're the only member of {{name}}, so it closes along with your account.",
+        "closeAndDelete": "Close organization and delete account"
+      },
+      "signInMethods": {
+        "title": "Sign-in methods",
+        "description": "How you sign in to UniWork on the web, your computer and your phone.",
+        "loadError": "Couldn't load your sign-in methods.",
+        "retry": "Try again",
+        "badge": {
+          "set": "Set",
+          "unset": "Not set",
+          "linked": "Linked"
+        },
+        "method": {
+          "password": "your password",
+          "google": "Google",
+          "apple": "Apple"
+        },
+        "password": {
+          "name": "Password",
+          "changedOn": "Last changed on {{date}}",
+          "set": "Set",
+          "unset": "Set a password to sign in with your email",
+          "setAction": "Set password",
+          "changeAction": "Change password",
+          "setTitle": "Set a password",
+          "setDescription": "You'll sign in with {{email}} and this password.",
+          "setDescriptionRelay": "You'll sign in with Apple's hidden email below and this password.",
+          "copyEmail": "Copy email",
+          "emailCopied": "Email copied",
+          "changeTitle": "Change password",
+          "signsOutOthers": "Your other devices will be signed out.",
+          "current": "Current password",
+          "new": "New password",
+          "confirm": "Confirm new password",
+          "hint": "At least {{min}} characters",
+          "tooShort": "Passwords need at least 8 characters.",
+          "mismatch": "The passwords don't match.",
+          "currentRequired": "Enter your current password.",
+          "currentIncorrect": "That isn't your current password.",
+          "save": "Save password",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "toastSet": "Password set.",
+          "toastChanged": "Password changed. Your other devices were signed out."
+        },
+        "provider": {
+          "linkedOn": "Linked on {{date}}",
+          "linked": "Linked",
+          "notLinked": "Link to sign in with {{provider}}",
+          "link": "Link",
+          "linkAria": "Link {{provider}}",
+          "unlink": "Unlink",
+          "unlinkAria": "Unlink {{provider}}",
+          "linking": "Opening {{provider}}…",
+          "linkOnWeb": "Link on the web",
+          "linkOnWebAria": "Link on the web for {{provider}}",
+          "linkOnWebHint": "Open UniWork in your browser to link {{provider}}."
+        },
+        "reasons": {
+          "last": "This is your only way to sign in. Set a password or link another method first.",
+          "relay": "Your account email is Apple's hidden email, so Apple can't be unlinked."
+        },
+        "unlink": {
+          "title": "Unlink {{provider}}?",
+          "body": "You won't be able to sign in with {{provider}} anymore.",
+          "remainingOne": "You can still sign in with {{method}}.",
+          "remainingTwo": "You can still sign in with {{first}} or {{second}}.",
+          "signsOutOthers": "Your other devices will be signed out.",
+          "confirm": "Unlink",
+          "pending": "Unlinking…",
+          "toast": "{{provider}} unlinked."
+        },
+        "move": {
+          "title": "Move {{provider}} to this account?",
+          "body": "This {{provider}} account is used by an empty account, {{masked}}. That account never joined an organization and will be deleted.",
+          "bodyUnknown": "This {{provider}} account is used by an empty account. That account never joined an organization and will be deleted.",
+          "confirm": "Move it here",
+          "decline": "Don't move it",
+          "pending": "Moving…",
+          "toast": "{{provider}} moved to this account."
+        },
+        "results": {
+          "linked": "{{provider}} linked.",
+          "denied": "You stopped before {{provider}} was linked.",
+          "failed": "Couldn't link {{provider}}. Try again.",
+          "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
+          "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first.",
+          "movable": "This {{provider}} account is used by an empty account, {{masked}}.",
+          "movableUnknown": "This {{provider}} account is used by an empty account.",
+          "already_linked": "This account already has another {{provider}} account linked. Unlink that one first, then try again.",
+          "session_mismatch": "This browser just signed in to another account. Sign in to the right account and try again."
+        },
+        "browserOtherAccount": "This browser is signed in as {{other}}, not the account you use in UniChat.",
+        "browserOtherAccountHint": "Sign out here, then sign in with your UniChat account to link the right one.",
+        "signOut": "Sign out",
+        "errors": {
+          "generic": "Couldn't save the change. Try again.",
+          "taken": "This sign-in method is used by {{masked}}. Sign in there and unlink it first.",
+          "takenUnknown": "This sign-in method is used by another UniWork account. Sign in there and unlink it first.",
+          "movable": "This sign-in method is used by an empty account, {{masked}}. Move it to this account?",
+          "movableUnknown": "This sign-in method is used by an empty account. Move it to this account?",
+          "alreadyLinked": "Another account of this kind is already linked. Unlink it first, then try again.",
+          "emailUnverified": "Verify your email first, then link.",
+          "sessionMismatch": "This browser just signed in to another account. Sign in to the right account and try again.",
+          "notConfigured": "This sign-in method isn't turned on for your UniWork."
+        }
+      },
+      "stepUp": {
+        "title": "Confirm it's you",
+        "description": "To keep your account safe, confirm it's you before you {{action}}.",
+        "descriptionGeneric": "To keep your account safe, confirm it's you before you continue.",
+        "windowHint": "You won't be asked again for the next 10 minutes.",
+        "windowHintOneAction": "The code from the email confirms only this action.",
+        "actions": {
+          "set_password": "set a password",
+          "change_password": "change your password",
+          "link_google": "link Google",
+          "link_apple": "link Apple",
+          "unlink_google": "unlink Google",
+          "unlink_apple": "unlink Apple",
+          "enable_mfa": "turn on two-factor authentication",
+          "delete_account": "delete your account",
+          "transfer_ownership": "transfer ownership"
+        },
+        "password": {
+          "label": "Current password",
+          "forgot": "Forgot password?",
+          "required": "Enter your current password."
+        },
+        "totp": {
+          "label": "Code from your authenticator app",
+          "hint": "The 6-digit code, or a recovery code like xxxxx‑xxxxx.",
+          "required": "Enter the code from your authenticator app."
+        },
+        "emailCode": {
+          "send": "Send a code to {{email}}",
+          "sendRelay": "Send a code to Apple's hidden email",
+          "sending": "Sending code…",
+          "sent": "We sent a code to {{email}}. It expires in 10 minutes.",
+          "sentRelay": "We sent a code to Apple's hidden email. It expires in 10 minutes.",
+          "resent": "We sent a new code to {{email}}. It expires in 10 minutes.",
+          "resentRelay": "We sent a new code to Apple's hidden email. It expires in 10 minutes.",
+          "label": "Code from the email",
+          "required": "Enter the 6-digit code from the email.",
+          "resend": "Resend code",
+          "resendIn_one": "Resend in {{count}} second",
+          "resendIn_other": "Resend in {{count}} seconds",
+          "relayHint": "Apple forwards the code from the hidden email to your real inbox."
+        },
+        "provider": {
+          "apple": "Confirm with Apple",
+          "google": "Confirm with Google",
+          "hint": "Choose the {{provider}} account you linked."
+        },
+        "useAnother": "Try another way",
+        "submit": "Confirm",
+        "submitting": "Confirming…",
+        "cancel": "Cancel",
+        "errors": {
+          "generic": "Couldn't confirm it's you. Try again.",
+          "proofRequired": "Confirm it's you to continue.",
+          "passwordIncorrect": "That password isn't right. Try again.",
+          "totpIncorrect": "That code isn't right. Enter a new one from the app.",
+          "emailCodeIncorrect": "That code isn't right or has expired. Try again, or send a new one.",
+          "providerInvalid": "That isn't the account you linked. Choose the linked account, or try another way.",
+          "locked": "Confirming is temporarily locked after too many wrong tries.",
+          "tooManyCodes": "Sending codes to your email is paused."
         }
       }
     },
@@ -3583,14 +3953,8 @@
     "guestAdmitted": "Admitted to the room",
     "allGuestsAdmitted": "Everyone admitted to the room",
     "joinRequestsPendingTitle": "{{count}} join requests waiting",
-    "viewAllJoinRequestsCount": "View all ({{count}})",
-    "waitingToJoin": "Waiting to join",
-    "waitingToJoinHostHint": "Visible to hosts",
     "waitingToBeAdmitted": "Waiting to join",
-    "admitAll": "Admit all",
     "unconfirmedGuest": "Unconfirmed guest",
-    "unconfirmedUsers_one": "{{count}} person waiting",
-    "unconfirmedUsers_other": "{{count}} people waiting",
     "joinRequestActions": "Join request actions",
     "pendingCount": "{{count}} waiting",
     "transferConfirmTitle": "Transfer host role?",
@@ -4296,7 +4660,6 @@
     "inviteOnlyHint": "Ask the host to invite you, then join the meeting again.",
     "endedHint": "Notes and recordings, if any, are on the meeting page.",
     "waitingApprovalNotStartedHint": "The meeting hasn't started yet. The host will see your request when they join. This page updates automatically.",
-    "joinRequestNoticeDismiss": "Hide notice",
     "canceledHint": "Ask the organizer if you still need to meet.",
     "pastScheduledEndHint": "The host can extend the meeting so people can join again.",
     "joinRequestChime": "Sound for join requests",
@@ -5031,7 +5394,6 @@
         "selMetaNoDue_one": "{{count}} person",
         "selMetaNoDue_other": "{{count}} people",
         "selClear": "Clear",
-        "selReview": "Review and assign",
         "keys": "Keyboard shortcuts",
         "keyMove": "↑ ↓ move between items",
         "keyToggle": "Space select or clear",
@@ -5074,7 +5436,6 @@
           "votes_other": "{{count}} vote results"
         },
         "running": "Writing the summary",
-        "runningFrom": "Writing the summary from {{sources}}",
         "none": "This meeting has no summary yet.",
         "noneFrom": "UNI Scribe writes it from {{sources}}",
         "generate": "Write summary",
@@ -5661,6 +6022,47 @@
       },
       "chat": {
         "placeholder": "Message everyone…"
+      }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "In session for {{time}}",
+        "inRoom_one": "{{count}} person in the room",
+        "inRoom_other": "{{count}} people in the room",
+        "scribeLive": "UNI Scribe is taking notes"
+      },
+      "upcoming": {
+        "startsAt": "Starts {{time}}",
+        "startsIn": "Starts in {{time}}",
+        "waiting": "waiting"
+      },
+      "create": {
+        "peopleRest_one": "person · you included",
+        "peopleRest_other": "people · you included"
+      },
+      "summary": {
+        "outOf": "/{{count}}",
+        "source": "Source {{n}}"
+      },
+      "assign": {
+        "selected": "selected",
+        "changeOwner": "Change assignee",
+        "setDue": "Set due date",
+        "done_one": "Assigned {{count}} task",
+        "done_other": "Assigned {{count}} tasks",
+        "groupDone": "{{name}} · all assigned",
+        "undoPartial_one": "Couldn't undo {{count}} task",
+        "undoPartial_other": "Couldn't undo {{count}} tasks"
+      },
+      "prejoin": {
+        "scribeChip": "UNI Scribe transcribes"
+      },
+      "room": {
+        "notices": "Room notices",
+        "joined": "<b>{{name}}</b> joined",
+        "left": "<b>{{name}}</b> left",
+        "hand": "<b>{{name}}</b> raised a hand",
+        "knock": "<b>{{name}}</b> wants to join"
       }
     }
   },
@@ -7144,7 +7546,6 @@
       "new_owner": "New owner",
       "pick_placeholder": "Choose a member",
       "confirm_label": "Type the organization name to confirm",
-      "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
       "done": "Ownership transferred",
       "confirm_mismatch": "Doesn't match \"{{name}}\".",
@@ -7157,14 +7558,10 @@
         "you_admin": "You become an admin.",
         "no_undo": "You can't take ownership back on your own."
       },
-      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
-      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
       "confirm_lede": "Nothing is deleted, but the organization is no longer yours to run.",
       "action_pending": "Transferring…",
       "reason_pick": "Choose the new owner to continue.",
-      "reason_name": "Type the organization name exactly to continue.",
-      "reason_password": "Enter your current password to continue.",
-      "reason_no_password": "You can't transfer ownership while your account has no password."
+      "reason_name": "Type the organization name exactly to continue."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
@@ -7293,7 +7690,6 @@
       "unknown": "{{name}} can't be handled on this page. Reload to try again.",
       "incomplete": "Finish each item above to continue.",
       "blocked_reason": "You can't continue while an organization is suspended.",
-      "no_password_reason": "You can't continue while your account has no password.",
       "confirm_heading": "Confirm the switch",
       "confirm_leave": "Leave {{name}}",
       "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
@@ -7328,7 +7724,7 @@
       "position": "Step {{current}} of {{total}}:"
     },
     "common": {
-      "log_out": "Log out"
+      "log_out": "Sign out"
     },
     "welcome": {
       "headline_line1": "Your team's work and meetings,",
@@ -8176,6 +8572,15 @@
         "4": "Which high-priority tasks are still open?"
       }
     },
+    "handoff": {
+      "start_text": "Draft this document from the job Ask UNI handed over: {{title}}",
+      "status": {
+        "sent": "Handed to the editor AI",
+        "running": "The editor AI is drafting…",
+        "idle": "The editor AI has finished its turn. Review the document, then press Save.",
+        "refused": "The editor AI did not take the job. You can draft it yourself in the document."
+      }
+    },
     "proposal": {
       "header_ask": "UNI proposes · needs your confirmation",
       "header_plan": "UNI's plan · pick the steps to run",
@@ -8229,6 +8634,7 @@
         "proposal_expired": "This proposal has expired. Ask UNI again.",
         "proposal_ref_pending": "This step uses the result of an earlier step that is not applied yet. Apply that step first.",
         "proposal_not_pending": "This proposal was already handled, perhaps in another tab.",
+        "ask_uni_office_off": "Ask UNI cannot draft Office files in this organization yet. Ask your organization's admin to contact UniWork.",
         "ai_actions_disabled": "Ask UNI actions are switched off. Ask an organization admin to turn them on.",
         "ai_write_rate_limited": "Too many changes at once. Wait a minute and try again.",
         "undo_unavailable": "Cannot undo: someone changed it afterwards.",
@@ -8283,7 +8689,9 @@
         "format": "Format",
         "location": "Folder",
         "visibility": "Who can see it",
-        "instructions": "Request"
+        "instructions": "Request",
+        "editor_ai": "Editor AI",
+        "sources": "Material"
       },
       "content_mode": {
         "append": "Added at the end of the document",
@@ -8300,6 +8708,17 @@
         "workspace": "Whole workspace"
       },
       "apply_create_open": "Create and open",
+      "apply_open_compose": "Open and draft",
+      "apply_open_build": "Open and build",
+      "apply_create_open_self": "Create and open to draft yourself",
+      "editor_ai": {
+        "compose": "Ready to draft",
+        "build": "Ready to build",
+        "plan": "Your organization's plan has no editor AI",
+        "off": "The editor AI is not turned on",
+        "format_off": "The editor AI is not turned on for this format",
+        "credits": "The organization is out of AI credits"
+      },
       "apply_save_template": "Save to Templates",
       "outline": "Outline",
       "edit_outline": "Edit outline",
@@ -11198,7 +11617,6 @@
           "meeting_ai_summary": "AI meeting summaries",
           "documents_public_links": "Public links for documents",
           "meeting_transcription": "Meeting transcription minutes",
-          "office_ai_byok": "Office AI with your own key",
           "office_ai_cloud": "Office cloud AI tools"
         }
       }
@@ -11310,7 +11728,7 @@
       "pillar3Title": "Work Products are the real output",
       "pillar3Desc": "Create, edit, approve, analyse and present right where the work that produced them lives.",
       "pillar4Title": "Deploy it your way",
-      "pillar4Desc": "Cloud, private cloud, on-premise and BYOK, built for companies and public bodies in Vietnam.",
+      "pillar4Desc": "Cloud, private cloud and on-premise, built for companies and public bodies in Vietnam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -11871,7 +12289,7 @@
         "demo": "See the six editors",
         "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
         "trustAccount": "Uses your UniWork account",
-        "trustAi": "AI through your UniWork plan or your own key",
+        "trustAi": "AI runs on UniWork AI and counts against your plan's credits",
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
@@ -11965,7 +12383,7 @@
         "sub": "UniOffice shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
+          "description": "Cloud AI tools run on UniWork AI under your organization’s configuration and plan, and count against the plan’s credits. Desktop has its own configuration; check the application before sending content."
         },
         "files": {
           "title": "Team files are saved in the workspace",
@@ -11982,7 +12400,7 @@
         },
         "ai": {
           "title": "AI on your terms",
-          "description": "Use your organization's plan or your own API key."
+          "description": "Runs on UniWork AI and counts against your plan's credits."
         },
         "permissions": {
           "title": "Consistent access",
@@ -12011,7 +12429,7 @@
         "q3": "Does it work offline?",
         "a3": "You can edit files on your computer without a connection. Cloud AI and UniWork documents (opening from the workspace, saving a new version) need one.",
         "q4": "How is my data handled?",
-        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the content to work on is sent to the model provider: through UniWork for tools that run under your organization's plan, or straight from your computer if you use your own API key.",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the UniWork server sends the content to work on to the model provider, under your organization's plan. If you enter your own AI key in the desktop app, content goes from your computer straight to that provider.",
         "q5": "Do I need a separate account for Office?",
         "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
         "q6": "How do I open a file from UniWork on the web?",
@@ -12256,7 +12674,7 @@
         "title": "Messages stay in your team's workspace.",
         "body": "Stored in your team's UniWork workspace under your organization's permissions, just as when you chat on the web.",
         "account": "One UniWork account",
-        "accountBody": "Sign in through the browser, no separate account",
+        "accountBody": "Sign in with email, Google or Apple, no separate account",
         "workspace": "Only your workspaces",
         "workspaceBody": "You see just the workspaces you belong to",
         "revoke": "Access ends with membership",
@@ -12279,7 +12697,7 @@
       "faq": {
         "title": "Frequently asked questions",
         "q1": "Do I need a separate account for UniChat?",
-        "a1": "No. You sign in with your UniWork account in the browser and see the workspaces you are a member of.",
+        "a1": "No. You sign in with your UniWork account (email, Google or Apple) and see the workspaces you are a member of.",
         "q2": "How is UniChat different from chat in UniWork on the web?",
         "a2": "It is the same chat: messages, channels, tasks linked to messages and calls are one, whether you open them on the web or in UniChat. UniChat focuses on chat; tasks, meetings and documents still open in full on the web.",
         "q3": "Where are my team's messages stored?",
@@ -12427,7 +12845,7 @@
           "q1": "Do I have to install anything?",
           "a1": "No. Everything runs on the web in UniWork. Install UniOffice if you write documents, spreadsheets or slides on your computer; install UniChat if you want your team's chat in an app of its own on desktop and phone.",
           "q2": "Does each app need its own account?",
-          "a2": "No. They all use your UniWork account, sign in through the browser and show exactly the workspaces you belong to.",
+          "a2": "No. They all use your UniWork account, sign in with email, Google or Apple, and show exactly the workspaces you belong to.",
           "q3": "Where does the data live?",
           "a3": "Your team's documents, messages and tasks live in its UniWork workspace, under your organization's permissions. Files you open from your computer in UniOffice stay on your computer.",
           "q4": "Is there a phone app yet?",
@@ -13848,7 +14266,7 @@
       "collabEmptyDiscussion": "No discussion yet. Write what you’d like to talk about in this document.",
       "collabOffline": "Can’t reach UniWork. You can still read what’s already loaded, but you can’t send yet.",
       "collabServerError": "UniWork is having trouble. You can still read what’s already loaded, but you can’t send yet.",
-      "collabSignedOut": "Your session has ended. Log in again to send.",
+      "collabSignedOut": "Your session has ended. Sign in again to send.",
       "collabViewOnlyBadge": "View only",
       "collabViewOnly": "You have view access: you can read but not write.",
       "collabUpdatedAnnounce": "The content was updated.",
@@ -13912,7 +14330,7 @@
       "collabBodyMentionNoAccess": "{{names}} can't view this document, so they weren't notified.",
       "inboxDocGone": "This document no longer exists or was deleted.",
       "inboxDocNoAccess": "You don’t have access to this document.",
-      "inboxSessionExpired": "Your session has ended. Log in again to open this comment.",
+      "inboxSessionExpired": "Your session has ended. Sign in again to open this comment.",
       "inboxBack": "Back to $t(nav.inbox)"
     },
     "levels": {
@@ -14666,7 +15084,7 @@
           "mac_drag": "Drag UniWork Office into Applications.",
           "mac_unsigned": "On first launch: right-click the app → Open → Open (unsigned internal build).",
           "deb_install": "Open {{file}} in App Center, or run the following command.",
-          "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your login.",
+          "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your sign-in.",
           "appimage_run": "Make {{file}} executable, then launch it with the following command.",
           "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command.",
           "connect": "Once installed, come back to this page and choose Open in app. UniWork Office then connects to your UniWork."
@@ -14900,7 +15318,7 @@
       "start": "Sign in",
       "startHint": "The sign-in page opens in your browser.",
       "or": "or",
-      "cancel": "Cancel login",
+      "cancel": "Cancel sign-in",
       "useLocal": "Work with files on this computer",
       "localNote": "No sign-in needed. Files stay on this computer; you can sign in any time.",
       "signOut": "Sign out",

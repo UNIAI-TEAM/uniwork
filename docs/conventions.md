@@ -229,6 +229,13 @@ fails on drift. One flat namespace, keys nested by section:
 | request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
 | keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
 | offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
+| sign-in method (password, Google, Apple) | **phương thức đăng nhập** | Sign-in method | `settings.security.signInMethods.*` (ADR 0049); in a running sentence **cách đăng nhập** ("Đây là cách đăng nhập duy nhất") |
+| link / unlink an account (Google, Apple) | **liên kết** / **gỡ liên kết** | Link / Unlink | `settings.security.signInMethods.provider.*`, `auth.continue.link.*`; an account is never **gắn** — "gắn" is attaching a project or a work item (rows above) |
+| set / change the password | **Đặt mật khẩu** / **Đổi mật khẩu** | Set password / Change password | `settings.security.signInMethods.password.*`; "đặt" when the account has none (it signed in with Google or Apple), "đổi" when it has one |
+| two-factor authentication | **xác thực hai lớp** | Two-factor authentication | shipped wording (`auth.mfa.title`, `settings.security.mfa.*`); never "hai bước"; new copy spells it out ("bật xác thực hai lớp") |
+| confirming a sensitive change (step-up) | **xác nhận là bạn** | Confirm it's you | `settings.security.stepUp.*`; the copy never says **bằng chứng** (proof) — that is the code's word (`proofs`, `step_up_token`), not the person's |
+| Hide My Email (Apple's private relay) | **Ẩn địa chỉ email** | Hide My Email | the name of Apple's feature on a Vietnamese iPhone; the address itself is **email ẩn của Apple** / Apple's hidden email (`auth.apple.relayEmail`), never the raw `@privaterelay.appleid.com` / `@private.icloud.com` string |
+| a provider sign-in waiting for a choice (sign-in ticket) | **lượt đăng nhập** | sign-in | `auth.continue.*`; "Lượt đăng nhập này đã hết hạn" — the ticket is the code's word, never the person's |
 | origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
 | link (Drive file) | **liên kết** | Link | `drive.terms.link = "Liên kết"`; linking a Google Drive file reference to a task or workspace (distinct from **gắn** for chat ↔ work item) |
 | unlink (Drive file) | **bỏ liên kết** | Unlink | `drive.terms.unlink = "Bỏ liên kết"`; removes the reference in UniWork while the file on Google Drive stays untouched |
@@ -245,7 +252,9 @@ workspace already. Do not translate it in one place and not another.
 
 ### Don't translate — brands, acronyms, identifiers
 
-- Brands: **UniWork**, UNICOM, Google, LiveKit, GitHub.
+- Brands: **UniWork**, UNICOM, Google, Apple, LiveKit, GitHub. "Tiếp tục với Google",
+  "Tiếp tục với Apple" (`auth.social.*`); a provider's name still goes through
+  `t()` in `packages/views` (`auth.social.provider.*`).
 - Acronyms: API, URL, JWT, WebSocket, HTTP, JSON, SQL.
 - Roles and statuses are schema identifiers and render as lowercase English
   even inside Vietnamese text: `owner` / `admin` / `member`;
@@ -261,7 +270,7 @@ workspace already. Do not translate it in one place and not another.
 | Create / New | Tạo / mới (`Việc mới`, `Workspace mới`) |
 | Continue / Back / Skip / Done | Tiếp tục / Quay lại / Bỏ qua / Xong |
 | Copy / Copied / Retry / Later | Sao chép / Đã sao chép / Thử lại / Để sau |
-| Log in / Sign up / Log out | Đăng nhập / Đăng ký / Đăng xuất |
+| Sign in / Sign up / Sign out | Đăng nhập / Đăng ký / Đăng xuất |
 | Email / Password / Display name | Email / Mật khẩu / Tên hiển thị |
 | Title / Description / Status / Priority | Tiêu đề / Mô tả / Trạng thái / Độ ưu tiên |
 | Board / List | Bảng / Danh sách |

@@ -7,14 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // askOfficeWorld is the proposal world with documents, the file store and the
@@ -503,5 +506,232 @@ func TestAskCreateOfficeRefusesAParentFromAnotherWorkspace(t *testing.T) {
 	_, err = officePrepareErr(s, tc, fmt.Sprintf(`{"title":"X","format":"docx","outline":"x","parent_id":%q}`, page.Document.ID))
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a parent of another workspace: %v, want not found", err)
+	}
+}
+
+// editorAIFake answers reason for every format and records the formats asked.
+type editorAIFake struct {
+	reason  string
+	formats []string
+}
+
+func (f *editorAIFake) EditorAIReason(_ context.Context, _, _, format string) string {
+	f.formats = append(f.formats, format)
+	return f.reason
+}
+
+// The card says whether the editor AI can draft the new file: compose, build
+// for a deck, or why not; with no checker wired it says off.
+func TestAskCreateOfficeCardSaysWhetherTheEditorAICanRun(t *testing.T) {
+	x, s, tc, docs := askOfficeWorld(t)
+	editorAI := func(args string) any {
+		t.Helper()
+		f, ok := officeField(askPrepare(t, s, tc, "create_office_document", args), "editor_ai")
+		if !ok || f.Type != "enum" {
+			t.Fatalf("editor_ai field = %+v (%v)", f, ok)
+		}
+		return f.To
+	}
+	docx := `{"title":"Đề xuất","format":"docx","outline":"## A"}`
+	if got := editorAI(docx); got != "off" {
+		t.Fatalf("no checker wired: editor_ai = %v, want off", got)
+	}
+	fake := &editorAIFake{}
+	s.SetEditorAI(fake)
+	if got := editorAI(docx); got != "compose" {
+		t.Fatalf("docx: editor_ai = %v, want compose", got)
+	}
+	if got := editorAI(`{"title":"Trình chiếu","format":"pptx","outline":"## Slide 1"}`); got != "build" {
+		t.Fatalf("pptx: editor_ai = %v, want build", got)
+	}
+	fake.reason = "credits"
+	if got := editorAI(docx); got != "credits" {
+		t.Fatalf("credits spent: editor_ai = %v, want credits", got)
+	}
+	tpl := officeTemplate(t, docs, x.ua.ID, x.w.ID, "ghi-chu.md", []byte("# Ghi chú\n"))
+	fake.formats = nil
+	editorAI(fmt.Sprintf(`{"title":"Ghi chú","template_id":%q,"outline":"## A"}`, tpl.ID))
+	if !slices.Equal(fake.formats, []string{"md"}) {
+		t.Fatalf("an md template asked the checker for %v, want [md]", fake.formats)
+	}
+}
+
+// flagMap is a flag source with fixed answers.
+type flagMap map[string]bool
+
+func (flagMap) Name() string { return "map" }
+
+func (m flagMap) Lookup(_ context.Context, key string) (featureflag.Decision, bool) {
+	on, ok := m[key]
+	return featureflag.Decision{Enabled: on}, ok
+}
+
+// The gate reads what the frame's uniwork_ai grant reads: the plan, the
+// UniWork AI and format flags, and the period's credits.
+func TestEditorAIGateReadsTheFrameGrantGates(t *testing.T) {
+	x, s, _, _ := askOfficeWorld(t)
+	ctx := context.Background()
+	org := x.w.OrganizationID
+	cloud := NewAICloudService(s.orgs, NewEntitlementService(s.pool, s.q), ai.NewGateway(s.q, &provider.Fake{}, nil, nil, ai.Options{}))
+	flags := flagMap{"office_ai_uniwork": true, "office_ai_uniwork_docx": true, "office_ai_uniwork_markdown": false}
+	gate := NewEditorAIGate(cloud, NewOfficeCapabilitiesService(s.orgs, featureflag.NewService(flags)))
+	plan := func(overrides string) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx, `UPDATE subscriptions SET overrides = $2::jsonb WHERE organization_id = $1`, org, overrides); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(name, format, want string) {
+		t.Helper()
+		if got := gate.EditorAIReason(ctx, x.ua.ID, org, format); got != want {
+			t.Fatalf("%s: reason %q, want %q", name, got, want)
+		}
+	}
+	plan(`{"office.ai_cloud": false}`)
+	check("no office.ai_cloud", "docx", "plan")
+	plan(`{"office.ai_cloud": true, "ai.tokens": 1000000}`)
+	check("everything on", "docx", "")
+	check("markdown flag off", "md", "format_off")
+	plan(`{"office.ai_cloud": true, "ai.tokens": 0}`)
+	check("credits spent", "docx", "credits")
+	plan(`{"office.ai_cloud": true, "ai.tokens": 1000000}`)
+	flags["office_ai_uniwork"] = false
+	check("office_ai_uniwork off", "docx", "off")
+}
+
+func officeWithSources(t *testing.T, sources []OfficeHandoffSource) string {
+	t.Helper()
+	b, err := json.Marshal(sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf(`{"title":"Đề xuất","format":"docx","outline":"## A","sources":%s}`, b)
+}
+
+// Sources are checked, listed on the card one per line, and kept in the
+// stored arguments for Apply.
+func TestAskCreateOfficeSourcesAreCheckedAndShown(t *testing.T) {
+	_, s, tc, _ := askOfficeWorld(t)
+	one := OfficeHandoffSource{Kind: "task", ID: util.NewID(), Title: "Chuẩn bị báo cáo quý", Quote: "Doanh thu quý ba tăng 12%."}
+	long, odd, untitled := one, one, one
+	long.Quote = strings.Repeat("a", 1501)
+	odd.Kind = "spaceship"
+	untitled.Title = "  "
+	for name, sources := range map[string][]OfficeHandoffSource{
+		"9 sources":              slices.Repeat([]OfficeHandoffSource{one}, 9),
+		"a 1501-character quote": {long},
+		"an unknown kind":        {odd},
+		"a blank title":          {untitled},
+	} {
+		if _, err := officePrepareErr(s, tc, officeWithSources(t, sources)); !isInvalidArgs(err) {
+			t.Errorf("%s: %v, want invalid_args", name, err)
+		}
+	}
+	room := OfficeHandoffSource{Kind: "room", ID: util.NewID(), Title: "Phòng kinh doanh", Quote: "Chốt giá trước thứ sáu."}
+	if _, err := officePrepareErr(s, tc, officeWithSources(t, []OfficeHandoffSource{room})); err != nil {
+		t.Errorf("a room source: %v, want accepted", err)
+	}
+
+	two := []OfficeHandoffSource{one, {Kind: "meeting", ID: util.NewID(), Title: "Họp giao ban", Quote: strings.Repeat("b", 300)}}
+	row := askPrepare(t, s, tc, "create_office_document", officeWithSources(t, two))
+	f, ok := officeField(row, "sources")
+	text, _ := f.To.(string)
+	lines := strings.Split(text, "\n")
+	if !ok || f.Type != "markdown" || len(lines) != 2 || !strings.Contains(lines[0], "**Chuẩn bị báo cáo quý**") || !strings.Contains(lines[1], "**Họp giao ban**") {
+		t.Fatalf("sources field = %+v", f)
+	}
+	if !strings.Contains(lines[1], "“"+strings.Repeat("b", 200)+"…”") {
+		t.Fatalf("the quote is not cut to its first 200 characters: %q", lines[1])
+	}
+	var stored struct {
+		Sources []OfficeHandoffSource `json:"sources"`
+	}
+	if err := json.Unmarshal(row.Args, &stored); err != nil || !slices.Equal(stored.Sources, two) {
+		t.Fatalf("stored sources %+v (%v), want %+v", stored.Sources, err, two)
+	}
+
+	row = askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A"}`)
+	if f, ok := officeField(row, "sources"); ok {
+		t.Fatalf("a card without sources has a sources field: %+v", f)
+	}
+}
+
+// Apply writes the package the editor AI drafts from, bound to the asker, the
+// new document and the proposal, for 24 hours.
+func TestAskCreateOfficeApplyWritesAHandoff(t *testing.T) {
+	x, s, tc, docs := askOfficeWorld(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	s.now = func() time.Time { return now }
+	s.SetEditorAI(&editorAIFake{})
+	tpl := officeTemplate(t, docs, x.ua.ID, x.w.ID, "bao-gia.docx", docxBody(t, util.NewID()))
+	source := OfficeHandoffSource{Kind: "task", ID: x.taskID, Title: "Chuẩn bị báo cáo quý", Quote: "Hạn nộp là thứ sáu."}
+	args, err := json.Marshal(map[string]any{
+		"title": "Báo giá Q4", "template_id": tpl.ID, "instructions": "Điền giá theo bảng mới.",
+		"outline": "## Một\n## Hai\n## Ba\n## Bốn", "sources": []OfficeHandoffSource{source},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := askPrepare(t, s, tc, "create_office_document", string(args))
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	pr := propose(t, s, tc, convID, msgID, AskModeAsk, row)[0]
+	p, err := s.ApplyProposal(ctx, x.ua.ID, pr.ID)
+	if err != nil || p.Status != "applied" || p.Result.HandoffID == "" {
+		t.Fatalf("apply: %+v, %v; want a handoff_id", p, err)
+	}
+	h, err := loadOfficeHandoff(ctx, s.q, p.Result.HandoffID, x.w.OrganizationID, x.ua.ID, p.Result.ObjectID, "", now)
+	if err != nil {
+		t.Fatalf("load handoff: %v", err)
+	}
+	if h.UserID != x.ua.ID || h.DocumentID != p.Result.ObjectID || h.ProposalID != pr.ID || h.Format != "docx" ||
+		h.Request != "Điền giá theo bảng mới." || len(h.Parts) != 2 || !slices.Equal(h.Sources, []OfficeHandoffSource{source}) ||
+		!h.ExpiresAt.Equal(now.Add(24*time.Hour)) {
+		t.Fatalf("handoff = %+v", h)
+	}
+}
+
+// The check runs again at Apply: when the editor AI cannot run by then, the
+// file is still made, with no package.
+func TestAskCreateOfficeApplyWithoutEditorAIWritesNoHandoff(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	fake := &editorAIFake{}
+	s.SetEditorAI(fake)
+	row := askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A\n## B","instructions":"Viết ngắn."}`)
+	if f, _ := officeField(row, "editor_ai"); f.To != "compose" {
+		t.Fatalf("editor_ai = %v, want compose", f.To)
+	}
+	fake.reason = "off"
+	p := applyOffice(t, s, tc, x.ua.ID, row)
+	if p.Result.ObjectID == "" || p.Result.HandoffID != "" {
+		t.Fatalf("result = %+v, want a document and no handoff_id", p.Result)
+	}
+	if n := x.count(t, `SELECT count(*) FROM ai_office_handoffs WHERE organization_id = $1`, x.w.OrganizationID); n != 0 {
+		t.Fatalf("%d handoff rows, want none", n)
+	}
+}
+
+// A card that did not promise drafting stays one for the asker to draft:
+// Apply writes no package even when the editor AI could run by then, for a
+// card that said why it could not and for an old card that said nothing.
+func TestAskCreateOfficeApplyWritesAHandoffOnlyForACardThatPromisedIt(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	fake := &editorAIFake{reason: "credits"}
+	s.SetEditorAI(fake)
+	args := `{"title":"Đề xuất","format":"docx","outline":"## A\n## B","instructions":"Viết ngắn."}`
+	spent := askPrepare(t, s, tc, "create_office_document", args)
+	if f, _ := officeField(spent, "editor_ai"); f.To != "credits" {
+		t.Fatalf("editor_ai = %v, want credits", f.To)
+	}
+	fake.reason = ""
+	old := askPrepare(t, s, tc, "create_office_document", args)
+	old.Preview.Fields = slices.DeleteFunc(old.Preview.Fields, func(f AskProposalField) bool { return f.Field == "editor_ai" })
+	for name, row := range map[string]askDraftRow{"credits card": spent, "card without editor_ai": old} {
+		if p := applyOffice(t, s, tc, x.ua.ID, row); p.Result.ObjectID == "" || p.Result.HandoffID != "" {
+			t.Fatalf("%s: result = %+v, want a document and no handoff_id", name, p.Result)
+		}
+	}
+	if n := x.count(t, `SELECT count(*) FROM ai_office_handoffs WHERE organization_id = $1`, x.w.OrganizationID); n != 0 {
+		t.Fatalf("%d handoff rows, want none", n)
 	}
 }

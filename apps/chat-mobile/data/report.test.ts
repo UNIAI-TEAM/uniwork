@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ProviderSheetError } from "@/lib/provider-sheet-error";
 import { REDACTED } from "@/lib/redact";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { bestEffort, breadcrumb, classifyError, installReportSink, isReporting, RefusedError, reportError, schemaDriftLogger, setReportTag, setReportUser, type ReportSink } from "./report";
@@ -45,6 +46,26 @@ describe("classifyError", () => {
     expect(classifyError(apiError(400, { body: null }))).toBe("contract");
   });
 
+  it("reads the auth transport's error by its code and status", () => {
+    const transport = (code: unknown, status?: unknown) => Object.assign(new Error("uniwork request failed"), { name: "TransportError", code, status });
+    expect(classifyError(transport("network"))).toBe("expected");
+    expect(classifyError(transport("timeout"))).toBe("expected");
+    expect(classifyError(transport("sign_in_expired"), ["sign_in_expired"])).toBe("expected");
+    expect(classifyError(transport("rate_limited", 429))).toBe("expected");
+    expect(classifyError(transport("invalid_request", 400))).toBe("contract");
+    expect(classifyError(transport("conflict", 409), ["conflict"])).toBe("expected");
+    expect(classifyError(transport("server_error", 503))).toBe("bug");
+    expect(classifyError(transport("malformed_response"))).toBe("bug");
+    expect(classifyError(transport(7, "400"))).toBe("bug");
+  });
+
+  it("reads a provider's sheet failing as the person's device or network, unless this build is at fault", () => {
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_SIGN_IN", "Network error"))).toBe("expected");
+    expect(classifyError(new ProviderSheetError("apple", "ERR_REQUEST_FAILED", ""))).toBe("expected");
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_NOT_CONFIGURED", ""))).toBe("bug");
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_SIGN_IN", "[28444] Developer console is not set up correctly."))).toBe("bug");
+  });
+
   it("reads a 5xx and every other error as a bug", () => {
     expect(classifyError(apiError(500))).toBe("bug");
     expect(classifyError(Object.assign(new Error("x"), { name: "ApiError", status: "500" }))).toBe("bug");
@@ -65,6 +86,23 @@ describe("with a sink", () => {
       extra: { url: `https://a.example/x?${REDACTED}` },
       level: "error",
     });
+  });
+
+  it("tags an auth transport's error with its code, and its status when the server answered", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    const drift = Object.assign(new Error("uniwork request failed"), { name: "TransportError", code: "invalid_request", status: 400 });
+    reportError(drift, { source: "mutation" });
+    expect(sink.captureException).toHaveBeenLastCalledWith(drift, expect.objectContaining({
+      tags: { source: "mutation", error_code: "invalid_request", http_status: "400" },
+      level: "warning",
+    }));
+    const unread = Object.assign(new Error("uniwork request failed"), { name: "TransportError", code: "malformed_response" });
+    reportError(unread, { source: "mutation" });
+    expect(sink.captureException).toHaveBeenLastCalledWith(unread, expect.objectContaining({
+      tags: { source: "mutation", error_code: "malformed_response" },
+      level: "error",
+    }));
   });
 
   it("reports contract drift at warning level, grouped by endpoint, status and code", () => {

@@ -265,7 +265,7 @@ func TestDocumentAccessRequestPendingCountOnShares(t *testing.T) {
 // bucket identically under split global/organization overrides.
 func TestDocumentAccessRequestFlagEvaluatesCallerOrganization(t *testing.T) {
 	d, pool := newTestDeps(t, nil, discardOutbox{})
-	rdb := byokHandlerRedis(t)
+	rdb := aiHandlerRedis(t)
 	d.Redis = rdb
 	q := db.New(pool)
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)

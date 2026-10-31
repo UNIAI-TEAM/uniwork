@@ -12,6 +12,9 @@ const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../../server/internal/office/testdata/grant-parity.json"), "utf8"),
 ) as { key: string; grant: ServiceGrant; token: string };
 
+const extractDocFixture = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, "../../../server/internal/office/testdata/grant-parity-extract-document.json"), "utf8"),
+);
 const extractFixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../../server/internal/office/testdata/grant-parity-extract.json"), "utf8"),
 ) as { key: string; grant: ServiceGrant; token: string };
@@ -59,6 +62,27 @@ describe("extract_text grant variant and envelope binding", () => {
     for (const bad of badCases) {
       const tok = signGrant(bad as unknown as ServiceGrant, key);
       expect(() => verifyGrant(tok, key)).toThrow(/grant_scope/);
+    }
+  });
+
+  it("accepts an extract_text grant that names a UniWork document and refuses both ids or neither", () => {
+    const key = extractDocFixture.key;
+    const grant = verifyGrant(extractDocFixture.token, key);
+    expect(grant).toMatchObject({
+      document_id: extractDocFixture.grant.document_id,
+      actor_kind: "system",
+      format: "pdf",
+      operation: "extract_text",
+    });
+    expect(grant.drive_file_id ?? "").toBe("");
+    const withDocEmptyDrive = { ...extractDocFixture.grant, drive_file_id: "" };
+    expect(verifyGrant(signGrant(withDocEmptyDrive, key), key).document_id).toBe(extractDocFixture.grant.document_id);
+    for (const bad of [
+      { ...extractDocFixture.grant, drive_file_id: "01DRIVEFILE00000000000000A" },
+      { ...extractDocFixture.grant, document_id: "" },
+      { ...extractDocFixture.grant, document_id: "", drive_file_id: "" },
+    ]) {
+      expect(() => verifyGrant(signGrant(bad, key), key)).toThrow(/grant_scope/);
     }
   });
 

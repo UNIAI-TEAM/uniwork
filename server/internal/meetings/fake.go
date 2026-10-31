@@ -49,7 +49,8 @@ type FakeProvider struct {
 	ScribeDispatchErr error
 	// ScribeUnassigned: no worker takes a dispatch (no capacity).
 	ScribeUnassigned bool
-	// LastJoin is the last join credential request (attributes included).
+	// LastJoin is the last join credential request (attributes included),
+	// written under permMu: invite-link joins issue credentials at once.
 	LastJoin IssueJoinCredentialRequest
 	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
 	AttributeUpdates []SetParticipantAttributesRequest

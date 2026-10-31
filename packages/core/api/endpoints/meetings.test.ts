@@ -64,6 +64,17 @@ describe("meetings endpoints", () => {
     expect(page.meetings[0]?.has_playable_recording).toBe(true);
   });
 
+  it("listMeetings reads who is in a live room and drops those fields when they drift", async () => {
+    const live = { ...meeting, status: "IN_PROGRESS", in_room_user_ids: ["u1", "u2"], in_room_count: 3, scribe_live: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [live], total: 1 }));
+    const row = (await listMeetings("ws1")).meetings[0];
+    expect([row?.in_room_user_ids, row?.in_room_count, row?.scribe_live]).toEqual([["u1", "u2"], 3, true]);
+    const drifted = { ...meeting, in_room_user_ids: "u1", in_room_count: -1, scribe_live: "yes" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [drifted], total: 1 }));
+    const row2 = (await listMeetings("ws1")).meetings[0];
+    expect([row2?.id, row2?.in_room_user_ids, row2?.in_room_count, row2?.scribe_live]).toEqual([meeting.id, undefined, undefined, undefined]);
+  });
+
   it("listMeetings throws on drift instead of reading as an empty workspace", async () => {
     // An empty page would render "No meetings yet"; the list must show its error state instead.
     vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [{ id: "m1" }] }));
@@ -254,13 +265,16 @@ describe("meetings endpoints", () => {
     const row = { id: "p1", meeting_id: "m1", principal_type: "USER", role: "ATTENDEE", status: "ACTIVE" };
     vi.mocked(fetch).mockResolvedValueOnce(json({
       participants: [
-        { ...row, in_room: true },
+        { ...row, in_room: true, is_host: true },
         { ...row, id: "p2", status: "REMOVED", in_room: false, removed_by: "u-host", removed_at: "2026-10-27T08:52:00Z" },
         { ...row, id: "p3" },
       ],
     }));
     const [inRoom, removed, older] = await listParticipants("m1");
     expect(inRoom?.in_room).toBe(true);
+    // A guest's client finds the host by this mark alone (UNI-890): the schema must keep it.
+    expect(inRoom?.is_host).toBe(true);
+    expect(older?.is_host ?? false).toBe(false);
     expect(removed?.removed_by).toBe("u-host");
     expect(removed?.removed_at).toBe("2026-10-27T08:52:00Z");
     expect(older?.in_room ?? false).toBe(false);

@@ -31,7 +31,7 @@ App Store Connect giữ app dưới tên đó vì "UniChat" đã có người gi
 > - Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên (tới vài trăm tin chưa đọc)
 > - Hỗ trợ VoiceOver và TalkBack, cỡ chữ lớn và chế độ tối
 >
-> Cần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.
+> Cần một tài khoản UniWork. Đăng nhập bằng email và mật khẩu, Google hoặc Apple; ứng dụng không lưu mật khẩu của bạn.
 
 **en — subtitle:** Team messaging and calls
 
@@ -51,7 +51,7 @@ App Store Connect giữ app dưới tên đó vì "UniChat" đã có người gi
 > - Drafts that wait for you, tappable links, and rooms that reopen at your first unread message (up to a few hundred unread)
 > - Works with VoiceOver and TalkBack, large text and dark mode
 >
-> Requires a UniWork account. You sign in securely in the browser; the app never stores your password.
+> Requires a UniWork account. Sign in with your email and password, Google or Apple; the app never stores your password.
 
 **Từ khoá (≤ 100 ký tự):** `uniwork,chat,nhắn tin,gọi video,nhóm,công việc,team,messaging`
 **Danh mục:** Business (chính), Productivity (phụ).
@@ -81,7 +81,8 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 | Mã định danh trong báo cáo crash | Cùng báo cáo trên: id người dùng UniWork (mã ULID), phiên bản, bản dựng, kênh và id bản cập nhật | Identifiers → User ID; App Functionality; Linked | Personal info → User IDs; App functionality; Shared: không (nhà cung cấp dịch vụ: Sentry) |
 | Xử lý AI (Anthropic, bên thứ ba) | Khi **bất kỳ thành viên nào** dùng AI trên nội dung chung: người dùng này bấm "Bắt kịp nhanh" trên điện thoại, hoặc một thành viên khác dùng Bắt kịp, Hỏi UNI hay tóm tắt cuộc gọi trên web/máy tính. Gửi tin nhắn của cuộc trò chuyện (và nội dung cuộc gọi đã ghi, khi có người ghi) kèm tên người gửi và thời gian — gồm cả tin của người dùng này; server UniWork gửi đi, app không gọi thẳng Anthropic. Màn thông báo xử lý AI trên điện thoại (nêu tên Anthropic, dữ liệu gửi đi, không dùng để huấn luyện, rút lại ở Cài đặt › Quyền riêng tư và pháp lý; câu trả lời lưu trên server, `PUT /me/ai-consent`) chặn yêu cầu AI của chính người dùng từ điện thoại tới khi họ đồng ý; người dùng **không cho phép** (hay rút lại, `DELETE /me/ai-consent`) thì server chỉ bỏ tin họ viết trong các cuộc trò chuyện khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi, dù ai yêu cầu, cả trên web/máy tính (`users.ai_opt_out_at`, `server/internal/service/ai_opt_out.go`); tin trong phòng họp, bản ghi lời nói cuộc họp, bình luận công việc và tài liệu không thuộc phạm vi này; người chưa trả lời thì tin vẫn đi khi thành viên khác dùng AI, web và máy tính không hỏi | User Content → Emails or Text Messages (và Audio Data nếu khai cuộc gọi đã ghi); App Functionality; Linked; Apple 5.1.2(i): màn đồng ý trước yêu cầu AI đầu tiên từ điện thoại; người từ chối thì tin họ viết trong các cuộc trò chuyện bị bỏ khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi, dù ai yêu cầu | Messages → Other in-app messages; App functionality; khi người dùng hoặc một thành viên khác dùng tính năng AI; Shared: không (nhà cung cấp dịch vụ: Anthropic, Hoa Kỳ) |
 | Báo cáo vi phạm | Người dùng báo cáo một tin nhắn hay một người: lý do, lời mô tả (tuỳ chọn), id tin và người. Chủ sở hữu và quản trị viên tổ chức thấy lý do, người/tin bị báo cáo và **người báo cáo** trong Nhật ký hoạt động; lời mô tả chỉ nằm trong bản xuất dữ liệu của tổ chức | User Content → Other User Content; App Functionality; Linked | Messages → Other in-app messages; App functionality; Shared: không |
-| Đăng nhập bằng Apple (chỉ iPhone) | Người dùng chọn Đăng nhập bằng Apple (ADR 0041): Apple gửi mã tài khoản Apple, email (có thể là địa chỉ chuyển tiếp của Apple khi người dùng chọn ẩn email) và, lần đầu, tên nếu người dùng chia sẻ. Server giữ mã tài khoản Apple và refresh token Apple (mã hoá) chỉ để báo Apple thu hồi khi tài khoản bị xoá | Contact Info → Name, Email Address; Identifiers → User ID; App Functionality; Linked | Personal info → Name, Email, User IDs; App functionality; Shared: không |
+| Đăng nhập bằng Apple | Người dùng chọn Đăng nhập bằng Apple (ADR 0049): sheet hệ thống trên iPhone, trình duyệt (PKCE, `provider=apple`) trên Android; Apple gửi mã tài khoản Apple, email (có thể là email ẩn của Apple khi người dùng chọn Ẩn địa chỉ email) và, lần đầu, tên nếu người dùng chia sẻ. Server giữ mã tài khoản Apple, email Apple lúc liên kết và refresh token Apple (mã hoá) chỉ để báo Apple thu hồi khi tài khoản bị xoá; không token nào của Apple được chia sẻ | Contact Info → Name, Email Address; Identifiers → User ID; App Functionality; Linked | Personal info → Name, Email, User IDs; App functionality; Shared: không |
+| Đăng nhập bằng Google | Người dùng chọn Đăng nhập bằng Google (ADR 0049): thư viện đăng nhập của Google (Credential Manager trên Android, GoogleSignIn trên iPhone; trình duyệt khi máy không có Google Play services) trả về một ID token mang mã tài khoản Google, email, tên và link ảnh đại diện. Server kiểm ID token rồi bỏ, giữ mã tài khoản Google, email Google lúc liên kết và link ảnh đại diện; không giữ hay chia sẻ token nào của Google, không xin quyền đọc gì khác trong tài khoản Google | Contact Info → Name, Email Address; User Content → Photos or Videos (ảnh đại diện); Identifiers → User ID; App Functionality; Linked | Personal info → Name, Email, User IDs; Photos and videos → Photos (ảnh đại diện); App functionality; Shared: không |
 
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
 
@@ -106,9 +107,9 @@ Dữ liệu này không rời máy nên không là dữ liệu "thu thập" tron
 "Data is encrypted in transit" của Play: có.
 
 **Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — ở tab Cài đặt của workspace, và khi người dùng không ở
-workspace nào (bị gỡ khỏi mọi workspace, hay mới đăng ký) thì ở nút Cài đặt của màn chọn workspace —, nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
-gõ lại email với tài khoản chỉ Google), gọi `POST /api/v1/me/delete`, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
-khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức còn thành viên khác chọn người nhận quyền sở hữu ngay trong sheet, rồi app chuyển quyền bằng mật khẩu vừa nhập và xoá tài khoản (tài khoản chưa có mật khẩu, như đăng nhập Google, được đưa sang web vì server đòi mật khẩu để chuyển quyền); chủ sở hữu là thành viên duy nhất gõ lại địa chỉ tổ chức và đóng nó cùng lúc với việc xoá tài khoản, ngay trong app (`close_organization` của `POST /me/delete`, một giao dịch) — không có ngõ cụt nào ra web. URL
+workspace nào (bị gỡ khỏi mọi workspace, hay mới đăng ký) thì ở nút Cài đặt của màn chọn workspace —, nêu hệ quả, xác nhận là bạn (step-up, ADR 0049: mật khẩu, mã xác thực hai lớp, mã
+gửi qua email hay Google/Apple đã liên kết), gọi `POST /api/v1/me/delete` kèm token đó, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
+khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức còn thành viên khác chọn người nhận quyền sở hữu ngay trong sheet, rồi app chuyển quyền và xoá tài khoản, với mọi tài khoản kể cả tài khoản chưa đặt mật khẩu: một lần xác nhận bằng mật khẩu, mã hai lớp hay Google/Apple đủ cho cả hai lệnh, còn mã gửi qua email chỉ dùng cho đúng một lệnh nên được gửi hai lần; chủ sở hữu là thành viên duy nhất gõ lại địa chỉ tổ chức và đóng nó cùng lúc với việc xoá tài khoản, ngay trong app (`close_organization` của `POST /me/delete`, một giao dịch) — không có ngõ cụt nào ra web. URL
 chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài khoản cho Play:
 `https://app.uniworkos.com/privacy#delete-account`. Điều khoản sử dụng: `https://app.uniworkos.com/terms` (App Store
 Connect › License Agreement: dùng điều khoản này làm EULA riêng — có mục tối thiểu Apple yêu cầu — hoặc giữ EULA chuẩn của
@@ -242,7 +243,8 @@ bản release do `android-manifest.test.ts` giữ.
 1. Trên production, tạo org riêng "UniChat Review" (không chung với khách hàng), một workspace, hai tài khoản
    (`review@…` cho Apple/Google và một tài khoản thứ hai để có người trò chuyện), vài phòng có sẵn tin, một cuộc gọi
    mẫu trong lịch sử.
-2. Tài khoản review đăng nhập bằng email + mật khẩu (reviewer không dùng được Google SSO), không MFA.
+2. Tài khoản review đăng nhập bằng email + mật khẩu ngay trên màn đăng nhập của app (Google hay Apple của reviewer không
+   thuộc org review), không MFA.
 3. App Store Connect → App Review Information → Sign-in required: email, mật khẩu, và **Review notes (en)** dưới đây
    (`store/apple/store.config.json › review.notes` mang đúng chữ này, trừ đoạn gọi điện khi iPhone còn tắt gọi; mật
    khẩu chỉ nằm ở App Store Connect và Play Console, không trong repo).
@@ -251,8 +253,7 @@ bản release do `android-manifest.test.ts` giữ.
 
 **Review notes (en):**
 
-> Tap "Sign in". The app opens a secure browser sheet on uniworkos.com; enter the email and password above, then tap
-> "Allow" and "Open UniChat" to return to the app.
+> On the sign-in screen, enter the email and password above and tap "Sign in".
 >
 > To test a call, open the room "Review" and tap the call button; the second account can be reached the same way from
 > another device or from https://app.uniworkos.com.

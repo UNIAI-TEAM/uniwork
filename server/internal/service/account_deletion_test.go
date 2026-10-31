@@ -36,24 +36,26 @@ func TestDeleteAccountRefusesAWrongProofWithout401(t *testing.T) {
 	})
 
 	t.Run("two-factor code", func(t *testing.T) {
-		sess, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-mfa", Email: "xoa-mfa@example.com", EmailVerified: true}, "vi")
+		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-mfa", Email: "xoa-mfa@gmail.com", EmailVerified: true}, "vi", SignInIntentSignUp)
 		if err != nil {
 			t.Fatal(err)
 		}
+		sess := res.Session
 		enrol(t, as, ctx, sess.User.ID)
 		err = as.DeleteAccount(ctx, sess.User.ID, DeleteAccountInput{Code: "000000"})
 		refused(t, err, ErrMfaCodeIncorrect, "mfa_code_incorrect", http.StatusForbidden)
 	})
 
 	t.Run("typed email", func(t *testing.T) {
-		sess, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-email", Email: "xoa-email@example.com", EmailVerified: true}, "vi")
+		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-email", Email: "xoa-email@gmail.com", EmailVerified: true}, "vi", SignInIntentSignUp)
 		if err != nil {
 			t.Fatal(err)
 		}
+		sess := res.Session
 		err = as.DeleteAccount(ctx, sess.User.ID, DeleteAccountInput{EmailConfirmation: "someone-else@example.com"})
 		refused(t, err, ErrEmailConfirmationMismatch, "email_confirmation_mismatch", http.StatusBadRequest)
 		// The typed address is compared without case or surrounding spaces.
-		if err := as.DeleteAccount(ctx, sess.User.ID, DeleteAccountInput{EmailConfirmation: "  XOA-EMAIL@example.com "}); err != nil {
+		if err := as.DeleteAccount(ctx, sess.User.ID, DeleteAccountInput{EmailConfirmation: "  XOA-EMAIL@gmail.com "}); err != nil {
 			t.Fatalf("matching address: %v", err)
 		}
 	})

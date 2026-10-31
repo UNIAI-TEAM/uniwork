@@ -8,7 +8,7 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary     = "meeting_summary@7"
+	PromptMeetingSummary     = "meeting_summary@8"
 	PromptMeetingLiveItems   = "meeting_live_items@3"
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptCopilotAnswerV2    = "copilot_answer@2"

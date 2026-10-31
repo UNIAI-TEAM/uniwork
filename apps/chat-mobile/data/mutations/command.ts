@@ -16,11 +16,19 @@
 // for the screen to say so. TanStack's default ("online") would hold the
 // mutation paused while NetInfo says offline: nothing queued, no bubble, and
 // the message lost if the app is killed before the network returns.
+//
+// A command whose variables carry a secret (a password, a mailed or authenticator code, a step-up token) says so
+// (`secret`): it is dropped from the MutationCache as soon as it settles, where TanStack would otherwise keep its
+// variables for gcTime (five minutes) after the screen goes, and for as long as the screen stays. The secret then
+// lives only in the call that sent it, as the sign-in doors' password does (data/auth/store.ts › login).
 import { useMutation, useQueryClient, type QueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 export interface CommandOptions {
   /** Server error codes the screen turns into its own words: not reported as contract drift (data/report.ts). */
   handledCodes?: readonly string[];
+  /** The variables carry a secret: nothing of the mutation is kept once it settles. Screens call mutateAsync. */
+  secret?: boolean;
 }
 
 export function useCommand<TVariables, TResult>(
@@ -29,10 +37,25 @@ export function useCommand<TVariables, TResult>(
   options: CommandOptions = {},
 ): UseMutationResult<TResult, Error, TVariables> {
   const qc = useQueryClient();
-  return useMutation({
+  const secret = options.secret ?? false;
+  const mutation = useMutation({
     mutationKey: [name],
     networkMode: "always",
     meta: { handledCodes: options.handledCodes ?? [] },
     mutationFn: (variables: TVariables) => run(qc, variables),
+    ...(secret ? { gcTime: 0 } : {}),
   });
+  const { mutateAsync, reset } = mutation;
+  // Reset lets go of the settled mutation, and gcTime 0 takes it out of the cache at once.
+  const forgetting = useCallback<typeof mutateAsync>(
+    async (...args) => {
+      try {
+        return await mutateAsync(...args);
+      } finally {
+        reset();
+      }
+    },
+    [mutateAsync, reset],
+  );
+  return secret ? { ...mutation, mutateAsync: forgetting } : mutation;
 }

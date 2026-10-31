@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
+import { useOfficeHandoffStore } from "@uniwork/core/ai/office-handoff";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiProposal } from "@uniwork/core/types";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
@@ -55,6 +56,7 @@ const pageRow = (mode: string) =>
   row({ id: "pd", position: 0, tool: "create_document", mode, preview: { target: { kind: "document", id: "", title: "Trang" }, fields: [], body: "Nội dung" } });
 
 beforeEach(() => {
+  useOfficeHandoffStore.getState().reset();
   requestMock.mockReset();
   requestMock.mockResolvedValue({});
 });
@@ -467,6 +469,74 @@ describe("AskUniProposalCard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Duyệt kế hoạch (1 bước)" }));
       await settle();
       expect(nav.push).not.toHaveBeenCalled();
+    });
+
+    describe("editor AI handoff", () => {
+      const withAi = (reason: string, extra: Array<Record<string, unknown>> = []) =>
+        office({ preview: { ...office().preview, fields: [...office().preview.fields, { field: "editor_ai", type: "enum", from: null, to: reason, options: [] }, ...extra] } });
+
+      it("says the editor AI is out of credits and offers to open for self-drafting", () => {
+        mount([withAi("credits")]);
+        expect(screen.getByRole("button", { name: "Tạo và mở để tự soạn" })).toBeInTheDocument();
+        expect(screen.getByText("AI trong trình soạn")).toBeInTheDocument();
+        expect(screen.getByText("Tổ chức đã hết credit AI")).toBeInTheDocument();
+      });
+
+      it("offers Mở và soạn when the editor AI can draft", () => {
+        mount([withAi("compose")]);
+        expect(screen.getByRole("button", { name: "Mở và soạn" })).toBeInTheDocument();
+        expect(screen.getByText("Sẵn sàng soạn")).toBeInTheDocument();
+      });
+
+      it("lists the approved material under Tư liệu and keeps it out of the Sửa form", () => {
+        const sources = { field: "sources", type: "markdown", from: null, to: "- **Họp Q3**: “Chốt ngân sách”", options: [] };
+        mount([withAi("compose", [sources])]);
+        expect(screen.getByText("Tư liệu")).toBeInTheDocument();
+        expect(screen.getByText("- Họp Q3: “Chốt ngân sách”")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+        expect(screen.queryByRole("textbox", { name: /Tư liệu/ })).toBeNull();
+        expect(screen.queryByRole("combobox", { name: /AI trong trình soạn/ })).toBeNull();
+      });
+
+      it("queues the handoff for the new document before it opens it", async () => {
+        const nav = fakeNav();
+        let queuedBeforePush = false;
+        vi.mocked(nav.push).mockImplementation(() => {
+          queuedBeforePush = useOfficeHandoffStore.getState().byDocument.d9?.status === "pending";
+        });
+        requestMock.mockResolvedValue(applied({ result: { object_id: "d9", href: "", revision: 1, changes: [], note: "", handoff_id: "h1" } }));
+        mount([withAi("compose")], false, nav);
+        fireEvent.click(screen.getByRole("button", { name: "Mở và soạn" }));
+        await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/d9"));
+        expect(queuedBeforePush).toBe(true);
+        expect(useOfficeHandoffStore.getState().byDocument.d9).toEqual({
+          handoffId: "h1",
+          text: "Soạn tài liệu theo việc Hỏi UNI giao: Báo cáo",
+          status: "pending",
+        });
+      });
+
+      it("queues nothing when the result has no handoff_id, and still opens the document", async () => {
+        const nav = fakeNav();
+        requestMock.mockResolvedValue(applied());
+        mount([withAi("off")], false, nav);
+        fireEvent.click(screen.getByRole("button", { name: "Tạo và mở để tự soạn" }));
+        await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/d9"));
+        expect(useOfficeHandoffStore.getState().byDocument).toEqual({});
+      });
+
+      it("shows where the editor AI stands on an applied row", () => {
+        useOfficeHandoffStore.getState().queue("d9", "h1", "job");
+        useOfficeHandoffStore.getState().setStatus("d9", "running");
+        mount([applied()]);
+        expect(screen.getByText("AI trong trình soạn đang soạn…")).toBeInTheDocument();
+      });
+
+      it("shows nothing for a handoff that has not been taken yet", () => {
+        useOfficeHandoffStore.getState().queue("d9", "h1", "job");
+        mount([applied()]);
+        expect(screen.queryByText(/AI trong trình soạn/)).toBeNull();
+      });
     });
   });
 });

@@ -39,13 +39,13 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0025](0025-mot-process-cho-api-va-worker.md) | Chưa tách API và worker; khi tách thì cùng binary theo `SERVER_ROLE`; mọi job phải an toàn đa replica trước khi tăng `be.replicaCount` |
 | [0026](0026-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu — **deprecated** (host đã gỡ, UNI-1240) |
 | [0027](0027-inspector-script-uniwork-cho-che-do-visual-edit.md) | Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML (G3-D2 vẫn giữ) — **deprecated** (gỡ cùng trình soạn G3, UNI-1240) |
-| [0028](0028-ai-phia-client-cua-uniwork-office.md) | AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp; mọi thứ tốn credit/công cụ cloud đi qua UniWork API + `ai.Gateway`; 0010 chỉ điều chỉnh runtime server |
-| [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) | AI của Office trên web: khóa của người dùng lưu mã hóa phía server, proxy pass-through qua `ai.Gateway` (rào SSRF, entitlement `office.ai_byok`/`office.ai_cloud`, credit `ai.tokens`); bổ sung dòng frame web của 0028 |
+| [0028](0028-ai-phia-client-cua-uniwork-office.md) | AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp; mọi thứ tốn credit/công cụ cloud đi qua UniWork API + `ai.Gateway`; 0010 chỉ điều chỉnh runtime server — Quyết định 2 (khóa của người dùng, CLI cục bộ) **superseded by 0051**; Quyết định 1, 3, 4, 5 nhắc lại trong 0051 |
+| [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) | AI của Office trên web: khóa của người dùng lưu mã hóa phía server, proxy pass-through qua `ai.Gateway` (rào SSRF, entitlement `office.ai_byok`/`office.ai_cloud`, credit `ai.tokens`); bổ sung dòng frame web của 0028 — kho khóa và proxy **superseded by 0051**; phần công cụ đám mây và bảng tính credit nhắc lại trong 0051 |
 | [0030](0030-go-trinh-soan-g3-office-tren-web-chi-con-frame.md) | Gỡ các trình soạn G3 và lối vào trình duyệt của engine Office (2026-10-11); web mở tài liệu Office chỉ qua frame genoffice; thay mục editor ở trang host của 0021, 0027 deprecated |
 | [0031](0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md) | UniWork là OAuth authorization server cho client AI bên ngoài (Claude, ChatGPT, Gemini): token MCP opaque tách khỏi JWT phiên, chỉ `/mcp` chấp nhận; route OAuth/MCP ngoài wrapper `api`; mặc định tắt theo tổ chức; chỉ đọc |
 | [0032](0032-mot-tai-khoan-mot-to-chuc.md) | Một tài khoản, một tổ chức đang hoạt động: advisory lock theo user ở mọi đường ghi membership, không unique index; tài khoản đa tổ chức cũ giữ nguyên; đóng tổ chức là lưu trữ (`archived`), không xóa; chuyển tổ chức là một lệnh atomic |
 | [0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) | Tool ghi qua MCP chạy trực tiếp bằng actor human của người đã đồng ý, không qua `action_proposals`; cần scope `write`, công tắc ghi của tổ chức, không có tool xóa, mọi tool ghi có hoàn tác, `revision` cho mọi lệnh sửa, audit ghi `via`; thay §3 của 0031 |
-| [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 |
+| [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 — **superseded by 0051** |
 | [0035](0035-xem-truoc-lien-ket-server-tai-trang-va-anh.md) | Xem trước liên kết trong chat: server tải trang và ảnh lúc tin được gửi (lane chậm, qua bộ tải chặn SSRF `internal/linkpreview`: http/https cổng 80/443, mọi IP phải công khai, quay số IP đã kiểm, kiểm lại mỗi redirect, 5 s, HTML 1 MiB, ảnh 2 MiB), ảnh lưu trong kho UniWork, dùng chung một lần mỗi URL mỗi tổ chức; máy người xem không gọi trang ngoài |
 | [0036](0036-thu-muc-khong-bao-gio-duoc-chia-se.md) | Thư mục không bao giờ được chia sẻ (không visibility workspace, không share, không link); chỉ tài liệu được chia sẻ; con của thư mục bắt đầu riêng tư; người nhận không thấy thư mục của chủ (`parent_id` bị che, gốc danh sách/cây); dọn dữ liệu cũ bằng `uniwork-admin folders-unshare` — **superseded by 0037** |
 | [0037](0037-thu-muc-ngoai-my-folder-hien-cho-ca-workspace.md) | Thư mục ngoài My Folder hiện cho cả workspace (`workspace`/`view`, đặt theo vị trí, không share, không link); tài liệu bắt đầu riêng tư, không kế thừa; tạo bên trong: mọi thành viên sửa được, đổi tên/di chuyển/bỏ: người tạo + admin; bỏ vào Thùng rác bất kỳ gốc nào (thư mục, trang, tệp; sửa đổi 2026-10-22, UNI-2074) đẩy trang/tệp người thao tác không quản lý về gốc workspace (audit `folder_trashed` + `from_kind`); vào My Folder 422 `folder_into_my_folder`; tạo trùng tên " (n)"; dữ liệu cũ vào My Folder bằng `uniwork-admin folders-into-my-folder`; thay 0036 |
@@ -57,6 +57,10 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0045](0045-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
 | [0046](0046-console-xep-xoa-to-chuc-qua-mot-cua.md) | Lệnh ghi content thứ hai của console: xếp hoặc hoàn tác lịch xóa tổ chức 5 ngày qua `OrganizationDeletionQueue` (`queueDeletion`, `cancelDeletion`; nối `privacySvc` ở `main.go`); `AdminService` không giữ `*PrivacyExportService` nên không xuất hay tải tệp tenant; `recordAdmin` chạy trong giao dịch của hàng đợi; bổ sung cho 0042 |
 | [0047](0047-google-drive-chi-tham-chieu-doc-bang-ket-noi-cua-chinh-nguoi-dung.md) | Connector Google Drive: chỉ lưu tham chiếu (bảng riêng `drive_*`, không phải dòng `documents` và không đưa byte vào kho); nội dung chỉ đọc qua `drive_content.ReadForAI` bằng kết nối của chính người yêu cầu (`drive_file_access`); AI đọc khi người yêu cầu đồng ý, không lưu ngoài trích đoạn trong mô tả việc đã tạo; token Google không rời server |
+| [0048](0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) | Gói giao việc Hỏi UNI (yêu cầu, dàn ý chia phần, trích dẫn người hỏi đã duyệt) đi vào hội thoại UniWork AI của đúng tài liệu Apply vừa tạo: gói ở server, hạn 24 giờ, chỉ người hỏi dùng, frame chỉ mang id (`X-UniWork-AI-Handoff`); trích dẫn vào dưới dạng không tin cậy; AI trong trình soạn vẫn không có công cụ đọc workspace; ngoại lệ của spec Office §6.1, §6.3 |
+| [0049](0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md) | Đăng nhập thống nhất: email + mật khẩu, Google, Apple và hai lớp như nhau trên web, máy tính, điện thoại; một bộ quy tắc khớp tài khoản cho mọi nhà cung cấp (liên kết theo email chỉ khi hai phía đã xác minh, thu hồi tài khoản chưa xác minh, không khớp thì vé + màn chọn thay vì tạo ngầm); thay mục 2 và 4 của 0041 |
+| [0050](0050-route-viet-cho-uniwork-ai-prompt-giu-o-server.md) | Route viết cho UniWork AI: một route `…/ai/uniwork/write` cho các bộ viết một lần của trình soạn (kind đóng, prompt giữ ở server, `input` vào dưới dạng không tin cậy), capability riêng `office_uniwork_writer`; lời gọi nằm trong run đang chạy, không bao giờ mở run, chừa lượt model cuối cho vòng công cụ; stream thật, đứt giữa chừng kết thúc bằng `x_uniwork.terminal`; `generate_deck`/`regenerate_slide` chỉ cho lượt gắn tài liệu; hợp đồng định dạng đầu ra giống từng byte giữa hai repo |
+| [0051](0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) | Mọi AI chỉ chạy bằng UniWork AI qua `ai.Gateway` (`office.ai_cloud`, credit `ai.tokens`): UniWork không nhận, lưu hay chuyển tiếp khóa nhà cung cấp của người dùng; gỡ route khóa, proxy BYOK, bảng `ai_provider_credentials`, `office.ai_byok` và `AI_CREDENTIAL_KEY`; công cụ đám mây của khung đi theo grant `uniwork_ai`; chuyển thẳng, không mã chuyển tiếp; khóa trên máy và CLI của app desktop gỡ ở kế hoạch 2; thay 0028 QĐ2, phần kho khóa của 0029 và toàn bộ 0034 |
 
 ## Bản nháp
 
@@ -74,7 +78,8 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 `drafts/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md` (G6-05k, UNI-1637,
 2026-10-14) được chấp nhận thành [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md)
 ngày 2026-10-15 (người dùng trả lời Q-K1 = (a): khóa cá nhân đã lưu trên UniWork; khóa dùng chung
-do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
+do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034. Bản nháp còn sót trong `drafts/` (khác bản accepted)
+đã xóa ngày 2026-10-29, khi 0034 bị [0051](0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) thay.
 
 [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng chất lượng mobile, UNI-2053) được chấp nhận
 ngày 2026-10-21 với số 0037, đổi thành 0043 khi merge develop vì 0037 đã là thư mục workspace (UNI-2055);
@@ -111,3 +116,15 @@ nên cửa hẹp này nhận số 0046.
 
 [0047](0047-google-drive-chi-tham-chieu-doc-bang-ket-noi-cua-chinh-nguoi-dung.md) (connector Google Drive, UNI-2172 / UNI-2179)
 được chấp nhận ngày 2026-10-26 từ bản nháp số tạm 0038; vì 0038–0046 đã dùng nên nhận số 0047.
+
+[0049](0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md) (đăng nhập thống nhất, UNI-2263) được chấp nhận
+ngày 2026-10-27 với số 0047 trên nhánh `feature/auth-unified-sign-in`; khi merge develop (2026-10-28) số 0047 đã
+là connector Google Drive và 0048 là gói giao việc Hỏi UNI, nên đăng nhập thống nhất nhận số 0049.
+
+[0050](0050-route-viet-cho-uniwork-ai-prompt-giu-o-server.md) (route viết cho UniWork AI, UNI-2276) được chấp nhận
+ngày 2026-10-28 với số 0049 trên nhánh `feature/UNI-2276-hoi-uni-soan-tep-office-route-viet-cho-u`; khi merge develop
+(2026-10-29) số 0049 đã là đăng nhập thống nhất, nên route viết nhận số 0050.
+
+[0051](0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) (mọi AI chỉ chạy bằng UniWork AI, UNI-2289) được chấp nhận
+ngày 2026-10-29, viết thẳng ở thư mục này vì quyết định đã có từ chủ sản phẩm. Spec gỡ BYOK
+(`docs/superpowers/specs/2026-10-27-remove-byok-design.md`) gọi nó là 0048; 0048–0050 đã có chủ nên nhận số 0051.

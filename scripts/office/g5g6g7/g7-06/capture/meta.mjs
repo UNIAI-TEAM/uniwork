@@ -10,7 +10,6 @@ export const failed = (reason, extra = {}) => ({ status: "failed", reason, ...ex
 
 /** The frame AI grant a web shot was taken under (RFE5-202); written only when the capture saw one. */
 const grantFields = (entry) => ({
-  ...(entry.ai !== undefined ? { ai: entry.ai } : {}),
   ...(entry.uniworkAi !== undefined ? { uniworkAi: entry.uniworkAi } : {}),
 });
 

@@ -3,6 +3,7 @@ import * as auth from "../api/endpoints/auth";
 import * as links from "../api/endpoints/membership-invite-links";
 import type { SwitchResolution } from "../types/workspace";
 import { setSessionUser } from "../auth/hooks";
+import { forgetStepUpIfRefused, withTransferProof } from "../auth/step-up-store";
 import { workspaceKeys } from "./keys";
 
 export const membershipInviteKeys = {
@@ -111,7 +112,8 @@ export function useJoinMembershipInviteLink() {
       linkId: string;
       secret: string;
       resolve?: SwitchResolution[];
-    }) => links.joinMembershipInviteLink(linkId, secret, resolve),
+    }) => links.joinMembershipInviteLink(linkId, secret, withTransferProof(resolve)),
+    onError: forgetStepUpIfRefused,
     onSuccess: async () => {
       qc.clear();
       const user = await auth.me().catch(() => null);

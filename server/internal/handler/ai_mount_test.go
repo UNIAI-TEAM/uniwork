@@ -1,9 +1,9 @@
 package handler
 
-// The credential, BYOK proxy and cloud handlers carry no session assumption: a router
-// group with its own credential (the web Office frame token) mounts them under
-// other paths with a resolver of its own. Mounted here on a path the session
-// router never uses, behind fake resolvers.
+// The cloud handlers carry no session assumption: a router group with its own
+// credential (the web Office frame token) mounts them under other paths with
+// a resolver of its own. Mounted here on a path the session router never
+// uses, behind fake resolvers.
 
 import (
 	"context"
@@ -24,13 +24,6 @@ import (
 func mountAIOnFramePaths(m AIMountable) http.Handler {
 	r := chi.NewRouter()
 	r.Route("/frame-ai", func(r chi.Router) {
-		r.Get("/credentials", m.CredentialsList)
-		r.Put("/credentials/{aiProvider}", m.CredentialSave)
-		r.Delete("/credentials/{aiProvider}", m.CredentialDelete)
-		r.Post("/byok/{aiProvider}/chat/completions", m.ByokChatCompletions)
-		r.Post("/byok/{aiProvider}/messages", m.ByokMessages)
-		r.Post("/byok/{aiProvider}/generate", m.ByokGenerate)
-		r.Get("/byok/{aiProvider}/models", m.ByokModels)
 		r.Get("/cloud", m.CloudStatus)
 		r.Post("/cloud/search", m.CloudSearch)
 		r.Post("/cloud/images", m.CloudImages)
@@ -43,13 +36,6 @@ func mountAIOnFramePaths(m AIMountable) http.Handler {
 type aiMountRoute struct{ method, path string }
 
 var aiMountRoutes = []aiMountRoute{
-	{"GET", "/frame-ai/credentials"},
-	{"PUT", "/frame-ai/credentials/openai"},
-	{"DELETE", "/frame-ai/credentials/openai"},
-	{"POST", "/frame-ai/byok/openai/chat/completions"},
-	{"POST", "/frame-ai/byok/anthropic/messages"},
-	{"POST", "/frame-ai/byok/gemini/generate"},
-	{"GET", "/frame-ai/byok/openai/models"},
 	{"GET", "/frame-ai/cloud"},
 	{"POST", "/frame-ai/cloud/search"},
 	{"POST", "/frame-ai/cloud/images"},
@@ -118,14 +104,7 @@ func TestMountedAIHandlersReachTheServicesBehindAFakeResolver(t *testing.T) {
 	}))
 	for _, rt := range aiMountRoutes {
 		rec := serveAIMount(h, rt)
-		want := "cloud_unavailable"
-		switch {
-		case strings.Contains(rt.path, "/byok/"):
-			want = "ai_byok_not_configured"
-		case strings.Contains(rt.path, "/credentials"):
-			want = "ai_credentials_unavailable"
-		}
-		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), want) {
+		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "cloud_unavailable") {
 			t.Errorf("%s %s: %d %s", rt.method, rt.path, rec.Code, rec.Body.String())
 		}
 	}

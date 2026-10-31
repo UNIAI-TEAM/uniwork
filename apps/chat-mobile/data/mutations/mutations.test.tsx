@@ -37,7 +37,20 @@ jest.mock("../chat-api", () => ({
 }));
 jest.mock("../safety-actions", () => ({ setBlocked: jest.fn(async () => undefined) }));
 jest.mock("../safety-api", () => ({ safetyApi: { report: jest.fn(async () => ({ id: "rep1" })) } }));
-jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined), transferOwnership: jest.fn(async () => undefined) } }));
+jest.mock("../account-api", () => ({
+  accountApi: { deleteAccount: jest.fn(async () => undefined), transferOwnership: jest.fn(async () => undefined), resendVerification: jest.fn(async () => undefined) },
+}));
+jest.mock("../auth/verify-email", () => ({ verifyAccountEmail: jest.fn(async () => undefined) }));
+// The choice screen's commands (data/mutations/sign-in.ts) and the signed-in user they update.
+jest.mock("../auth/sign-in", () => ({ sendClaimCode: jest.fn(async () => true) }));
+jest.mock("../auth/methods-api", () => ({
+  linkPendingTicket: jest.fn(),
+  stepUp: jest.fn(async () => true),
+  signInMethodsApi: { setPassword: jest.fn(async () => ({ user: { id: "u1" }, methods: null })) },
+}));
+jest.mock("../auth/store", () => ({ useAuthStore: { getState: () => ({ setUser: mockSetUser, user: mockUser.current }) } }));
+const mockUser: { current: { id: string; email: string } | null } = { current: { id: "u1", email: "moi@congty.vn" } };
+const mockSetUser = jest.fn();
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
 jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
 jest.mock("../api", () => ({ api: { tag: "transport" } }));
@@ -61,11 +74,25 @@ import { safetyApi } from "../safety-api";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
 import { setPushPreviews } from "../push-previews";
+import { verifyAccountEmail } from "../auth/verify-email";
+import { forgetVerificationMail, verificationResendAt } from "../auth/verification-mail";
+import { sendClaimCode } from "../auth/sign-in";
+import { linkPendingTicket, signInMethodsApi } from "../auth/methods-api";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
 import { voipPush as mockVoip } from "../calls/native-call-session";
 import { Platform } from "react-native";
-import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews, useTransferOwnership } from "./account";
+import {
+  useAnswerAiConsent,
+  useDeleteAccount,
+  useResendVerification,
+  useRevokeDevice,
+  useSetPushPreviews,
+  useTransferOwnership,
+  useVerifyEmail,
+} from "./account";
+import { useLinkPendingTicket, useSendClaimCode } from "./sign-in";
+import { useSetPassword, useStepUpProof } from "./sign-in-methods";
 import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
@@ -178,11 +205,10 @@ describe("safety and account commands", () => {
     const body = { reason: "spam", target_message_id: "m1" } as never;
     expect(await run(() => useReport("w1"), body)).toEqual({ id: "rep1" });
     expect(safetyApi.report).toHaveBeenCalledWith("w1", body);
-    const proof = { password: "x" } as never;
-    await run(() => useDeleteAccount(), proof);
-    expect(accountApi.deleteAccount).toHaveBeenCalledWith(proof);
-    await run(() => useTransferOwnership(), { orgSlug: "acme", toUserId: "u2", password: "x" });
-    expect(accountApi.transferOwnership).toHaveBeenCalledWith("acme", "u2", "x");
+    await run(() => useDeleteAccount(), { step_up_token: "su_1" });
+    expect(accountApi.deleteAccount).toHaveBeenCalledWith({ step_up_token: "su_1" });
+    await run(() => useTransferOwnership(), { orgSlug: "acme", toUserId: "u2", stepUpToken: "su_1" });
+    expect(accountApi.transferOwnership).toHaveBeenCalledWith("acme", "u2", "su_1");
   });
 
   it("answers the AI notice and turns push on or off with this build's project and call UI", async () => {
@@ -205,6 +231,79 @@ describe("safety and account commands", () => {
     jest.mocked(revokeDevice).mockRejectedValueOnce(new Error("refused"));
     await expect(run(() => useRevokeDevice(), "d2")).rejects.toThrow("refused");
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([["auth-devices"], ["auth-devices"]]);
+  });
+});
+
+describe("email verification and the choice screen's commands", () => {
+  it("verify the address with the code and mail a fresh one", async () => {
+    await run(() => useVerifyEmail(), "123456");
+    expect(verifyAccountEmail).toHaveBeenCalledWith("123456");
+    await run(() => useResendVerification(), undefined);
+    expect(accountApi.resendVerification).toHaveBeenCalledTimes(1);
+    // The code just mailed is what the next resend waits a minute on.
+    expect(verificationResendAt("moi@congty.vn", Date.now())).toBeGreaterThan(Date.now());
+    // Signed out meanwhile: nothing to note.
+    forgetVerificationMail();
+    mockUser.current = null;
+    await run(() => useResendVerification(), undefined);
+    mockUser.current = { id: "u1", email: "moi@congty.vn" };
+    const now = Date.now();
+    expect(verificationResendAt("moi@congty.vn", now)).toBe(now);
+  });
+
+  it("mail the claim code to the address typed, and link the held identity, adopting the account answered", async () => {
+    expect(await run(() => useSendClaimCode(), "an@congty.vn")).toBe(true);
+    expect(sendClaimCode).toHaveBeenCalledWith("an@congty.vn");
+    const linked = { user: { id: "u1", email: "an@congty.vn" }, methods: null };
+    jest.mocked(linkPendingTicket).mockResolvedValueOnce(linked as never);
+    expect(await run(() => useLinkPendingTicket(), { userId: "u1", move: true })).toBe(linked);
+    expect(linkPendingTicket).toHaveBeenCalledWith({ userId: "u1", move: true });
+    expect(mockSetUser).toHaveBeenCalledWith(linked.user);
+    mockSetUser.mockClear();
+    jest.mocked(linkPendingTicket).mockResolvedValueOnce({ user: null, methods: null });
+    await run(() => useLinkPendingTicket(), { userId: "u1" });
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
+  it("keep the choice screen's expected refusals out of drift reports", async () => {
+    jest.mocked(sendClaimCode).mockRejectedValueOnce(Object.assign(new Error("x"), { name: "TransportError", code: "rate_limited", status: 429 }));
+    await expect(run(() => useSendClaimCode(), "an@congty.vn")).rejects.toThrow("x");
+    const [, , , mutation] = onMutationError.mock.calls[0] as [unknown, unknown, unknown, { options: { meta: { handledCodes: string[] } } }];
+    expect(mutation.options.meta.handledCodes).toContain("rate_limited");
+  });
+});
+
+describe("a command that carries a secret", () => {
+  /** Everything the mutation cache still holds: its variables are what a cache inspector or a dump would read. */
+  const held = () => JSON.stringify(qc.getMutationCache().getAll().map((m) => m.state.variables) ?? []);
+  const drain = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  it("leaves no password, code or step-up token in the cache once it settles, the screen still mounted", async () => {
+    const result = await hook(() => ({ password: useSetPassword(), proof: useStepUpProof(), verify: useVerifyEmail(), erase: useDeleteAccount() }));
+    await act(async () => {
+      await result.current.password.mutateAsync({ newPassword: "new-s3cret", currentPassword: "old-s3cret" });
+      await result.current.proof.mutateAsync({ proof: { kind: "password", password: "proof-s3cret" }, action: "delete_account", userId: "u1" });
+      await result.current.verify.mutateAsync("482913");
+      await result.current.erase.mutateAsync({ step_up_token: "su_s3cret" });
+    });
+    await drain();
+    expect(signInMethodsApi.setPassword).toHaveBeenCalledWith({ new_password: "new-s3cret", current_password: "old-s3cret" });
+    expect(held()).not.toMatch(/s3cret|482913/);
+    expect(result.current.password.isIdle).toBe(true);
+  });
+
+  it("is dropped after a refusal too, which still reaches the MutationCache once", async () => {
+    jest.mocked(verifyAccountEmail).mockRejectedValueOnce(new Error("invalid_code"));
+    await expect(run(() => useVerifyEmail(), "111111")).rejects.toThrow("invalid_code");
+    await drain();
+    expect(onMutationError).toHaveBeenCalledTimes(1);
+    expect(held()).not.toContain("111111");
+  });
+
+  it("keeps an ordinary command's variables as TanStack does", async () => {
+    await run(() => useAnswerAiConsent(), true);
+    await drain();
+    expect(qc.getMutationCache().getAll()).toHaveLength(1);
   });
 });
 

@@ -93,3 +93,30 @@ type AiUniworkChunkSDO struct {
 	Usage    *AiUniworkUsageSDO        `json:"usage,omitempty"`
 	XUniwork *AiUniworkExtensionSDO    `json:"x_uniwork,omitempty"`
 }
+
+// AiUniworkWriteSDO is one SSE chunk of the writer route (plan 5). The answer
+// is text/event-stream: one chat.completion.chunk per piece of text
+// (choices[0].delta.content), a last chunk with finish_reason and usage, then
+// data: [DONE]. A failure after text went out ends the stream with a chunk
+// carrying only x_uniwork.terminal, then [DONE]; the client treats that text
+// as partial. A failure before the first chunk is a JSON error with a real
+// HTTP status.
+type AiUniworkWriteSDO struct {
+	ID       string                    `json:"id" description:"Một id cho mọi chunk của câu trả lời" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Object   string                    `json:"object" example:"chat.completion.chunk"`
+	Created  int64                     `json:"created" example:"1791800000"`
+	Model    string                    `json:"model" example:"gpt-4o"`
+	Choices  []AiUniworkChunkChoiceSDO `json:"choices" description:"Rỗng ở chunk kết thúc lỗi; finish_reason stop, hoặc length khi model chạm trần chữ"`
+	Usage    *AiUniworkUsageSDO        `json:"usage,omitempty" description:"Chỉ ở chunk cuối, khi nhà cung cấp trả usage"`
+	XUniwork *AiUniworkWriteExtSDO     `json:"x_uniwork,omitempty" description:"Chỉ ở chunk kết thúc lỗi"`
+}
+
+// AiUniworkWriteExtSDO is x_uniwork of the writer stream's failure chunk.
+type AiUniworkWriteExtSDO struct {
+	Terminal AiUniworkWriteTerminalSDO `json:"terminal"`
+}
+
+// AiUniworkWriteTerminalSDO names why the stream ended early.
+type AiUniworkWriteTerminalSDO struct {
+	Code string `json:"code" enum:"ai_provider_error,ai_provider_timeout,ai_cancelled,ai_refused" description:"Mã mà câu trả lời lỗi JSON lẽ ra mang: ai_provider_error (nhà cung cấp lỗi), ai_provider_timeout (hết hạn), ai_cancelled (client dừng), ai_refused (model từ chối sau khi đã viết)" example:"ai_provider_error"`
+}

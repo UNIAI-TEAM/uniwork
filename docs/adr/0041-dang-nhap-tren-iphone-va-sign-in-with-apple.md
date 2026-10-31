@@ -1,6 +1,6 @@
 # 0041 — Đăng nhập trên iPhone: Sign in with Apple trước lần nộp App Store đầu tiên
 
-**Trạng thái:** accepted (2026-10-23, UNI-2141, sub của UNI-2053). Đề xuất ngày 2026-10-22 với số tạm 0041 (giữ số,
+**Trạng thái:** accepted (2026-10-23, UNI-2141, sub của UNI-2053). Mục 2 (tạo tài khoản ngầm khi không khớp, tài khoản MFA về trình duyệt, Apple chỉ vào qua `POST /auth/apple/native`) và mục 4 (web và Android không đổi) bị thay bởi [0049](0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md) ngày 2026-10-27; các mục còn lại vẫn giữ. Đề xuất ngày 2026-10-22 với số tạm 0041 (giữ số,
 `README.md` đã dành 0038–0041 cho các bản nháp mobile). Chấp nhận phương án A ở phần server (OIDC của Apple kiểm ở
 server, liên kết theo `apple_id`, không gộp email relay, thu hồi token khi xoá tài khoản), với nút Apple **native** trên
 màn đăng nhập của app thay vì nút trên trang web (mục "Quyết định" nói vì sao).
@@ -99,8 +99,10 @@ mật khẩu" trước; trải nghiệm hai nền tảng khác nhau. Chi phí: S
   mật khẩu bỏ qua nó). Với Ẩn địa chỉ email (Hide My Email) còn tệ hơn: địa chỉ của tài khoản là địa chỉ relay của
   Apple nên lời mời gửi tới email công việc thuộc về tài khoản khác. Hiện giờ màn workspace trống của tài khoản relay
   nói điều đó và chỉ đường đang đi được: đăng xuất rồi đăng nhập qua trình duyệt bằng email đã được mời
-  (`mobile.account.no_workspace_relay`, `lib/apple-relay.ts`, `test/routes/entry.test.tsx`). Việc sau, owner là
-  luồng mobile UNI-2053, cần xong trước khi mở App Store cho người ngoài TestFlight: nhận lời mời ngay trong app
+  (`mobile.account.no_workspace_relay`, `lib/apple-relay.ts`, `test/routes/entry.test.tsx`; từ 2026-10-29, UNI-2287,
+  `lib/apple-relay.ts` nhường chỗ cho `isAppleRelayEmail` của `packages/core/auth/sign-in-rules.ts`, nhận cả
+  `private.icloud.com`). Việc sau, owner là luồng mobile UNI-2053, cần xong trước khi mở App Store cho người ngoài
+  TestFlight: nhận lời mời ngay trong app
   (`GET /api/v1/me/invitations` đã có), hay thêm và xác minh một địa chỉ thứ hai cho tài khoản; cân nhắc gợi ý chọn
   "Chia sẻ email của tôi" cạnh nút Apple cho người vào workspace công ty.
 - Mail tới địa chỉ relay (mã xác minh, `new_login`, lời mời) chỉ tới được người dùng khi tên miền gửi mail của

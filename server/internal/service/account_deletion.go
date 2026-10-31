@@ -9,18 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// DeleteAccountInput is the re-authentication for erasure (spec F-01 §2 I9):
-// the password when the account has one, else a TOTP code when MFA is on,
-// else the typed email address. CloseOrganization is the slug of the
+// DeleteAccountInput is the re-authentication for erasure (ADR 0049 §5): a
+// step-up token, or the one proof shipped apps send (proveDeletion) — the
+// password when the account has one, else a TOTP code when MFA is on, else
+// the typed email address. CloseOrganization is the slug of the
 // organization the account owns alone, typed again: that organization is
 // closed (archived, as OrganizationMemberService.Close does) in the same
 // transaction as the erasure.
 type DeleteAccountInput struct {
+	StepUpToken       string
 	Password          string
 	Code              string
 	EmailConfirmation string
@@ -28,6 +29,12 @@ type DeleteAccountInput struct {
 }
 
 const deletedDisplayName = "Người dùng đã xóa"
+
+// deletedEmail is the address an erased account keeps: unique, and on a
+// domain no mail can reach (RFC 2606 .invalid).
+func deletedEmail(userID string) string {
+	return "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid"
+}
 
 // DeleteAccount anonymises the user (Nghị định 13) and closes every door:
 // memberships deactivated, profiles scrubbed, sessions and push revoked.
@@ -40,22 +47,8 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	// The caller is signed in, so a wrong proof is never 401 (see
 	// ErrPasswordIncorrect): each one answers its own code.
-	switch {
-	case u.PasswordHash.Valid:
-		if !auth.CheckPassword(u.PasswordHash.String, in.Password) {
-			return errPasswordIncorrect()
-		}
-	case u.MfaEnabledAt.Valid:
-		if !s.secondFactorMatches(ctx, u, in.Code) {
-			return errMfaCodeIncorrect()
-		}
-	default:
-		// ponytail: a Google-only account without MFA has no secret to ask
-		// for; typing the address is the confirmation. Add an emailed code
-		// when a product owner asks for it.
-		if !strings.EqualFold(strings.TrimSpace(in.EmailConfirmation), u.Email) {
-			return errEmailConfirmationMismatch()
-		}
+	if err := s.proveDeletion(ctx, u, in); err != nil {
+		return err
 	}
 	owned, err := s.q.CountOwnedOrganizationsForUser(ctx, userID)
 	if err != nil {
@@ -117,7 +110,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		}
 	}
 	if _, err := qtx.AnonymizeUser(ctx, db.AnonymizeUserParams{
-		ID: userID, Email: "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid", DisplayName: deletedDisplayName,
+		ID: userID, Email: deletedEmail(userID), DisplayName: deletedDisplayName,
 	}); err != nil {
 		return err
 	}
@@ -140,6 +133,11 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		return err
 	}
 	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
+		return err
+	}
+	// A reset link mailed before the erasure must not set a password on the
+	// anonymised row (SetUserPassword refuses a deleted account as well).
+	if err := qtx.ExpirePasswordResetTokensForUser(ctx, userID); err != nil {
 		return err
 	}
 	// Ask UNI memory goes with the account, in every organization (P4, R18).

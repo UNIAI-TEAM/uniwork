@@ -111,6 +111,8 @@ describe("useMeetingLobbySync › the rest of the room", () => {
   it.each([
     ["participant.invited", "participants"],
     ["participant.removed", "participants"],
+    // The list marks the host's seat: after a transfer the guest obeys the new host's mute requests.
+    ["host.transferred", "participants"],
     ["recording.started", "recordings"],
     ["recording.stopped", "recordings"],
     ["recording.ready", "recordings"],

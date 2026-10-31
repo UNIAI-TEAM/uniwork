@@ -92,6 +92,7 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 	h := LoadShed(1, "/healthz",
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/write",
 	)(slow)
 
 	started.Add(1)
@@ -105,6 +106,7 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/write",
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
@@ -113,14 +115,15 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		// The same prefix, a route the pattern does not name (the BYOK proxy
-		// and the cloud tools): a prefix exemption would have passed these too.
-		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/byok/openai/chat/completions",
+		// The same prefix, a route the pattern does not name (the cloud
+		// tools): a prefix exemption would have passed these too.
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/cloud/images",
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/cloud/search",
 		// A {param} segment is exactly one non-empty segment.
 		"/api/v1/orgs//ai/uniwork/chat/completions",
 		"/api/v1/orgs/a/b/ai/uniwork/chat/completions",
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions/extra",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/write/extra",
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))

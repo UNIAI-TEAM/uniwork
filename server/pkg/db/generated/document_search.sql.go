@@ -2357,7 +2357,17 @@ func (q *Queries) ListShelvedDocumentsPage(ctx context.Context, arg ListShelvedD
 }
 
 const listTreeDocuments = `-- name: ListTreeDocuments :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title,
+       d.icon, d.visibility, d.content_bytes, d.current_version, d.file_version_id,
+       d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id,
+       d.source_document_id, d.source_version_id, d.source_revision,
+       d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256,
+       d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by,
+       d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at,
+       d.archived_by, d.purge_after, d.created_at, d.updated_at,
+       d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind,
+       d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+       d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -2410,9 +2420,61 @@ type ListTreeDocumentsParams struct {
 	ShareWorkspaces []string    `json:"share_workspaces"`
 }
 
+type ListTreeDocumentsRow struct {
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
+	WorkspaceID          string             `json:"workspace_id"`
+	ParentID             pgtype.Text        `json:"parent_id"`
+	Kind                 string             `json:"kind"`
+	Title                string             `json:"title"`
+	Icon                 pgtype.Text        `json:"icon"`
+	Visibility           string             `json:"visibility"`
+	ContentBytes         int32              `json:"content_bytes"`
+	CurrentVersion       int32              `json:"current_version"`
+	FileVersionID        pgtype.Text        `json:"file_version_id"`
+	Revision             int64              `json:"revision"`
+	Position             float64            `json:"position"`
+	OwnerKind            pgtype.Text        `json:"owner_kind"`
+	OwnerID              pgtype.Text        `json:"owner_id"`
+	AclOwnerID           pgtype.Text        `json:"acl_owner_id"`
+	SourceDocumentID     pgtype.Text        `json:"source_document_id"`
+	SourceVersionID      pgtype.Text        `json:"source_version_id"`
+	SourceRevision       pgtype.Int8        `json:"source_revision"`
+	SourceFormat         pgtype.Text        `json:"source_format"`
+	SourceEngine         pgtype.Text        `json:"source_engine"`
+	TargetFormat         pgtype.Text        `json:"target_format"`
+	SourceChecksumSha256 pgtype.Text        `json:"source_checksum_sha256"`
+	ConversionReason     pgtype.Text        `json:"conversion_reason"`
+	CreatedBy            string             `json:"created_by"`
+	CreatedByKind        string             `json:"created_by_kind"`
+	UpdatedBy            string             `json:"updated_by"`
+	UpdatedByKind        string             `json:"updated_by_kind"`
+	ContentSavedAt       pgtype.Timestamptz `json:"content_saved_at"`
+	LastVersionAt        pgtype.Timestamptz `json:"last_version_at"`
+	ArchivedAt           pgtype.Timestamptz `json:"archived_at"`
+	ArchivedBy           pgtype.Text        `json:"archived_by"`
+	PurgeAfter           pgtype.Timestamptz `json:"purge_after"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
+	ContentRevision      int64              `json:"content_revision"`
+	WorkspaceLevel       string             `json:"workspace_level"`
+	SystemKind           pgtype.Text        `json:"system_kind"`
+	ShelvedAt            pgtype.Timestamptz `json:"shelved_at"`
+	ShelvedBy            pgtype.Text        `json:"shelved_by"`
+	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
+	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
+}
+
 // Every visible live document of one workspace in tree order - the
 // DocumentTree endpoint assembles the forest in memory.
-func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsParams) ([]Document, error) {
+// The body columns (content, content_text, search_text) are left out: a tree
+// node is built from the rest, and a workspace of file documents would
+// otherwise ship up to 20000 runes of text per row for nothing.
+func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsParams) ([]ListTreeDocumentsRow, error) {
 	rows, err := q.db.Query(ctx, listTreeDocuments,
 		arg.OrganizationID,
 		arg.WorkspaceID,
@@ -2429,9 +2491,9 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListTreeDocumentsRow{}
 	for rows.Next() {
-		var i Document
+		var i ListTreeDocumentsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -2441,9 +2503,6 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 			&i.Title,
 			&i.Icon,
 			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
 			&i.ContentBytes,
 			&i.CurrentVersion,
 			&i.FileVersionID,

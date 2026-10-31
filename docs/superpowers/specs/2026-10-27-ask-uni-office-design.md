@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI soạn tệp Office cùng AI trong trình soạn
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-27 (Q1–Q10); kế hoạch 1 (Phần 1a, shipped PR #486): `docs/superpowers/plans/2026-10-27-ask-uni-office-p1-read.md`, issue UNI-2224; kế hoạch 2 (Phần 2, trừ "Lưu từ khung chat" chuyển sang kế hoạch Phần 3; shipped PR #491): `docs/superpowers/plans/2026-10-27-ask-uni-office-p2-templates.md`, issue UNI-2225; kế hoạch 3 (Phần 3 và "Lưu từ khung chat"; gói giao việc và nhãn "Mở và soạn" chuyển sang Phần 4): `docs/superpowers/plans/2026-10-28-ask-uni-office-p3-create.md`, issue UNI-2261; các phần sau chưa có kế hoạch.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-27 (Q1–Q10); kế hoạch 1 (Phần 1a, shipped PR #486): `docs/superpowers/plans/2026-10-27-ask-uni-office-p1-read.md`, issue UNI-2224; kế hoạch 2 (Phần 2, trừ "Lưu từ khung chat" chuyển sang kế hoạch Phần 3; shipped PR #491): `docs/superpowers/plans/2026-10-27-ask-uni-office-p2-templates.md`, issue UNI-2225; kế hoạch 3 (Phần 3 và "Lưu từ khung chat"; gói giao việc và nhãn "Mở và soạn" chuyển sang Phần 4): `docs/superpowers/plans/2026-10-28-ask-uni-office-p3-create.md`, issue UNI-2261, shipped PR #498; kế hoạch 4 (Phần 4, gồm nhãn "Mở và soạn", kiểm AI trong trình soạn và tư liệu chuyển từ Phần 3; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p4-handoff.md`, issue UNI-2264, shipped PR #510; kế hoạch 5 (Phần 5: route viết cho UniWork AI, dựng deck trên web; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p5-writer.md`, issue UNI-2276, shipped PR #516; kế hoạch 6 (Phần 6: cờ `ask_uni_office`, eval offline, checklist lên production): `docs/superpowers/plans/2026-10-30-ask-uni-office-p6-production.md`, issue UNI-2304, shipped PR #532; G6-D2 và eval sống chờ chủ sản phẩm; kế hoạch 7 (Phần 1b: tìm theo nội dung tệp): `docs/superpowers/plans/2026-10-30-ask-uni-office-p7-content-search.md`, issue UNI-2305, shipped PR #535; kế hoạch 8 (Phần 1c: tệp đính kèm ở module khác, và đọc chữ PDF qua Office engine): `docs/superpowers/plans/2026-10-30-ask-uni-office-p8-attachments-pdf.md`, issue UNI-2307, chủ sản phẩm duyệt 2026-10-30; đã triển khai trên nhánh, chờ PR.
 
 **Nguồn quyết định:** trao đổi với chủ sản phẩm ngày 2026-10-27 (phiên brainstorm sau báo cáo
 `docs/ask-uni-documents-assessment.md`). Mọi số dòng `file:line` của repo này theo `develop` tại `b1dcd6152`; của fork
@@ -112,9 +112,10 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 ### Phần 1 — Hỏi UNI đọc tệp Office và duyệt thư mục
 
 - **Đọc nội dung tệp.** `get_document` (`askuni_agent_tools.go:183`, `agentGetDocument` `:515-536`) gọi
-  `McpToolService.GetDocument` (`mcp_tools_documents.go:182-224`). Với DOCX/XLSX/PPTX/ODT/CSV/PDF, đọc chữ bằng
-  `server/internal/attachtext` (`Extract` `attachtext.go:57`, `ReadPDF`) — bộ đọc file đính kèm đang dùng
-  (`askuni_file_plan.go:95-122`) — thay vì chỉ trả tên và loại. Cắt cùng trần 16.000 ký tự và dòng báo cắt hiện có
+  `McpToolService.GetDocument` (`mcp_tools_documents.go:182-224`). Với DOCX/XLSX/PPTX/ODT/CSV, đọc chữ bằng
+  `server/internal/attachtext` (`Extract` `attachtext.go:57`) — bộ đọc file đính kèm đang dùng
+  (`askuni_file_plan.go:95-122`) — thay vì chỉ trả tên và loại. PDF thì Office engine đọc lớp chữ (pdfium,
+  `extract_text:pdf`), vì `attachtext.ReadPDF` chỉ đếm và cắt trang chứ không lấy chữ (ruling P1 của kế hoạch 8). Cắt cùng trần 16.000 ký tự và dòng báo cắt hiện có
   (`mcp_tools.go:79-82`); ghi `download` vào nhật ký truy cập như tệp văn bản (`mcp_tools_documents.go:230`).
 - **Duyệt thư mục.** Đăng ký công cụ đọc `list_documents` cho Hỏi UNI, dùng lại `ListDocuments`
   (`mcp_tools_documents.go:244`).
@@ -205,7 +206,7 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 ### Phần 5 — Route viết cho UniWork AI; dựng slide và viết cả tài liệu
 
 - **Server:** đưa `generate_deck` và `regenerate_slide` trở lại bảng công cụ slides cho UniWork AI, chỉ với lượt gắn tài
-  liệu (`openai_facade.go:758-770`, `officeUniworkModulesV1`). Lý do chặn cũ (G6-09a): trên desktop chúng từng ghi nháp
+  liệu (`openai_facade.go:775-782`, `officeUniworkModulesV1`). Lý do chặn cũ (G6-09a): trên desktop chúng từng ghi nháp
   ra ngoài tài liệu đang mở; G6-12 đã sửa cho deck gắn UniWork (`genoffice-tools.md` dòng slides (c)).
 - **Fork:** bỏ hai tên đó khỏi `UNIWORK_AI_HIDDEN_TOOLS` (`apps/slides/src/renderer/ai/slides-skill.ts:1100`); hiện thực
   `localGeneratePage` / `landGeneratedPages` trên web (đang là stub, `web-slides-api.ts:1338-1341`) bằng bộ dựng trang
@@ -216,9 +217,9 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 - **Chặn thứ hai, chưa giải.** Ngoài lỗi nháp desktop, `generate_deck`/`regenerate_slide` tự gọi model ngoài vòng công
   cụ (style, dàn ý, từng trang; `genoffice-tools.md` mục 29). Các "bộ viết một lần" đó đánh dấu `purpose: 'one-shot'`
   (`packages/agent-core/src/stream-text.ts:88`, `apps/slides/src/renderer/ai/llm-request.ts:20` ở fork), và đường
-  UniWork AI trên web từ chối mọi yêu cầu như vậy (`web/modules/shared/ai/stream.ts:203-212`). Cùng cơ chế này đứng sau
-  `write_document` của Word (`apps/docs/src/renderer/ai/AiPanel.tsx:957`) và bộ viết trang HTML — nên dưới UniWork AI,
-  hôm nay cả công cụ "viết cả tài liệu" cũng không chạy, dù server đã cho phép (`openai_facade.go:781`).
+  UniWork AI trên web từ chối mọi yêu cầu như vậy (`web/modules/shared/ai/stream.ts:217-232`). Cùng cơ chế này đứng sau
+  `write_document` của Word (`apps/docs/src/renderer/ai/AiPanel.tsx:950-1003`) và bộ viết trang HTML — nên dưới UniWork AI,
+  hôm nay cả công cụ "viết cả tài liệu" cũng không chạy, dù server đã cho phép (`openai_facade.go:801,806,810`).
 - **Route viết phía server (Q9).** Thêm một route UniWork AI cho các lời gọi "viết một lần", mount bằng frame token như
   route chat (`office_frame_ai.go`), cùng cổng: `RequireMember` → gói `office.ai_cloud` → cờ `office_ai_uniwork` và cờ
   định dạng → `CheckQuota(ai.tokens)` → `ai.Gateway`.
@@ -229,7 +230,7 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
   - Mỗi lời gọi mang `X-UniWork-AI-Run` của lượt đang chạy, ghi usage vào run đó và đếm vào trần `model_calls` đã có
     (`run_limit_reached`, `fields.limit = model_calls`). Trần đầu ra và hạn thời gian theo `ModelPolicy` của
     `office_uniwork_ai`; giá trị do G7-D1.
-  - Fork: trong `uniworkTurn` (`web/modules/shared/ai/stream.ts:200-212`), yêu cầu `purpose: 'one-shot'` đi tới route
+  - Fork: trong `uniworkTurn` (`web/modules/shared/ai/stream.ts:217-232`), yêu cầu `purpose: 'one-shot'` đi tới route
     viết thay vì bị từ chối; các chỗ gọi (`stream-text.ts`, `llm-request.ts`) gửi kèm loại bộ viết. Prompt viết của
     fork và của server phải khớp định dạng đầu ra (HTML hạn chế của Word, JSON spec trang slide 1280×720); một test
     ở mỗi repo giữ hợp đồng này.

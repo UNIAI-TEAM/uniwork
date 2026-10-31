@@ -10,6 +10,8 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /repo
 # Manifests first so the dependency layer caches across source edits.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm hashes every root patchedDependencies file on install, filtered or not.
+COPY patches patches
 COPY apps/office-engine/package.json apps/office-engine/
 COPY packages/office-contracts/package.json packages/office-contracts/
 COPY packages/office-engine/package.json packages/office-engine/
@@ -51,6 +53,7 @@ WORKDIR /repo
 # UniWork lockfile, never the upstream tree); installing just the root project
 # keeps this stage off the full workspace graph.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches patches
 RUN pnpm install --frozen-lockfile --ignore-scripts --filter .
 COPY scripts/office scripts/office
 COPY scripts/office-g0 scripts/office-g0

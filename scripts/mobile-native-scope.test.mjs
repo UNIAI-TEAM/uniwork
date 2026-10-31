@@ -61,6 +61,9 @@ test("the mobile checks run for the app, what it reads and the server contracts 
     // Review P2: a handler-only rename of a wrapper key, and the kill switch catalogue.
     "server/internal/handler/chat_threads.go",
     "server/internal/handler/auth.go",
+    // The sign-in SDOs' handlers (ADR 0049).
+    "server/internal/handler/native_sign_in.go",
+    "server/internal/handler/sign_in_methods.go",
     "server/internal/featureflags/keys.go",
     // A route the app calls dropped from the router (scripts/mobile-route-catalogue.test.mjs).
     "server/internal/handler/router/chat.go",
@@ -93,6 +96,9 @@ test("the signed-in flows run for what they read beyond the binary, and whenever
     "server/internal/service/chat_post.go",
     "server/internal/handler/desktop_auth.go",
     "server/internal/service/desktop_auth.go",
+    "server/internal/handler/native_sign_in.go",
+    "server/internal/service/native_sign_in.go",
+    "server/internal/service/native_sign_in_ticket.go",
     "server/internal/handler/router/chat.go",
     "server/internal/handler/router/auth.go",
     "apps/web/app/(auth)/auth/desktop/authorize/page.tsx",
@@ -107,6 +113,7 @@ test("the signed-in flows run for what they read beyond the binary, and whenever
     "apps/chat-mobile/CLAUDE.md",
     "server/internal/service/chat_test.go",
     "server/internal/handler/desktop_auth_test.go",
+    "server/internal/service/native_sign_in_test.go",
     "server/internal/service/meeting.go",
     "server/internal/handler/router/meetings.go",
     "apps/web/app/page.tsx",

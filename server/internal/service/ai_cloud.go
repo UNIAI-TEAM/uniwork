@@ -16,9 +16,14 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/office"
 )
 
+// FeatureOfficeAICloud is the plan entitlement of Office AI: the UniWork-paid
+// cloud tools and UniWork AI in the editors.
+const FeatureOfficeAICloud = "office.ai_cloud"
+
 // AICloudService is the organization-tier door to the UniWork cloud tools
-// (GO-A7, ADR 0029): search, image generation, media analysis and
-// transcription for Office, paid in ai.tokens credits. Order on every call:
+// (GO-A7; ADR 0029's cloud part, kept by ADR 0051): search, image
+// generation, media analysis and transcription for Office, paid in ai.tokens
+// credits. Order on every call:
 // membership → office.ai_cloud → input → tool configured → credits → gateway.
 // Media arrives as bytes from the client; nothing here fetches a URL.
 type AICloudService struct {

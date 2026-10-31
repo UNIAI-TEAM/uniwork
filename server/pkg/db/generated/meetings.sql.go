@@ -619,29 +619,43 @@ SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description,
   EXISTS (
     SELECT 1 FROM meeting_recordings r
     WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
-  )::boolean AS has_playable_recording
+  )::boolean AS has_playable_recording,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN ARRAY(
+    SELECT p.user_id FROM meeting_attendance_sessions a
+    JOIN meeting_participants p ON p.id = a.participant_id
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL AND p.user_id <> ''
+    GROUP BY p.user_id ORDER BY min(a.joined_at), p.user_id LIMIT 3
+  ) ELSE '{}' END)::text[] AS in_room_user_ids,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN (
+    SELECT count(DISTINCT a.participant_id) FROM meeting_attendance_sessions a
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL
+  ) ELSE 0 END)::int AS in_room_count,
+  (meetings.status = 'IN_PROGRESS' AND COALESCE((
+    SELECT sr.status FROM meeting_scribe_runs sr
+    WHERE sr.meeting_id = meetings.id ORDER BY sr.created_at DESC, sr.id DESC LIMIT 1
+  ) = 'ACTIVE', false))::boolean AS scribe_live
 FROM meetings
-WHERE workspace_id = $1
+WHERE meetings.workspace_id = $1
   AND ($2::text IS NULL
-    OR ($2 = 'MISSED' AND status = 'SCHEDULED' AND ends_at < $3::timestamptz)
-    OR ($2 = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= $3::timestamptz)
-    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND status = $2))
-  AND ($4::text IS NULL OR meeting_type = $4)
-  AND ($5::text IS NULL OR host_user_id = $5)
-  AND ($6::text IS NULL OR project_id = $6)
-  AND ($7::text IS NULL OR title ILIKE '%' || $7 || '%')
-  AND ($8::timestamptz IS NULL OR starts_at >= $8)
-  AND ($9::timestamptz IS NULL OR starts_at <= $9)
+    OR ($2 = 'MISSED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at < $3::timestamptz)
+    OR ($2 = 'SCHEDULED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at >= $3::timestamptz)
+    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND meetings.status = $2))
+  AND ($4::text IS NULL OR meetings.meeting_type = $4)
+  AND ($5::text IS NULL OR meetings.host_user_id = $5)
+  AND ($6::text IS NULL OR meetings.project_id = $6)
+  AND ($7::text IS NULL OR meetings.title ILIKE '%' || $7 || '%')
+  AND ($8::timestamptz IS NULL OR meetings.starts_at >= $8)
+  AND ($9::timestamptz IS NULL OR meetings.starts_at <= $9)
 ORDER BY
-  CASE WHEN $10 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN $10 = 'actual_start_at' THEN meetings.actual_start_at END DESC NULLS LAST,
   CASE WHEN $10 = 'starts_at'
-    THEN (starts_at AT TIME ZONE $11::text)::date < $12::date END ASC,
-  CASE WHEN $10 = 'starts_at' AND (starts_at AT TIME ZONE $11::text)::date < $12::date
-    THEN (starts_at AT TIME ZONE $11::text)::date END DESC NULLS LAST,
-  CASE WHEN $10 = 'starts_at' THEN starts_at END ASC,
-  CASE WHEN $10 = 'starts_at' THEN id END ASC,
-  created_at DESC,
-  id DESC
+    THEN (meetings.starts_at AT TIME ZONE $11::text)::date < $12::date END ASC,
+  CASE WHEN $10 = 'starts_at' AND (meetings.starts_at AT TIME ZONE $11::text)::date < $12::date
+    THEN (meetings.starts_at AT TIME ZONE $11::text)::date END DESC NULLS LAST,
+  CASE WHEN $10 = 'starts_at' THEN meetings.starts_at END ASC,
+  CASE WHEN $10 = 'starts_at' THEN meetings.id END ASC,
+  meetings.created_at DESC,
+  meetings.id DESC
 LIMIT $14 OFFSET $13
 `
 
@@ -663,8 +677,11 @@ type ListMeetingsByWorkspaceFilteredParams struct {
 }
 
 type ListMeetingsByWorkspaceFilteredRow struct {
-	Meeting              Meeting `json:"meeting"`
-	HasPlayableRecording bool    `json:"has_playable_recording"`
+	Meeting              Meeting  `json:"meeting"`
+	HasPlayableRecording bool     `json:"has_playable_recording"`
+	InRoomUserIds        []string `json:"in_room_user_ids"`
+	InRoomCount          int32    `json:"in_room_count"`
+	ScribeLive           bool     `json:"scribe_live"`
 }
 
 // sort = 'starts_at' is the list screen's calendar order: meetings on
@@ -676,6 +693,9 @@ type ListMeetingsByWorkspaceFilteredRow struct {
 // that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
 // MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
 // Every other value matches the stored status.
+// A live (IN_PROGRESS) row also says who is in the room: up to three member
+// user ids by first open-session join, everyone in it (guests included), and
+// whether the latest scribe run is ACTIVE. Other rows skip those lookups.
 func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListMeetingsByWorkspaceFilteredParams) ([]ListMeetingsByWorkspaceFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingsByWorkspaceFiltered,
 		arg.WorkspaceID,
@@ -743,6 +763,9 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 			&i.Meeting.SeriesID,
 			&i.Meeting.Venue,
 			&i.HasPlayableRecording,
+			&i.InRoomUserIds,
+			&i.InRoomCount,
+			&i.ScribeLive,
 		); err != nil {
 			return nil, err
 		}

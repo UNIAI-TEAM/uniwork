@@ -10,6 +10,11 @@ design: DESIGN.md
 
 # UniWork Office G5/G6/G7 — Experience Spine
 
+> **Superseded một phần (2026-10-29):** [ADR 0051](../../../adr/0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) gỡ BYOK
+> khỏi khung web, kho khóa trên UniWork và máy chủ. Mọi chỗ dưới đây nói về BYOK trên web (`granted.ai`,
+> `aiCredentials`, mục BYOK trong Cài đặt, "BYOK vẫn chạy" khi UniWork AI lỗi) và nguồn "Khóa trên UniWork" của desktop
+> là lịch sử; trình soạn không còn AI dự phòng. Khóa trên máy và CLI của app desktop còn tới kế hoạch 2 của ADR 0051.
+
 Spine này là hợp đồng hành vi cho các bề mặt UI của G5 (đồng bộ, offline, Lưu, xung đột) và G6 (nhà cung cấp
 UniWork AI trong panel AI genoffice). Mọi `§` trỏ vào spec G5/G6/G7 v1.2 (U-12 bỏ Dify; spine không có trạng thái Dify/retrieval nào); mã task, cổng (X-01, X-02, X-03, U-01, G5-…,
 G6-…) và tên trường wire do plan đề xuất (`x_uniwork`, `ask_clarification`, `Retry-After`, `office_capability_off`) trỏ vào plan

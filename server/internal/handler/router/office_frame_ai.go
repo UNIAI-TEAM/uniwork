@@ -13,7 +13,7 @@ import (
 // same buckets and numbers as GO-A7's session routes (ADR 0029 D6), plus the
 // ai-uniwork bucket G6-03b adds to both mounts of the UniWork AI turn.
 type officeFrameAILimits struct {
-	credentials, byok, cloud, uniwork func(http.Handler) http.Handler
+	cloud, uniwork func(http.Handler) http.Handler
 }
 
 // tag: ai — GO-A7's AI routes on the web Office frame token (UNI-1014,
@@ -23,74 +23,25 @@ type officeFrameAILimits struct {
 // the token module's office_*_web flag must be on), each request rechecks
 // that the token's user may still view the document, then runs GO-A7's
 // handlers for the token's user and organization: the same entitlement
-// (office.ai_byok / office.ai_cloud), credits, audit, errors and per-person
-// rate-limit buckets as the /orgs/{orgID}/ai/... session routes, which share
-// the budget. Credentials are the person's own rows in the organization, so
-// view access is enough for PUT/DELETE too. SSE passes through unchanged.
+// (office.ai_cloud), credits, audit, errors and per-person rate-limit buckets
+// as the /orgs/{orgID}/ai/... session routes, which share the budget.
 //
-//	GET    /api/v1/office-frame/documents/{documentID}/ai/credentials
-//	PUT    /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}
-//	DELETE /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}
-//	POST   /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions
-//	POST   /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/messages
-//	POST   /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/generate
-//	GET    /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/models
 //	GET    /api/v1/office-frame/documents/{documentID}/ai/cloud
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/search
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/images
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions
+//	POST   /api/v1/office-frame/documents/{documentID}/ai/uniwork/write
 func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler, limits officeFrameAILimits) {
 	if frameAuth == nil {
 		frameAuth = frameAuthNotFound
 	}
 	const frame = "Khung Office web, chỉ token khung (Bearer); token phải của đúng {documentID}, người dùng của token còn quyền xem tài liệu (kiểm lại mỗi request), cờ module của token bật. Người dùng và tổ chức lấy từ token. "
-	const credErrs = " 503 ai_credentials_unavailable khi máy chủ chưa cấu hình AI_CREDENTIAL_KEY."
-	const byokErrs = " Lỗi: 403 entitlement_required (gói thiếu office.ai_byok), 404 credential_missing, 400 provider_not_supported / base_url_refused / invalid_request, 424 provider_auth_failed, 429 (giới hạn 60/phút/người chung với route phiên, hoặc của nhà cung cấp), 502 provider_unreachable."
 	const cloudErrs = " 403 entitlement_required (gói thiếu office.ai_cloud), 402 credits_exhausted, 503 cloud_unavailable, 502 ai_provider_error, 429 khi vượt 20 lần/phút/người (chung với route phiên)."
 	// Auth first so the flags and the budgets see the token's user.
 	f := r.With(frameAuth, mw.RequireFeatureFlag(flags, "documents"))
 	const base = "/office-frame/documents/{documentID}/ai"
-
-	cred := f.With(limits.credentials)
-	cred.Get(base+"/credentials", h.OfficeFrameAiCredentialsList, apiOp{
-		summary:     "Frame: list my AI provider keys",
-		description: frame + "Như GET /orgs/{orgID}/ai/credentials cho tổ chức của token: chỉ key_hint, không bao giờ trả khóa." + credErrs,
-		tags:        []string{"ai"}, sdo: sdo.AICredentialListSDO{}, auth: true,
-	})
-	cred.Put(base+"/credentials/{aiProvider}", h.OfficeFrameAiCredentialSave, apiOp{
-		summary:     "Frame: save my AI provider key",
-		description: frame + "Như PUT /orgs/{orgID}/ai/credentials/{aiProvider}: tạo (201) hoặc thay (200), body chỉ có model đổi model mà không nhập lại khóa; cần office.ai_byok (403 entitlement_required); 400 provider_not_supported, 400 base_url_refused." + credErrs,
-		tags:        []string{"ai"}, sdi: sdi.SaveAICredentialSDI{}, sdo: sdo.AICredentialSDO{}, auth: true,
-	})
-	cred.Delete(base+"/credentials/{aiProvider}", h.OfficeFrameAiCredentialDelete, apiOp{
-		summary:     "Frame: delete my AI provider key",
-		description: frame + "Như DELETE /orgs/{orgID}/ai/credentials/{aiProvider}: không cần quyền gói; 404 credential_missing khi chưa lưu." + credErrs,
-		tags:        []string{"ai"}, status: http.StatusNoContent, auth: true,
-	})
-
-	byok := f.With(limits.byok)
-	byok.Post(base+"/byok/{aiProvider}/chat/completions", h.OfficeFrameAiByokChatCompletions, apiOp{
-		summary:     "Frame: BYOK proxy, OpenAI chat completions",
-		description: frame + "Thân OpenAI nguyên bản (≤ 16 MiB), stream=true trả SSE." + byokErrs,
-		tags:        []string{"ai"}, sdi: sdi.AiByokChatCompletionsSDI{}, sdo: sdo.AiByokVendorSDO{}, auth: true,
-	})
-	byok.Post(base+"/byok/{aiProvider}/messages", h.OfficeFrameAiByokMessages, apiOp{
-		summary:     "Frame: BYOK proxy, Anthropic messages",
-		description: frame + "Thân Messages nguyên bản (≤ 16 MiB)." + byokErrs,
-		tags:        []string{"ai"}, sdi: sdi.AiByokMessagesSDI{}, sdo: sdo.AiByokVendorSDO{}, auth: true,
-	})
-	byok.Post(base+"/byok/{aiProvider}/generate", h.OfficeFrameAiByokGenerate, apiOp{
-		summary:     "Frame: BYOK proxy, Gemini generate",
-		description: frame + "{model, stream, request}; request là GenerateContentRequest nguyên bản (≤ 16 MiB)." + byokErrs,
-		tags:        []string{"ai"}, sdi: sdi.AiByokGenerateSDI{}, sdo: sdo.AiByokVendorSDO{}, auth: true,
-	})
-	byok.Get(base+"/byok/{aiProvider}/models", h.OfficeFrameAiByokModels, apiOp{
-		summary:     "Frame: BYOK proxy, vendor model list",
-		description: frame + "Danh sách model của nhà cung cấp, JSON nguyên bản." + byokErrs,
-		tags:        []string{"ai"}, sdo: sdo.AiByokVendorSDO{}, auth: true,
-	})
 
 	f.Get(base+"/cloud", h.OfficeFrameAiCloudStatus, apiOp{
 		summary:     "Frame: Office cloud AI status",
@@ -127,8 +78,27 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 		summary: "Frame: UniWork AI chat, one turn",
 		description: frame + "Như POST /orgs/{orgID}/ai/uniwork/chat/completions: một lượt, hội thoại do server giữ " +
 			"(header X-UniWork-AI-Conversation), stream=true trả SSE một chunk rồi [DONE]. Module lấy từ claim của token; " +
-			"trường module trong body bị bỏ qua." + uniworkChatErrs,
+			"trường module trong body bị bỏ qua." + uniworkHandoffWire + uniworkChatErrs,
 		tags: []string{"ai"}, sdi: sdi.AiUniworkChatCompletionsSDI{}, sdo: sdo.AiUniworkChatCompletionsSDO{}, auth: true,
+	})
+
+	// The writer route (Ask UNI × Office plan 5): the editors' one-shot
+	// writers under UniWork AI, inside a run the frame already holds. Same
+	// bucket as the turn: one 60/min per person.
+	f.With(limits.uniwork).Post(base+"/uniwork/write", h.OfficeFrameAiUniworkWrite, apiOp{
+		summary: "Frame: UniWork AI writer, one call",
+		description: frame + "Một lời gọi bộ viết của trình soạn (Word, Markdown, HTML, slide) dưới UniWork AI: body {kind, lang, input}, " +
+			"prompt hệ thống do server giữ. Lời gọi nằm trong một lượt đang chạy: phải nêu X-UniWork-AI-Conversation và X-UniWork-AI-Run " +
+			"(thiếu → 400), không bao giờ mở run mới, tính một lượt gọi model của run và luôn chừa lượt cuối cho vòng công cụ " +
+			"(run đã dùng 9 lượt → 409 run_limit_reached, fields.limit = model_calls). Không ghi vào hội thoại. Câu trả lời là SSE: " +
+			"chunk chat.completion.chunk theo từng đoạn chữ, chunk cuối có finish_reason và usage, rồi [DONE]; lỗi sau khi đã có chữ " +
+			"kết thúc bằng chunk x_uniwork.terminal {code} rồi [DONE], code ∈ ai_provider_error, ai_provider_timeout, ai_cancelled, ai_refused. " +
+			"Module lấy từ claim của token; kind của module khác → 400. " +
+			"Lỗi trước byte đầu: 400 invalid_request, 402 credits_exhausted, 403 forbidden (khung chỉ xem) / entitlement_required / " +
+			"office_capability_off, 404, 408 ai_cancelled, 409 conversation_expired / run_expired / run_limit_reached, 413 payload_too_large " +
+			"(body > 1 MiB hoặc trường vượt trần), 422 ai_refused, 429 ai_uniwork_busy / ai_rate_limited, 502 ai_provider_error, " +
+			"503 ai_disabled, 504 ai_provider_timeout.",
+		tags: []string{"ai"}, sdi: sdi.AiUniworkWriteSDI{}, sdo: sdo.AiUniworkWriteSDO{}, auth: true,
 	})
 }
 

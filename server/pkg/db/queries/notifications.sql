@@ -210,6 +210,15 @@ UPDATE push_subscriptions p SET revoked_at = now()
 WHERE p.user_id = $1 AND p.revoked_at IS NULL
   AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1);
 
+-- name: RevokeOtherDevicePushSubscriptionsForUser :exec
+-- Revoking every session but the caller's closes the pushes of every other
+-- native device family; the kept family's and the browsers' stay, as in a
+-- user-wide revoke.
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = sqlc.arg(user_id) AND p.revoked_at IS NULL
+  AND p.session_id <> sqlc.arg(keep_family_id)::text
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = sqlc.arg(user_id));
+
 -- name: ListActivePushSubscriptions :many
 SELECT * FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL;
 

@@ -108,7 +108,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   // Select → review sheet → "Giao n việc" (ADR 0010: the AI proposes, the clerk confirms).
   await section.getByRole("checkbox", { name: "Gửi báo giá" }).check({ timeout: 20_000 });
   await section.getByRole("checkbox", { name: "Đặt phòng hội thảo" }).check();
-  await page.getByRole("region", { name: "Việc đã chọn" }).getByRole("button", { name: "Xem lại và giao" }).click();
+  await page.getByRole("region", { name: "Việc đã chọn" }).getByRole("button", { name: "Giao", exact: true }).click();
   const review = page.getByRole("dialog", { name: /^Giao 2 việc/ });
   const assign = review.getByRole("button", { name: "Giao 2 việc" });
   await expect(assign).not.toHaveAttribute("aria-busy", "true");

@@ -146,9 +146,9 @@ export function capturePairBlocker(metaState, fixture, { forkSha = null, pinVers
 
 /**
  * The reason a pair's capture proves no AI in its frame, or null (RFE5-202). Only the web host
- * is asked: its frame shows AI chrome only when the frame token granted `ai` or `uniwork_ai`
- * (the host reads `ai || uniworkAi`); the desktop app leaves AI on by itself. A web meta that
- * records neither grant as `true` (off, absent, drifted) is a capture of an AI-less frame,
+ * is asked: its frame shows AI chrome only when the frame token granted `uniwork_ai`; the
+ * desktop app leaves AI on by itself. A web meta that does not record `uniworkAi` as `true`
+ * (off, absent, drifted) is a capture of an AI-less frame,
  * which must never be compared against, or blessed as, a golden: the drift would be frozen.
  * @param {{ value: unknown } | { missing: true } | { error: string }} metaState
  * @param {string} host
@@ -158,7 +158,7 @@ export function capturePairBlocker(metaState, fixture, { forkSha = null, pinVers
 export function captureAiBlocker(metaState, host, fixture) {
   if (host !== "web") return null;
   const entry = /** @type {any} */ (metaState).value?.fixtures?.[fixture];
-  return entry?.ai === true || entry?.uniworkAi === true ? null : "capture_ai_off";
+  return entry?.uniworkAi === true ? null : "capture_ai_off";
 }
 
 /**

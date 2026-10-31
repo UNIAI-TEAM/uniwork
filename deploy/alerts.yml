@@ -252,18 +252,18 @@ groups:
           description: "Chi phí AI trong 1 giờ qua là {{ $value | printf \"%.2f\" }} USD, hơn 3 lần trung bình giờ của 7 ngày trước (sàn 1 USD để bỏ nhiễu lúc mới bật)."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/AiCostSpike.md
 
-      # G7-D1 pending. 10% with a floor of 20 calls: the pilot load is a few organizations, so a handful of failures in a quiet window must not page; RUNBOOK_AI's 5% stays the dashboard reading.
+      # G7-D1 pending. 10% with a floor of 20 calls: the pilot load is a few organizations, so a handful of failures in a quiet window must not page; RUNBOOK_AI's 5% stays the dashboard reading. The writer route's calls (office_uniwork_writer, plan 5) count here too: same upstream, same users.
       - alert: UniworkAiModelErrors
         expr: |
-          sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai", status="failed"}[10m]))
-            / sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai"}[10m])) > 0.1
-          and sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai"}[10m])) >= 20
+          sum(increase(uniwork_ai_calls_total{capability=~"office_uniwork_ai|office_uniwork_writer", status="failed"}[10m]))
+            / sum(increase(uniwork_ai_calls_total{capability=~"office_uniwork_ai|office_uniwork_writer"}[10m])) > 0.1
+          and sum(increase(uniwork_ai_calls_total{capability=~"office_uniwork_ai|office_uniwork_writer"}[10m])) >= 20
         for: 5m
         labels:
           severity: "2"
         annotations:
           summary: "UniWork AI lỗi trên 10% lượt gọi model"
-          description: "Hơn 10% lượt gọi model của capability office_uniwork_ai kết thúc failed trong 10 phút (hiện {{ $value | humanizePercentage }}): upstream, khóa hoặc model sai. Editor, Lưu và BYOK vẫn chạy."
+          description: "Hơn 10% lượt gọi model của capability office_uniwork_ai và office_uniwork_writer (route viết) kết thúc failed trong 10 phút (hiện {{ $value | humanizePercentage }}): upstream, khóa hoặc model sai. Editor và Lưu vẫn chạy, nhưng trình soạn không còn AI dự phòng (ADR 0051)."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiModelErrors.md
 
       # G7-D1 pending. 20 s is RUNBOOK_AI's tier-change reading and sits well under the 55 s upstream timeout (A14), so it warns before users see ai_provider_timeout.
@@ -294,6 +294,7 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiUsageUnknownSpike.md
 
       # G7-D1 pending. Run age is the sum of model calls and tool rounds of one question; 64 s is a histogram bucket edge, above one 55 s upstream timeout plus a normal tool round.
+      # A run that used writer calls (plan 5) is legitimately minutes long (up to 300 s per call); check uniwork_ai_calls_total{capability="office_uniwork_writer"} first.
       - alert: UniworkAiRunSecondsHigh
         expr: histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_seconds_bucket[30m]))) > 64
         for: 30m
@@ -305,6 +306,7 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiRunSecondsHigh.md
 
       # G7-D1 pending. 10 model calls x 4096 output tokens (A1, A3) is about 41k of output alone; 64,000 is a histogram bucket edge, so p95 above it means inputs are growing too.
+      # A run that used writer calls (plan 5) can spend up to 9 x 16384 output tokens; check uniwork_ai_calls_total{capability="office_uniwork_writer"} first.
       - alert: UniworkAiRunCreditsHigh
         expr: histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_credits_bucket[30m]))) > 64000
         for: 30m

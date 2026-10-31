@@ -3,26 +3,28 @@
 // above it (canvas MobSelectWorkspace). Settings sits under the list in every
 // state, an empty one included: the account's own Settings (accountRoutes)
 // keeps the legal pages and account deletion reachable without a workspace.
-// A Hide My Email account (ADR 0041) hears why an invitation to its work email misses it (lib/apple-relay.ts).
 // "No workspace" only once the server answered with none: a list not answered
-// yet waits for the network, with Retry (components/workspace/use-workspace-list.ts).
+// yet waits for the network, with Retry (components/workspace/use-workspace-list.ts). With none, the invitations
+// waiting for the account's address take the list's place, each joined in place
+// (components/workspace/pending-invitations.tsx, spec §5.2). An account whose address is not
+// proved yet sees no workspace: it proves it first (app/(app)/verify-email.tsx).
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import type { Workspace } from "@uniwork/core/types/workspace";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { CardPressable } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
+import { PendingInvitations } from "@/components/workspace/pending-invitations";
+import { useOpenWorkspace } from "@/components/workspace/use-join-invitation";
 import { useWorkspaceList } from "@/components/workspace/use-workspace-list";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
-import { useWorkspaceStore } from "@/data/stores/workspace-store";
-import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { accountRoutes } from "@/lib/chat-routes";
+import { signInRoutes } from "@/lib/sign-in-routes";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
@@ -34,16 +36,13 @@ export default function SelectWorkspace() {
   const { colorScheme } = useColorScheme();
   const logout = useAuthStore((s) => s.logout);
   const email = useAuthStore((s) => s.user?.email ?? "");
-  const setCurrent = useWorkspaceStore((s) => s.setCurrent);
+  const unverified = useAuthStore((s) => s.user?.email_verified_at === null);
+  const openWorkspace = useOpenWorkspace();
   const { data, view, retry } = useWorkspaceList();
   const summary = useQuery(unreadSummaryOptions());
 
-  const onSelect = async (ws: Workspace) => {
-    await setCurrent({ orgSlug: ws.organization_slug, wsSlug: ws.slug, wsId: ws.id });
-    router.replace(`/${ws.organization_slug}/${ws.slug}/chat`);
-  };
-
   const organization = data?.[0]?.organization_name;
+  if (unverified) return <Redirect href={signInRoutes.verifyEmail} />;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -76,9 +75,7 @@ export default function SelectWorkspace() {
             </Button>
           </View>
         ) : view === "empty" ? (
-          <Text selectable className="text-callout leading-[22px] text-muted-foreground">
-            {isAppleRelayAddress(email) ? t("mobile.account.no_workspace_relay", { email }) : t("mobile.account.no_workspace")}
-          </Text>
+          <PendingInvitations email={email} />
         ) : (
           <View className="gap-3">
             {(data ?? []).map((ws) => {
@@ -96,7 +93,7 @@ export default function SelectWorkspace() {
                     .filter(Boolean)
                     .join(", ")}
                   className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 ps-4 pe-3.5"
-                  onPress={() => void onSelect(ws)}
+                  onPress={() => void openWorkspace(ws)}
                 >
                   <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />
                   <View className="flex-1 gap-0.5">

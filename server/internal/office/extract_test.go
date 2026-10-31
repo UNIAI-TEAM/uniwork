@@ -645,7 +645,7 @@ func TestExtractTextCallerValidation(t *testing.T) {
 
 	// Bad format -> plain error, not ErrExtractUnavailable.
 	badFmt := sampleExtractReq([]byte("x"))
-	badFmt.Format = "pdf"
+	badFmt.Format = "md"
 	if _, err := e.cli.ExtractText(context.Background(), badFmt); err == nil || errors.Is(err, ErrExtractUnavailable) {
 		t.Fatalf("bad format: got %v, want plain error (not ErrExtractUnavailable)", err)
 	}
@@ -851,5 +851,55 @@ func TestExtractTextCompletedResultValidation(t *testing.T) {
 				t.Fatalf("%s: must not map to ExtractUnreadableError, got %+v", tc.name, ue)
 			}
 		})
+	}
+}
+
+func TestExtractTextPDFByUniWorkDocument(t *testing.T) {
+	withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+	e := newExtractFakeEngine(t)
+	e.jobResult = map[string]any{"text": "page one\fpage two", "truncated": false, "format": "pdf"}
+
+	req := sampleExtractReq([]byte("%PDF-1.7 fake"))
+	req.Format = ExtractFormatPDF
+	req.DriveFileID = ""
+	req.DocumentID = "d1"
+	req.ActorKind = "system"
+	res, err := e.cli.ExtractText(context.Background(), req)
+	if err != nil {
+		t.Fatalf("ExtractText: %v", err)
+	}
+	if res.Text != "page one\fpage two" || res.Truncated {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	g := e.seenGrants[0]
+	if g.DocumentID != "d1" || g.DriveFileID != "" || g.ActorKind != "system" || g.Format != FormatPDF || g.Operation != OperationExtractText {
+		t.Fatalf("grant: %+v", g)
+	}
+	if g.BaseVersionID != "" || g.BaseRevision != 0 || g.Output != nil {
+		t.Fatalf("grant must stay extract-only: %+v", g)
+	}
+}
+
+func TestExtractTextNeedsExactlyOneSource(t *testing.T) {
+	withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+	e := newExtractFakeEngine(t)
+	both := sampleExtractReq([]byte("x"))
+	both.DocumentID = "d1" // DriveFileID is already set
+	none := sampleExtractReq([]byte("x"))
+	none.DriveFileID = ""
+	for name, req := range map[string]ExtractTextRequest{"both": both, "none": none} {
+		if _, err := e.cli.ExtractText(context.Background(), req); err == nil {
+			t.Fatalf("%s: expected an error", name)
+		}
+	}
+	if n := e.statusCalls.Load(); n != 0 {
+		t.Fatalf("engine was called %d times", n)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.seenGrants) != 0 {
+		t.Fatalf("a submit reached the engine")
 	}
 }

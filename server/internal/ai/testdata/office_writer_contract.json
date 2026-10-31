@@ -1,0 +1,59 @@
+{
+  "docs.write_document": {
+    "output": "html_fragment",
+    "must_contain": [
+      "Only these tags are allowed: h1 h2 h3 h4 h5 h6 p ul ol li strong em u s a br table thead tbody tr th td pre code blockquote",
+      "<formula>LaTeX</formula>",
+      "No markdown code fences"
+    ]
+  },
+  "markdown.write_document": {
+    "output": "markdown",
+    "must_contain": ["pure GFM"]
+  },
+  "html.page": {
+    "output": "html_document",
+    "must_contain": ["<!doctype html>", "data-section"]
+  },
+  "html.brief": {
+    "output": "json_object",
+    "must_contain": ["core_hook", "style", "alternatives", "sections", "meta", "context"]
+  },
+  "slides.deck_style": {
+    "output": "text",
+    "must_contain": ["Color rules", "Fonts"]
+  },
+  "slides.deck_outline": {
+    "output": "json_object",
+    "must_contain": ["core_hook", "pages", "cover|content|data|closing"]
+  },
+  "slides.page": {
+    "output": "json_object",
+    "must_contain": [
+      "1280x720",
+      "\"background\"",
+      "\"elements\"",
+      "rect",
+      "roundRect",
+      "ellipse",
+      "triangle",
+      "rightArrow",
+      "leftArrow",
+      "upArrow",
+      "downArrow",
+      "chevron",
+      "diamond",
+      "parallelogram",
+      "trapezoid",
+      "hexagon",
+      "pentagon",
+      "pie",
+      "donut",
+      "star5",
+      "heart",
+      "cloud",
+      "line",
+      "lineArrow"
+    ]
+  }
+}

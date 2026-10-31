@@ -197,8 +197,20 @@ func main() {
 	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
+	// The one sealer (ADR 0049): TOTP secrets and the kept Apple token at
+	// rest, and every blob the server hands a client, sealed per purpose.
+	sealer, err := auth.NewSecretSealer([]byte(cfg.JWTSecret))
+	if err != nil {
+		log.Error("secret sealer", "err", err)
+		os.Exit(1)
+	}
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	authSvc.SetSealer(sealer)
+	// The hand-overs (transfer, the invitation switch) take the owner's proof
+	// through the one step-up checker (ADR 0049 §5).
+	orgMemberSvc.SetStepUp(authSvc)
+	wsSvc.SetStepUp(authSvc)
 	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
@@ -506,6 +518,8 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// Content search of file documents: it reads the file, so the slow lane and Ask UNI's one file-read slot.
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewDocumentTextIndexer(documentSvc, askUNI, driveExtractor))
 	// Link previews (ADR 0035): a fetch waits on a third party, so never the realtime lane.
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatLinkPreviewConsumer(chatSvc, linkpreview.New(linkpreview.Options{})))
 	// The UniWork AI transcript follows what it is bound to: a deleted document
@@ -562,6 +576,7 @@ func main() {
 	// the document.* frames of the Documents UI are not slowed down.
 	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	officeHandoffSweep := service.NewOfficeHandoffSweeper(q, log)
 	docAccessBatchWorker := service.NewDocumentAccessBatchWorker(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
@@ -717,6 +732,8 @@ func main() {
 	// awaited below.
 	editLockSweepDone := make(chan struct{})
 	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	officeHandoffSweepDone := make(chan struct{})
+	go func() { officeHandoffSweep.Run(runCtx); close(officeHandoffSweepDone) }()
 	// The folder bulk access batch worker (UNI-2244 §4) stops with runCancel
 	// and is awaited below.
 	docAccessBatchWorkerDone := make(chan struct{})
@@ -737,41 +754,72 @@ func main() {
 	officeSpoolSweep := officeSvc.NewSpoolSweeper()
 	officeSpoolSweepDone := make(chan struct{})
 	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
-	// Google needs both credentials; discovery runs once here. A failed
-	// discovery leaves Google off rather than taking the API down with it.
+	// Google on the web needs both credentials, Google in the app its iOS
+	// and Android clients (ADR 0049 §8); discovery runs once here for both. A
+	// failed discovery leaves Google off rather than taking the API down with
+	// it.
 	var google handler.GoogleExchanger
-	if cfg.GoogleEnabled() {
-		g, err := auth.NewGoogleOAuth(ctx, auth.GoogleIssuer, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
-		if err != nil {
+	if cfg.GoogleEnabled() || cfg.GoogleNativeEnabled() {
+		d, err := auth.DiscoverGoogle(ctx, auth.GoogleIssuer)
+		switch {
+		case err != nil:
 			log.Error("google sign-in disabled", "err", err)
-		} else {
-			google = g
-			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+		default:
+			if cfg.GoogleEnabled() {
+				google = d.OAuth(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
+				log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+			}
+			if cfg.GoogleNativeEnabled() {
+				// Interfaces stay nil, never a typed nil, while the door is off.
+				authSvc.SetGoogleNative(d.NativeVerifier(cfg.GoogleClientID, cfg.GoogleNativeClientIDs, nil))
+				log.Info("google sign-in in the app enabled", "clients", strings.Join(cfg.GoogleNativeClientIDs, ","))
+			}
 		}
 	}
-	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
-	// identity tokens may name. The key that signs Apple client secrets is
-	// what lets a sign-in keep a refresh token and account deletion revoke
-	// it, which Apple requires; without it sign-in still works and the
-	// missing revoke is logged here.
+	// Sign in with Apple (ADR 0041, 0049): the phone's native sheet, on with
+	// the bundle ids its identity tokens may name, and the web, on with the
+	// Services ID. Each door has its own verifier, so a token issued to one
+	// never opens the other. The key that signs Apple client secrets is what
+	// lets a sign-in keep a refresh token and account deletion revoke it,
+	// which Apple requires: the phone signs in without it and the missing
+	// revoke is logged here; the web cannot redeem its code without it, so it
+	// stays off.
 	var appleAuth *service.AppleAuthService
-	if cfg.AppleSignInEnabled() {
-		var appleClient service.AppleTokenClient
+	if cfg.AppleSignInEnabled() || cfg.AppleSignInWebClientID != "" {
+		var appleClient *auth.AppleClient
 		if cfg.AppleRevokeConfigured() {
 			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
 			if err != nil {
-				log.Error("sign in with apple: token revoke disabled", "err", err)
+				log.Error("sign in with apple: the key does not load; token revoke and the web are off", "err", err)
 			} else {
 				appleClient = c
 			}
 		} else {
-			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens and the web stays off")
 		}
-		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
-		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		// Interfaces stay nil, never a typed nil, while a door or the key is off.
+		var native service.AppleTokenVerifier
+		if cfg.AppleSignInEnabled() {
+			native = auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		}
+		var tokens service.AppleTokenClient
+		if appleClient != nil {
+			tokens = appleClient
+		}
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, native, tokens, sealer)
 		appleAuth.SetMail(renderer, mailOutbox)
+		if cfg.AppleWebConfigured() && appleClient != nil {
+			appleAuth.SetWeb(authSvc, service.AppleWeb{
+				ServicesID: cfg.AppleSignInWebClientID, RedirectURI: cfg.AppleWebRedirectURL(),
+				Verifier: auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, []string{cfg.AppleSignInWebClientID}, nil),
+				Client:   appleClient,
+			})
+			log.Info("sign in with apple on the web enabled", "services_id", cfg.AppleSignInWebClientID, "redirect_url", cfg.AppleWebRedirectURL())
+		}
 		authSvc.SetApple(appleAuth)
-		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		if cfg.AppleSignInEnabled() {
+			log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		}
 	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.
@@ -808,20 +856,6 @@ func main() {
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
 	driveWorkersDone := make(chan struct{})
 	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
-	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
-	// server still boots and the credential routes answer 503.
-	var aiCredentialBox *secretbox.Box
-	if key, err := secretbox.LoadKey("AI_CREDENTIAL_KEY"); err == nil {
-		aiCredentialBox, err = secretbox.New(key)
-		if err != nil {
-			log.Warn("AI provider credentials disabled", "err", err)
-		}
-	} else if os.Getenv("AI_CREDENTIAL_KEY") != "" {
-		log.Warn("AI provider credentials disabled", "err", err)
-	}
-	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
-	// BYOK proxy for the web host (UNI-1008): the stored key, resolved per call.
-	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), aiCredentialSvc, gateway)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -893,7 +927,14 @@ func main() {
 	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
 	mcpTools.SetDocuments(documentSvc)
 	mcpTools.SetFlags(flags)
+	mcpTools.SetPDFText(driveExtractor)
 	askUNI.SetReadTools(mcpTools)
+	// One composition for the documents home and Ask UNI's attachment tools, so
+	// the router does not build a second one.
+	documentSourceSvc := service.NewDocumentSourceService(service.DocumentSourceDeps{
+		Documents: documentSvc, Chat: chatSvc, Tasks: taskSvc, Meetings: meetingSvc, EmailHub: emailHubSvc,
+	})
+	askUNI.SetDocumentSources(documentSourceSvc)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
 		aiMemorySvc.SetMetrics(reg.AIAsk)
@@ -902,16 +943,24 @@ func main() {
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
+	signInTickets := service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox)
 	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
 	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
+	aiCloudSvc := service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway)
+	// The plan card and Apply ask the gate the frame's uniwork_ai grant reads.
+	askUNI.SetEditorAI(service.NewEditorAIGate(aiCloudSvc, officeCapabilitiesSvc))
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
 		AppleAuth:           appleAuth,
+		NativeSignIn:        service.NewNativeSignInService(pool, q, authSvc, desktopAuthSvc, signInTickets),
 		Verification:        verification,
 		PasswordReset:       passwordReset,
-		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
+		GoogleAuth:          service.NewGoogleAuthService(authSvc),
+		SignInTickets:       signInTickets,
+		SignInMethods:       service.NewSignInMethodsService(pool, q, authSvc),
+		Sealer:              sealer,
 		Google:              google,
 		Organizations:       orgSvc,
 		OrgMembers:          orgMemberSvc,
@@ -937,7 +986,6 @@ func main() {
 		AiMemory:            aiMemorySvc,
 		McpAuth:             mcpAuth,
 		McpTools:            mcpTools,
-		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
 		Graph:               graphSvc,
@@ -948,11 +996,11 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           documentSvc,
+		DocumentSources:     documentSourceSvc,
 		DocumentChanges:     docChanges,
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
-		AICredentials:       aiCredentialSvc,
-		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
+		AICloud:             aiCloudSvc,
 		// The UniWork AI façade (G6-03a): the org, document and frame routes,
 		// the conversation store why the key above exists, and the process's
 		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
@@ -1115,6 +1163,11 @@ func main() {
 	case <-editLockSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: edit lock sweep did not stop in time")
+	}
+	select {
+	case <-officeHandoffSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: office handoff sweep did not stop in time")
 	}
 	select {
 	case <-docAccessBatchWorkerDone:

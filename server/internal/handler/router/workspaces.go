@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -18,7 +20,12 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/invitations
 //	GET    /api/v1/invitations/{token}
 //	POST   /api/v1/invitations/{token}/accept
-func registerWorkspaces(r api, h Routes) {
+//
+// stepUpLimit is the step-up budget (signInBudgets) of the two joins that
+// may switch organizations: their resolve takes the owner's proof of a
+// hand-over (a step-up token, or the legacy password), so a guess at that
+// password rides the same per-person budget as every other proof route.
+func registerWorkspaces(r api, h Routes, stepUpLimit func(http.Handler) http.Handler) {
 	r.Get("/orgs/{org}/workspaces/{wsSlug}", h.GetWorkspaceBySlugs, apiOp{
 		summary:     "Get workspace by slugs",
 		description: "Đổi /{orgSlug}/{workspaceSlug} thành workspace người gọi được vào.",
@@ -143,13 +150,14 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:         sdo.MembershipInvitePreviewSDO{},
 		auth:        true,
 	})
-	r.Post("/membership-invite-links/join", h.JoinMembershipInviteLink, apiOp{
-		summary:     "Join via membership invite link",
-		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức.",
-		tags:        []string{"workspaces"},
-		sdi:         sdi.JoinMembershipInviteLinkSDI{},
-		sdo:         sdo.MembershipInviteJoinSDO{},
-		auth:        true,
+	r.With(stepUpLimit).Post("/membership-invite-links/join", h.JoinMembershipInviteLink, apiOp{
+		summary: "Join via membership invite link",
+		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức: " +
+			"bước transfer chứng minh bằng resolve[].step_up_token (hoặc password cũ, xem lại 2027-01-31); thiếu bằng chứng → 403 proof_required kèm proofs.",
+		tags: []string{"workspaces"},
+		sdi:  sdi.JoinMembershipInviteLinkSDI{},
+		sdo:  sdo.MembershipInviteJoinSDO{},
+		auth: true,
 	})
 	r.Get("/invitations/{token}", h.PreviewInvitation, apiOp{
 		summary: "Preview invitation",
@@ -161,14 +169,15 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:  sdo.InvitationPreviewSDO{},
 		auth: true,
 	})
-	r.Post("/invitations/{token}/accept", h.AcceptInvitation, apiOp{
+	r.With(stepUpLimit).Post("/invitations/{token}/accept", h.AcceptInvitation, apiOp{
 		summary: "Accept invitation",
 		description: "Vào tổ chức và các workspace lời mời cấp (workspace gửi lời mời, hoặc các workspace admin đã chọn; " +
 			"workspace đã bị xóa thì bỏ qua). workspace trong kết quả là nơi hạ cánh, vắng mặt khi chưa có workspace nào. Body tùy chọn: resolve phải khớp đúng conflicts " +
 			"của bản xem trước; mọi bước rời / chuyển quyền / đóng tổ chức cũ và tham gia tổ chức mới chạy trong một transaction. " +
 			"409 organization_switch_required kèm conflicts mới nhất; 410 invitation_expired | invitation_revoked | invitation_accepted; " +
 			"403 organization_suspended | organization_deletion_scheduled khi tổ chức mời không nhận thêm người; " +
-			"bước chuyển quyền sai mật khẩu trả 403 password_incorrect, chưa có mật khẩu trả 403 password_required; " +
+			"bước chuyển quyền cần step_up_token của phiên này (POST /me/step-up, action transfer_ownership khi chứng minh bằng mã email), app đã phát hành còn gửi password (xem lại 2027-01-31); " +
+			"thiếu bằng chứng → 403 proof_required kèm proofs (thay password_required), sai mật khẩu → 403 password_incorrect (tính vào khoá bước hai); " +
 			"gọi lại sau khi đã thành công trả 200 như lần đầu.",
 		tags: []string{"workspaces"},
 		sdi:  sdi.AcceptInvitationSDI{},

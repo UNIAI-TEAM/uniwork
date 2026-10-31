@@ -42,6 +42,8 @@ func TestAIUniworkLoadShedExemption(t *testing.T) {
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
 		"/api/v1/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		// The writer route (plan 5) waits on a model for up to 300 s.
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/write",
 	} {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))

@@ -183,7 +183,9 @@ function CardBody({ source, wsId }: { source: AiCitation; wsId: string }) {
   const { t } = useTranslation();
   const date = useDate();
   const id = source.object_id ?? "";
-  const doc = useDocument(wsId, source.kind === "document" ? id : "");
+  // An attached file's id ("task:…", "chat:…", "email:…") names a source file, not a library document: nothing to fetch.
+  const isSourceFile = source.kind === "document" && id.includes(":");
+  const doc = useDocument(wsId, source.kind === "document" && !isSourceFile ? id : "");
   const meeting = useMeeting(source.kind === "meeting" ? id : "");
   const project = useProject(wsId, source.kind === "project" ? id : "");
   const room = useChatRoom(wsId, source.kind === "chat" ? id : "", source.kind === "chat");
@@ -193,6 +195,7 @@ function CardBody({ source, wsId }: { source: AiCitation; wsId: string }) {
     case "member":
       return <PersonCard userId={id} wsId={wsId} />;
     case "document":
+      if (isSourceFile) return null;
       return (
         <Live q={doc}>
           {(d) => (d.content_text ? <p className="line-clamp-4 text-caption text-muted-foreground">{d.content_text.slice(0, 240)}</p> : null)}

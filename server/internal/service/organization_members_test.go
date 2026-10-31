@@ -42,6 +42,8 @@ func newOrgMembersFixture(t *testing.T) *orgMembersFixture {
 	f.orgs = NewOrganizationService(pool, q)
 	f.svc = NewOrganizationMemberService(pool, q, f.orgs)
 	f.ws = NewWorkspaceService(pool, q, f.orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	f.svc.SetStepUp(as)
+	f.ws.SetStepUp(as)
 	f.owner = registerVerified(t, q, as, "owner@example.com", "Owner")
 	f.admin = registerVerified(t, q, as, "admin@example.com", "Admin")
 	f.member = registerVerified(t, q, as, "member@example.com", "Member")

@@ -55,7 +55,7 @@ function useSessionText() {
  * Every signed-in browser, this one first-class. Both revoke paths confirm
  * first: a revoked session is signed out and cannot be brought back.
  */
-export function SessionsSection() {
+export function SessionsSection({ heldBy }: { heldBy?: string } = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.sessions" });
   const text = useSessionText();
   const sessions = useSessions();
@@ -125,6 +125,8 @@ export function SessionsSection() {
                     variant="ghost"
                     size="sm"
                     aria-label={t("revokeAria", { device: device.label })}
+                    aria-disabled={Boolean(heldBy) || undefined}
+                    aria-describedby={heldBy}
                     onClick={() => setPending({ kind: "one", id: s.id, device: device.label })}
                   >
                     {t("revoke")}
@@ -144,7 +146,13 @@ export function SessionsSection() {
       description={t("description")}
       action={
         others > 0 ? (
-          <Button variant="outline" size="sm" onClick={() => setPending({ kind: "others", count: others })}>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-disabled={Boolean(heldBy) || undefined}
+            aria-describedby={heldBy}
+            onClick={() => setPending({ kind: "others", count: others })}
+          >
             {t("revokeOthers", { count: others })}
           </Button>
         ) : null

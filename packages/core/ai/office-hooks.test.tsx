@@ -7,9 +7,6 @@ import {
   aiOfficeKeys,
   useAiCloudSearch,
   useAiCloudStatus,
-  useAiCredentials,
-  useDeleteAiCredential,
-  useSaveAiCredential,
 } from "./office-hooks";
 
 const json = (body: unknown, status = 200) =>
@@ -36,13 +33,13 @@ describe("ai office hooks", () => {
   });
 
   it("keys carry the organization id", () => {
-    expect(aiOfficeKeys.credentials("o1")).toEqual(["ai-office", "credentials", "o1"]);
+    expect(aiOfficeKeys.cloud("o1")).toEqual(["ai-office", "cloud", "o1"]);
     expect(aiOfficeKeys.cloud("o1")).not.toEqual(aiOfficeKeys.cloud("o2"));
   });
 
   it("queries stay idle without an org id", () => {
     const { wrapper } = setup();
-    const { result } = renderHook(() => useAiCredentials(""), { wrapper });
+    const { result } = renderHook(() => useAiCloudStatus(""), { wrapper });
     expect(result.current.fetchStatus).toBe("idle");
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -52,27 +49,6 @@ describe("ai office hooks", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true }));
     const { result } = renderHook(() => useAiCloudStatus("o1"), { wrapper });
     await waitFor(() => expect(result.current.data?.enabled).toBe(true));
-  });
-
-  it("save and delete refresh the credential list", async () => {
-    const { qc, wrapper } = setup();
-    const invalidate = vi.spyOn(qc, "invalidateQueries");
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(json({ provider: "openai", key_hint: "…abcd" }, 201))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
-    const save = renderHook(() => useSaveAiCredential("o1"), { wrapper });
-    await act(async () => {
-      await save.result.current.mutateAsync({ provider: "openai", body: { api_key: "k" } });
-    });
-    const del = renderHook(() => useDeleteAiCredential("o1"), { wrapper });
-    await act(async () => {
-      await del.result.current.mutateAsync("openai");
-    });
-    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
-    expect(keys).toEqual([
-      JSON.stringify(aiOfficeKeys.credentials("o1")),
-      JSON.stringify(aiOfficeKeys.credentials("o1")),
-    ]);
   });
 
   it("a cloud call refetches the credits line", async () => {

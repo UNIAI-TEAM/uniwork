@@ -72,7 +72,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_auto_summaries, meeting_settings,
 		meeting_transcriptions, meeting_speaker_labels, meeting_scribe_runs,
 		chat_messages, chat_room_members, chat_blocks, chat_rooms,
-		emails, password_reset_tokens, email_verification_codes,
+		emails, password_reset_tokens, email_verification_codes, sign_in_email_claims,
 		audit_events, audit_retention_policies, audit_exports,
 		data_subject_requests,
 		agents, workspace_agent_members,

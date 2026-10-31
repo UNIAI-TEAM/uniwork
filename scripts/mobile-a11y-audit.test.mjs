@@ -48,7 +48,8 @@ describe("mobile a11y audit", () => {
       node({ clickable: "true", bounds: "[0,0][0,0]" }),
       node({ clickable: "true", bounds: "bad" }),
     );
-    const issues = auditHierarchy(xml, { pkg: PKG, density: 3 });
+    const { issues, unmeasured } = auditHierarchy(xml, { pkg: PKG, density: 3 });
+    assert.deepEqual(unmeasured, []);
     assert.deepEqual(
       issues.map((issue) => [issue.rule, issue.detail]),
       [
@@ -57,7 +58,53 @@ describe("mobile a11y audit", () => {
       ],
     );
     // A screen whose small controls are grown by hit slop is held to 44 dp of drawn size instead.
-    assert.deepEqual(auditHierarchy(screen(node({ clickable: "true", bounds: "[0,0][132,132]", text: "OK" })), { pkg: PKG, density: 3, minDp: 44 }), []);
-    assert.equal(auditHierarchy(screen(node({ clickable: "true", bounds: "[0,0][132,132]" })), { pkg: PKG, density: 3 })[1].detail, "unnamed: 44 × 44 dp, under 48 dp");
+    assert.deepEqual(auditHierarchy(screen(node({ clickable: "true", bounds: "[0,0][132,132]", text: "OK" })), { pkg: PKG, density: 3, minDp: 44 }).issues, []);
+    assert.equal(auditHierarchy(screen(node({ clickable: "true", bounds: "[0,0][132,132]" })), { pkg: PKG, density: 3 }).issues[1].detail, "unnamed: 44 × 44 dp, under 48 dp");
+  });
+
+  // android-smoke, 320 × 640 at mdpi: the sign-in screen's browser button (48 dp min) showed 42 dp of itself above the
+  // scroll view's bottom edge, and uiautomator and Maestro both gave those 42 as its bounds.
+  it("leaves a control cut by the scroll view's edge unmeasured, along the way that view scrolls only", () => {
+    const scroll = (cls, children) => node({ class: cls, scrollable: "true", bounds: "[0,0][320,616]" }, children);
+    const button = (bounds, text) => node({ clickable: "true", class: "android.widget.Button", bounds, text });
+    const xml = screen(
+      scroll(
+        "android.widget.ScrollView",
+        button("[24,574][296,616]", "Đăng nhập bằng trình duyệt") +
+          button("[24,0][296,30]", "Đăng nhập") +
+          button("[24,300][296,330]", "Quên mật khẩu") +
+          button("[0,400][30,460]", "Ẩn") +
+          node({ class: "android.view.ViewGroup" }, button("[24,590][30,616]", "·")),
+      ),
+      node(
+        { class: "android.widget.HorizontalScrollView", scrollable: "true", bounds: "[0,580][320,640]" },
+        button("[300,580][320,640]", "Tiếp") + button("[0,610][40,640]", "Lùi"),
+      ),
+      button("[24,600][296,640]", "Ngoài"),
+    );
+    const { issues, unmeasured } = auditHierarchy(xml, { pkg: PKG, density: 1 });
+    assert.deepEqual(
+      unmeasured.map((control) => control.detail),
+      [
+        "Đăng nhập bằng trình duyệt: 272 × 42 dp, under 48 dp as drawn, cut by its scroll view",
+        "Đăng nhập: 272 × 30 dp, under 48 dp as drawn, cut by its scroll view",
+        "Tiếp: 20 × 60 dp, under 48 dp as drawn, cut by its scroll view",
+      ],
+    );
+    assert.deepEqual(
+      issues.map((issue) => issue.detail),
+      [
+        // Whole and still short: a real one.
+        "Quên mật khẩu: 272 × 30 dp, under 48 dp",
+        // Flush with a vertical scroll view's side: nothing scrolls it there.
+        "Ẩn: 30 × 60 dp, under 48 dp",
+        // Cut at the bottom (a nested view inherits its scroll view), but too narrow as well, which no cut explains.
+        "·: 6 × 26 dp, under 48 dp",
+        // Cut at its start by a sideways scroll, but short too, which a sideways scroll cannot cut.
+        "Lùi: 40 × 30 dp, under 48 dp",
+        // Outside any scroll view, nothing cuts it.
+        "Ngoài: 272 × 40 dp, under 48 dp",
+      ],
+    );
   });
 });

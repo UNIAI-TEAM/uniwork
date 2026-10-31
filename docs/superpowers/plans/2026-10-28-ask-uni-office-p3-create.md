@@ -1,6 +1,6 @@
 # Hỏi UNI tạo tệp Office từ mẫu hoặc tệp trống (kế hoạch 3 — Phần 3) Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch 3 của spec Hỏi UNI soạn tệp Office, chủ sản phẩm duyệt 2026-10-28, đã triển khai trên nhánh, chờ PR; issue UNI-2261 (con của UNI-415), nhánh `feature/UNI-2261-hoi-uni-soan-tep-office-tao-tep-tu-mau-h`.
+> **Trạng thái:** shipped — kế hoạch 3 của spec Hỏi UNI soạn tệp Office; merge vào develop 2026-10-28 qua PR #498 (`0cd5e5ae6`), issue UNI-2261 (con của UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

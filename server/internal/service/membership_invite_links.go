@@ -704,7 +704,7 @@ func (s *WorkspaceService) joinViaMembershipInviteLink(ctx context.Context, user
 	if len(resolve) > 0 {
 		for _, r := range resolve {
 			if r.Action == SwitchActionTransfer {
-				if err := checkOwnerPassword(ctx, s.q, userID, r.Password); err != nil {
+				if err := s.members.stepUp.proveOwner(ctx, userID, OwnerProof{StepUpToken: r.StepUpToken, Password: r.Password}); err != nil {
 					return membershipInviteJoinOutcome{}, err
 				}
 				break

@@ -83,6 +83,20 @@ describe("desktop auth transport", () => {
     expect(init.body).toBeUndefined();
   });
 
+  it("start names the provider the browser goes straight to, and only when there is one", async () => {
+    const fetch = vi.fn<FetchLike>(async () =>
+      json(200, { authorization_url: "https://uniwork.example/auth/desktop/authorize?attempt_id=a&provider=apple" }),
+    );
+    const transport = createTransport(config, { fetch });
+    const start = { clientId: "uniwork-chat-desktop", codeChallenge: "c".repeat(43), state: "s", redirectUri: "r" };
+    const result = await transport.start({ ...start, provider: "apple" });
+    expect(result.authorizationUrl).toBe("https://uniwork.example/auth/desktop/authorize?attempt_id=a&provider=apple");
+    const sent = (call: number) => new URL((fetch.mock.calls[call] as [string, RequestInit])[0]).searchParams;
+    expect(sent(0).get("provider")).toBe("apple");
+    await transport.start(start);
+    expect(sent(1).has("provider")).toBe(false);
+  });
+
   it.each([
     ["an http authorization URL", { authorization_url: "http://evil.example/x" }],
     ["credentials in the URL", { authorization_url: "https://user:pw@uniwork.example/x" }],

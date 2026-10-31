@@ -38,6 +38,22 @@ afterEach(() => {
 });
 
 describe("sign-in", () => {
+  it("hands the provider button the person tapped to the web sign-in page (spec §3.5)", async () => {
+    const ctx = setup(vi);
+    await ctx.session.login({ provider: "apple" });
+    expect(ctx.transport.start.mock.calls[0]?.[0]).toMatchObject({ provider: "apple" });
+    expect(ctx.session.status()).toBe("signed-in");
+  });
+
+  it("passes the register screen's sign_up with the provider, and nothing of it without one", async () => {
+    const ctx = setup(vi);
+    await ctx.session.login({ provider: "google", intent: "sign_up" });
+    expect(ctx.transport.start.mock.calls[0]?.[0]).toMatchObject({ provider: "google", intent: "sign_up" });
+    const other = setup(vi);
+    await other.session.login({ provider: "google", intent: "sign_in" });
+    expect(other.transport.start.mock.calls[0]?.[0]).not.toHaveProperty("intent");
+  });
+
   it("starts PKCE, opens the system auth session, exchanges the code and publishes the access token", async () => {
     const ctx = setup(vi);
     await ctx.session.login();
@@ -49,6 +65,7 @@ describe("sign-in", () => {
       platform: "ios",
     });
     expect(start?.codeChallenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(start).not.toHaveProperty("provider");
     const exchange = ctx.transport.exchange.mock.calls[0]?.[0];
     expect(exchange?.code).toBe("c1");
     expect(exchange?.codeVerifier).toMatch(/^[A-Za-z0-9._~-]{64}$/);

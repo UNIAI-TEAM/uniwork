@@ -78,13 +78,17 @@ type Run struct {
 
 // TakeRunTurn is one turn reserving its model call. RunID empty opens a run
 // for the conversation; otherwise the named run is continued. ToolRound
-// reserves a tool-result round as well. CreatedBy is the user the run is
-// bound to (kind: human), for the attribution pair of ADR 0007.
+// reserves a tool-result round as well. Writer is a writer-route call (plan
+// 5): it never opens a run and is refused at UniworkRunModelCallMax-1 calls,
+// so the run's last call stays for the tool round that hands the writer's
+// result back. CreatedBy is the user the run is bound to (kind: human), for
+// the attribution pair of ADR 0007.
 type TakeRunTurn struct {
 	OrganizationID string
 	ConversationID string
 	RunID          string
 	ToolRound      bool
+	Writer         bool
 	CreatedBy      string
 	Now            time.Time
 }

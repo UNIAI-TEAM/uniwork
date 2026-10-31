@@ -1,4 +1,5 @@
 import { createHash, randomBytes as nodeRandomBytes } from "node:crypto";
+import type { LoginProvider } from "../../shared/bridge";
 
 /** RFC 7636 verifier bounds; the alphabet is the RFC's unreserved ASCII set. */
 const PKCE_VERIFIER_MIN_LENGTH = 43;
@@ -52,6 +53,8 @@ export interface PendingLoginAttempt {
   readonly redirectUri: string;
   readonly createdAt: number;
   readonly expiresAt: number;
+  /** the provider the browser was sent straight to; absent for the UniWork sign-in page */
+  readonly provider?: LoginProvider;
   /** authorization_url returned by start (re-opened by a second login click) */
   authorizationUrl?: string;
 }
@@ -71,7 +74,13 @@ export class LoginAttemptStore {
     this.ttlMs = options.ttlMs ?? LOGIN_ATTEMPT_TTL_MS;
   }
 
-  begin(config: { clientId: string; deploymentId: string; redirectUri: string; now: number }): PendingLoginAttempt {
+  begin(config: {
+    clientId: string;
+    deploymentId: string;
+    redirectUri: string;
+    now: number;
+    provider?: LoginProvider;
+  }): PendingLoginAttempt {
     const verifier = generateCodeVerifier(this.source);
     this.attempt = {
       state: generateOpaqueValue("state", this.source),
@@ -82,6 +91,7 @@ export class LoginAttemptStore {
       redirectUri: config.redirectUri,
       createdAt: config.now,
       expiresAt: config.now + this.ttlMs,
+      provider: config.provider,
     };
     return this.attempt;
   }

@@ -533,10 +533,10 @@ func TestMcpGetDocumentReadsTextFiles(t *testing.T) {
 		t.Fatalf("long text file: format=%q truncated=%v runes=%d", d.Format, d.Truncated, utf8.RuneCountInString(d.Content))
 	}
 
-	// A file that is not text is not read: name, type and the reason.
+	// A PDF with no engine wired is not read: name, type and the reason.
 	pdf := x.textFile(t, "tai-lieu.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
 	d = x.getDoc(t, pdf)
-	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || d.Note != mcpNotTextNote {
+	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || d.Note != mcpPDFUnavailableNote {
 		t.Fatalf("pdf = %+v", d)
 	}
 	// A file is found by its name, not by what its bytes say.

@@ -387,7 +387,7 @@ func (s *MeetingService) checkTranscriptionQuota(ctx context.Context, q *db.Quer
 	return paymentRequired(s.ent.CheckQuota(ctx, orgID, FeatureMeetingTranscription, billedMinutes(float64(seconds))+open))
 }
 
-// billedMinutes is per started minute, at least one (ADR 0029).
+// billedMinutes is per started minute, at least one (ADR 0029, kept by ADR 0051).
 func billedMinutes(seconds float64) int64 {
 	return max(int64(math.Ceil(seconds/60)), 1)
 }

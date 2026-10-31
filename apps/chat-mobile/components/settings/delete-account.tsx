@@ -1,43 +1,36 @@
 // Settings › Delete account (Apple 5.1.1(v), Google Play's account deletion
 // policy), the phone's port of packages/views/settings/components/
-// delete-account-dialog.tsx: what erasure does, the one proof the server
-// asks for (lib/account-deletion.ts), POST /api/v1/me/delete, then a sign-out
-// that wipes everything the account left on this phone
-// (useAuthStore.accountDeleted). An owner closes the organization or hands it over first, a step the web's dialog
-// does not have (use-owner-step.ts, delete-account-owner.tsx). Mounted in the workspace's Settings tab and, with no
-// workspace, in the account's own Settings (app/(app)/account.tsx): deletion is
-// reachable from every signed-in state. Every refusal is said under the field and read out;
-// the sheet is a Modal, so a toast would sit under it.
+// delete-account-dialog.tsx: what erasure does, "Xác nhận là bạn" (a step-up
+// token for delete_account, ADR 0049 §5: the proof sheet, use-step-up.ts), POST
+// /api/v1/me/delete, then a sign-out that wipes everything the account left on
+// this phone (useAuthStore.accountDeleted). An owner closes the organization or hands it over first, a step the web's
+// dialog does not have (use-owner-step.ts, delete-account-owner.tsx). Mounted in the workspace's Settings tab and, with
+// no workspace, in the account's own Settings (app/(app)/account.tsx): deletion is reachable from every signed-in
+// state. Every refusal is said in the sheet and read out; the sheet is a Modal, so a toast would sit under it. The
+// proof sheet opens inside this one, so it presents above it.
 import { paths } from "@uniwork/core/paths/paths";
+import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { useRef, useState, type ComponentProps } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, TextInput, View } from "react-native";
+import { AccessibilityInfo, ScrollView } from "react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
 import type { WorkspaceSlugs } from "@/lib/chat-routes";
-import { deleteAccountFailure, deleteProofBody, deleteProofMode, type DeleteProofMode } from "@/lib/account-deletion";
+import { deleteAccountFailure, deleteFailureKey } from "@/lib/account-deletion";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { cn } from "@/lib/utils";
+import { DeleteAccountActions } from "./delete-account-actions";
 import { DeleteAccountConsequences } from "./delete-account-consequences";
 import { OwnerStepPanel } from "./delete-account-owner";
 import { useOwnerStep, type Field } from "./use-owner-step";
 import { useOpenWebPage } from "./use-open-web-page";
 import { SettingsRow } from "./settings-row";
 import { SettingsSection } from "./settings-section";
-
-const INPUT: Record<
-  DeleteProofMode,
-  Pick<ComponentProps<typeof TextInput>, "secureTextEntry" | "keyboardType" | "autoComplete" | "textContentType">
-> = {
-  password: { secureTextEntry: true, autoComplete: "current-password", textContentType: "password" },
-  code: { keyboardType: "number-pad", autoComplete: "one-time-code", textContentType: "oneTimeCode" },
-  email: { keyboardType: "email-address", autoComplete: "email", textContentType: "emailAddress" },
-};
+import { useStepUp } from "./use-step-up";
 
 interface SheetProps {
   visible: boolean;
@@ -50,76 +43,76 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
-  const user = useAuthStore((s) => s.user);
   const accountDeleted = useAuthStore((s) => s.accountDeleted);
   const openWebPage = useOpenWebPage();
-  const mode = deleteProofMode(user);
-  const [proof, setProof] = useState("");
+  // The proof sheet opens inside this one: the app lock closes it, as it closes this one (use-step-up.ts).
+  const stepUp = useStepUp({ insideSheet: true });
   const [error, setError] = useState<{ message: string; field: Field } | null>(null);
-  /** Set when the server refused the proof while closing: the proof field is back on screen whatever the mode. */
-  const [proofAgain, setProofAgain] = useState(false);
   const [busy, setBusy] = useState<"transfer" | "erase" | null>(null);
+  /** A step (the proof sheet, a hand-over, the erasure) is under way: one at a time. */
+  const [running, setRunning] = useState(false);
   const deleteAccount = useDeleteAccount().mutateAsync;
-  const proofInput = useRef<TextInput>(null);
   const appUrl = runtimeConfig().appUrl;
 
-  /** Says a refusal under the field it is about and focuses that field when it is one to type in. */
+  /** Says a refusal where it is about and reads it out; the address field is focused when it is about that. */
   const fail = (message: string, field: Field) => {
     setError({ message, field });
     AccessibilityInfo.announceForAccessibility(message);
-    if (field !== "pick") (field === "proof" ? proofInput : ownerStep.slugInput).current?.focus();
+    if (field === "slug") ownerStep.slugInput.current?.focus();
   };
 
-  /** A password or a one-time code is never kept past a refusal; a typed address stays to be corrected. */
-  const refuseProof = () => {
-    if (mode !== "email") setProof("");
-    setProofAgain(true);
-    fail(t(`settings.security.delete.incorrect.${mode}`), "proof");
-  };
-
-  /** Rate limit, no network, or anything else: said where the person was acting. */
-  const generic = (failure: string) =>
-    failure === "rate_limited"
-      ? t("mobile.account.rate_limited")
-      : failure === "offline"
-        ? t("mobile.account.offline")
-        : t("settings.security.delete.failed");
+  /** Rate limit, no network, a proof the server kept refusing, or anything else: said where the person was acting. */
+  const generic = (failure: string) => t(deleteFailureKey(failure));
 
   const startBusy = (next: "transfer" | "erase" | null) => {
     if (next) setError(null);
     setBusy(next);
   };
 
-  const ownerStep = useOwnerStep(mode, { fail, generic, refuseProof, clearProof: () => setProof(""), setBusy: startBusy });
+  const ownerStep = useOwnerStep({
+    fail,
+    generic,
+    setBusy: startBusy,
+    confirm: (command) => stepUp.run("transfer_ownership", command),
+    hold: stepUp.hold,
+  });
 
   const close = () => {
-    if (busy) return;
+    if (running) return;
     ownerStep.reset();
-    setProof("");
     setError(null);
-    setProofAgain(false);
     onClose();
   };
 
-  const submit = async () => {
-    if (busy) return;
-    if (!proof.trim()) {
-      fail(t(`settings.security.delete.required.${mode}`), "proof");
-      return;
-    }
-    if (!(await ownerStep.beforeErase(proof))) return;
-    // Where a failure that is about no one field is said: beside the address while closing, else under the proof.
+  const erase = async (): Promise<boolean> => {
+    // Where a failure that is about no one field is said: beside the address while closing, else above the buttons.
     const here = ownerStep.here();
-    startBusy("erase");
     try {
-      await deleteAccount({ ...deleteProofBody(mode, proof), ...ownerStep.body() });
+      const result = await stepUp.run("delete_account", async (token) => {
+        startBusy("erase");
+        try {
+          await deleteAccount({ step_up_token: token, ...ownerStep.body() });
+        } finally {
+          setBusy(null);
+        }
+      });
+      return result.done;
     } catch (err) {
-      setBusy(null);
       const failure = deleteAccountFailure(err);
-      if (ownerStep.answer(failure, err)) return;
-      if (failure === "proof_refused") refuseProof();
-      else fail(generic(failure), here);
-      return;
+      if (ownerStep.answer(failure, err)) return false;
+      fail(generic(readSignInFailure(err, "methods").kind === "step_up" ? "proof_required" : failure), here);
+      return false;
+    }
+  };
+
+  const submit = async () => {
+    if (running) return;
+    setRunning(true);
+    setError(null);
+    try {
+      if (!(await ownerStep.beforeErase()) || !(await erase())) return;
+    } finally {
+      setRunning(false);
     }
     // The account is gone server-side: whatever happens next, this phone signs out
     // (accountDeleted drops the user first; a wipe step that fails is logged there).
@@ -128,8 +121,6 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     } catch {
       // The user is already dropped (accountDeleted's first step), so the app is signed out regardless.
     }
-    setBusy(null);
-    setProof("");
     onClose();
     toast.success(t("mobile.account.deleted"));
   };
@@ -155,75 +146,29 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
         <OwnerStepPanel
           step={ownerStep}
           error={error}
-          busy={busy !== null}
+          busy={running}
           foreground={theme.foreground}
           placeholderColor={theme.mutedForeground}
           onEdit={() => setError(null)}
           onSubmit={() => void submit()}
           onOpenWeb={openOrganizationOnWeb}
         />
-        {ownerStep.proofShown(proofAgain) ? (
-          <View className="gap-1.5">
-            <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
-            <TextInput
-              ref={proofInput}
-              value={proof}
-              onChangeText={(next) => {
-                setProof(next);
-                setError(null);
-              }}
-              {...INPUT[mode]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={busy === null}
-              placeholder={mode === "email" ? (user?.email ?? "") : undefined}
-              placeholderTextColor={theme.mutedForeground}
-              accessibilityLabel={t(`settings.security.delete.proof.${mode}`)}
-              accessibilityHint={t("settings.security.delete.ownerHint")}
-              returnKeyType="done"
-              onSubmitEditing={() => void submit()}
-              testID="delete-account-proof"
-              className={cn(
-                "min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground",
-                error?.field === "proof" ? "border-destructive" : "border-border",
-              )}
-            />
-            {error?.field === "proof" ? (
-              <Text accessibilityRole="alert" className="text-subhead text-destructive">
-                {error.message}
-              </Text>
-            ) : null}
-            <Text className="text-footnote leading-[18px] text-muted-foreground">
-              {ownerStep.closing && mode === "code" ? t("mobile.account.close_code_again") : t("settings.security.delete.ownerHint")}
-            </Text>
-          </View>
+        {error?.field === "form" ? (
+          <Text accessibilityRole="alert" className="text-subhead text-destructive" testID="delete-account-error">
+            {error.message}
+          </Text>
         ) : null}
 
-        <View className="gap-2.5 pt-1">
-          {ownerStep.stranded ? null : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ busy: busy !== null, disabled: busy !== null }}
-              testID="delete-account-confirm"
-              onPress={() => void submit()}
-              className={cn(
-                "min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3",
-                busy ? "opacity-70" : "active:opacity-90",
-              )}
-            >
-              {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
-              <Text className="text-body font-semibold text-on-solid">{confirmLabel}</Text>
-            </Pressable>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            onPress={close}
-            className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
-          >
-            <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
-          </Pressable>
-        </View>
+        <DeleteAccountActions
+          label={confirmLabel}
+          busy={busy !== null}
+          running={running}
+          stranded={ownerStep.stranded}
+          onConfirm={() => void submit()}
+          onCancel={close}
+        />
       </ScrollView>
+      {stepUp.sheet}
     </BottomSheet>
   );
 }

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
-	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -12,7 +11,7 @@ import (
 // identity token in, the same native device session as the PKCE exchange out.
 func (h *handlers) appleSignIn(w http.ResponseWriter, r *http.Request) {
 	noStore(w)
-	if h.AppleAuth == nil {
+	if !h.AppleAuth.NativeEnabled() {
 		respondError(w, http.StatusServiceUnavailable, "apple_auth_unavailable", "Sign in with Apple is not configured")
 		return
 	}
@@ -30,5 +29,5 @@ func (h *handlers) appleSignIn(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.DesktopSessionSDO{AccountID: sess.AccountID, DeviceSessionID: sess.DeviceSessionID, SessionID: sess.SessionID, DeploymentID: sess.DeploymentID, AccessToken: sess.AccessToken, TokenType: "Bearer", ExpiresIn: sess.ExpiresIn, RefreshToken: sess.RefreshToken, RefreshExpiresIn: sess.RefreshExpiresIn, RefreshRotates: true})
+	respondJSON(w, http.StatusOK, toDesktopSessionSDO(sess))
 }

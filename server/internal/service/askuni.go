@@ -36,11 +36,13 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	office   *DocumentOfficeService // nil until SetOffice
+	editorAI EditorAIChecker        // nil until SetEditorAI: the editor AI reads as off
 	flags    McpFlags
 	drive    DriveContentReader
 	memory   *AiMemoryService
-	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
-	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
+	files    files.Service          // nil until SetFiles; Ask UNI attachments read as off without it
+	reads    *McpToolService        // nil until SetReadTools; the agent's tools read through it
+	sources  *DocumentSourceService // nil until SetDocumentSources; list_attachments and get_attachment read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
@@ -73,6 +75,10 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // with; without it that path answers office_not_configured.
 func (s *AskUNIService) SetOffice(o *DocumentOfficeService) { s.office = o }
 
+// SetEditorAI wires the check of whether the editor AI can draft the file
+// create_office_document makes; without it every check answers off.
+func (s *AskUNIService) SetEditorAI(c EditorAIChecker) { s.editorAI = c }
+
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
@@ -87,6 +93,10 @@ func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
 func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
+
+// SetDocumentSources wires the files of tasks, chat and email that
+// list_attachments and get_attachment read, each under its own module's gate.
+func (s *AskUNIService) SetDocumentSources(d *DocumentSourceService) { s.sources = d }
 
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task

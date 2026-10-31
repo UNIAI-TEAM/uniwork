@@ -43,6 +43,8 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
       // Guests see the secretary/observer chips change without a workspace socket;
       // standing also decides who joins the next voting roll.
       onMeeting("participant.updated", meetingKeys.participants(meetingId), meetingKeys.motions(meetingId)),
+      // The list marks the host's seat, the only one whose mute requests a guest obeys.
+      onMeeting("host.transferred", meetingKeys.participants(meetingId)),
       // started/stopped drive the REC badge for guests, who have no workspace socket.
       ...(["recording.started", "recording.stopped", "recording.ready"] as const).map((event) =>
         onMeeting(event, meetingKeys.recordings(meetingId)),
