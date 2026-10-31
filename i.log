@@ -1,0 +1,2620 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --reporter=list > /tmp/pr9r1-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr9r1-docs.log | tail -n 60; echo FAILED_TESTS; grep -E "^s+[0-9]+) " /tmp/pr9r1-docs.log | sort -u | head -80; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/pr9r1-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/pr9r1-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/pr9r1-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCS_EXIT=$rc"
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) seo.spec.ts:46:1 › guides render without JavaScript and expose related localized destinations 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('article')
+    Expected substring: "yêu cầu dùng khóa API riêng đi qua máy chủ UniWork"
+    Received string:    "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi báo lỗi, ghi lại trình soạn thảo, định dạng, thao tác vừa thực hiện và thông báo lỗi. Không đưa khóa API hoặc toàn bộ tài liệu nội bộ vào ảnh chụp công khai.Kiểm tra kết quả AI trước khi lưuNêu rõ mục tiêu và phần nội dung cần xử lý. Đọc lại kết quả, kiểm tra số liệu, công thức, định dạng và các chi tiết có ảnh hưởng trước khi lưu hoặc gửi cho người khác.Giữ bản gốc hoặc phiên bản phù hợp khi thay đổi tài liệu quan trọng. Người dùng vẫn chịu trách nhiệm rà soát kết quả trước khi sử dụng.Thử trên bản sao của một tệp mẫu được phép sử dụng.Kiểm tra nội dung, công thức, bảng biểu và bố cục.Lưu, đóng rồi mở lại để kiểm tra kết quả.Kiểm tra workspace, phiên bản và người nhận trước khi chia sẻ.Giao diện minh họa của trình soạn thảo Docs. Nội dung và tên trong ảnh là dữ liệu mẫu, không phải hồ sơ khách hàng.Tiếp tục tìm hiểuUniOffice — soạn thảo, bảng tính và PDF với AIDữ liệu, quyền truy cập và kết nối AI trong UniWorkYêu cầu demo UniWork cho đội nhóm"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('article')
+        14 × locator resolved to <article class="public-guide">…</article>
+           - unexpected value "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi báo lỗi, ghi lại trình soạn thảo, định dạng, thao tác vừa thực hiện và thông báo lỗi. Không đưa khóa API hoặc toàn bộ tài liệu nội bộ vào ảnh chụp công khai.Kiểm tra kết quả AI trước khi lưuNêu rõ mục tiêu và phần nội dung cần xử lý. Đọc lại kết quả, kiểm tra số liệu, công thức, định dạng và các chi tiết có ảnh hưởng trước khi lưu hoặc gửi cho người khác.Giữ bản gốc hoặc phiên bản phù hợp khi thay đổi tài liệu quan trọng. Người dùng vẫn chịu trách nhiệm rà soát kết quả trước khi sử dụng.Thử trên bản sao của một tệp mẫu được phép sử dụng.Kiểm tra nội dung, công thức, bảng biểu và bố cục.Lưu, đóng rồi mở lại để kiểm tra kết quả.Kiểm tra workspace, phiên bản và người nhận trước khi chia sẻ.Giao diện minh họa của trình soạn thảo Docs. Nội dung và tên trong ảnh là dữ liệu mẫu, không phải hồ sơ khách hàng.Tiếp tục tìm hiểuUniOffice — soạn thảo, bảng tính và PDF với AIDữ liệu, quyền truy cập và kết nối AI trong UniWorkYêu cầu demo UniWork cho đội nhóm"
+
+
+      52 |   await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
+      53 |   await expect(page.locator(".public-guide-table")).toContainText(".xlsx");
+    > 54 |   await expect(page.locator("article")).toContainText("yêu cầu dùng khóa API riêng đi qua máy chủ UniWork");
+         |                                         ^
+      55 |   await expect(page.locator('link[hreflang="en"]')).toHaveAttribute("href", /\/learn\/office-files-and-ai$/);
+      56 |   await context.close();
+      57 | });
+
+    Error Context: test-results/seo-guides-render-without--48407-ated-localized-destinations/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: documents-folders.spec.ts (5.5m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  16 failed
+    drive-connector.spec.ts:232:1 › 1. User A connects Google Drive in Settings › Integrations through the fake OAuth; the account shows as connected 
+    drive-connector.spec.ts:264:1 › 2. User A links a Drive file from the create-task dialog (paperclip / Attach -> fake Picker picked) and the task shows the Drive card 
+    drive-connector.spec.ts:296:1 › 3. Documents › Google Drive (4.1) for A lists that file (all accounts + the account view); the sidebar Google Drive section shows 
+    drive-connector.spec.ts:346:1 › 4. User B (same workspace, no connection): sees the file on the task card as unknown/no access per §7.10, and B's 4.1 shows none of A's files (empty state) 
+    drive-connector.spec.ts:418:1 › 5. A unlinks at the 4.2 file page; the card on the already-open task page refreshes without reload (realtime/query invalidation), file gone from 4.1 
+    drive-connector.spec.ts:487:1 › 6a. Contrast + focus on Settings › Integrations Drive row and connected view (1.1, 1.3), and the Picker trigger in the create-task dialog, light + dark 
+    drive-connector.spec.ts:575:1 › 6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive file detail page (4.2), light + dark 
+    drive-connector.spec.ts:656:1 › Part 2 — agent mode sends a Drive file -> proposals ────────────
+    drive-connector.spec.ts:698:1 › Part 2 — proposal review dialog ────────────────────────────────
+    drive-connector.spec.ts:787:1 › Part 2 — batch create tasks from Drive proposal ────────────────
+    drive-connector.spec.ts:843:1 › Part 2 — second-create warning when tasks were already created from the document 
+    drive-connector.spec.ts:925:1 › Part 2 — 'Tasks created' block on 4.2 Drive file detail page ───
+    landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+    membership-invite-link.spec.ts:27:3 › membership invite link › a workspace invite link joins someone with no organization 
+    seo.spec.ts:46:1 › guides render without JavaScript and expose related localized destinations ──
+  86 skipped
+  407 passed (46.7m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=list
+FAILED_TESTS
+===== e2e/test-results/drive-connector-1-User-A-c-d88ea--account-shows-as-connected/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 1. User A connects Google Drive in Settings › Integrations through the fake OAuth; the account shows as connected
+- Location: drive-connector.spec.ts:232:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-connect, WS drive-q1-connect: chuyển workspace"': WS drive-q1-connect
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-connect, drive-q1-connect-1793473462420@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473462420/rec-ws-1793473462420/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-connect
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-connect
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473462420/rec-ws-1793473462420/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  139 |   await expect(page.getByRole("heading", { name: "Tích hợp" })).toBeVisible({ timeout: 30_000 });
+  140 |   return account;
+  141 | }
+  142 | 
+  143 | async function connectDriveForCurrentUser(page: Page) {
+  144 |   const row = page.getByTestId("drive-integration-row");
+  145 |   await expect(row).toBeVisible({ timeout: 20_000 });
+  146 |   await row.getByRole("button", { name: "Kết nối Google Drive" }).click();
+  147 | 
+  148 |   const view = page.getByTestId("drive-integration-view");
+  149 |   await expect(view).toBeVisible({ timeout: 30_000 });
+  150 |   await expect(
+  151 |     view.getByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
+  152 |   ).toBeVisible({ timeout: 15_000 });
+  153 |   const emailLocator = view.getByText(/drive-fake-.*@example\.com/).first();
+  154 |   await expect(emailLocator).toBeVisible();
+  155 |   const googleEmail = (await emailLocator.textContent())?.trim() ?? "";
+  156 |   return { googleEmail };
+  157 | }
+  158 | 
+  159 | async function createTaskWithFakeDriveFile(
+  160 |   page: Page,
+  161 |   orgSlug: string,
+  162 |   wsSlug: string,
+  163 |   taskTitle: string,
+  164 |   file: FakeDriveSeedFile,
+  165 | ): Promise<{ taskId: string; taskIdentifier: string }> {
+  166 |   await installFakeDrivePicker(page, [file]);
+  167 |   await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
+  168 |   await page.getByRole("button", { name: "Tạo việc", exact: true }).click();
+  169 |   const dialog = page.getByRole("dialog");
+  170 |   await expect(dialog).toBeVisible({ timeout: 15_000 });
+  171 | 
+  172 |   await dialog.getByRole("button", { name: "Đính kèm tệp===== e2e/test-results/drive-connector-2-User-A-l-bdb90-e-task-shows-the-Drive-card/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 2. User A links a Drive file from the create-task dialog (paperclip / Attach -> fake Picker picked) and the task shows the Drive card
+- Location: drive-connector.spec.ts:264:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-task-link, WS drive-q1-task-link: chuyển workspace"': WS drive-q1-task-link
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-task-link, drive-q1-task-link-1793473486987@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473486987/rec-ws-1793473486987/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-task-link
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-task-link
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473486987/rec-ws-1793473486987/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSee===== e2e/test-results/drive-connector-3-Document-f09a9--Google-Drive-section-shows/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 3. Documents › Google Drive (4.1) for A lists that file (all accounts + the account view); the sidebar Google Drive section shows
+- Location: drive-connector.spec.ts:296:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-list-41, WS drive-q1-list-41: chuyển workspace"': WS drive-q1-list-41
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-list-41, drive-q1-list-41-1793473511819@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473511819/rec-ws-1793473511819/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-list-41
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-list-41
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473511819/rec-ws-1793473511819/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  89  |  ===== e2e/test-results/drive-connector-4-User-B-s-0eec3-e-of-A-s-files-empty-state-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 4. User B (same workspace, no connection): sees the file on the task card as unknown/no access per §7.10, and B's 4.1 shows none of A's files (empty state)
+- Location: drive-connector.spec.ts:346:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-user-a, WS drive-q1-user-a: chuyển workspace"': WS drive-q1-user-a
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-user-a, drive-q1-user-a-1793473536466@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473536466/rec-ws-1793473536466/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-user-a
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-user-a
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473536466/rec-ws-1793473536466/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveS===== e2e/test-results/drive-connector-5-A-unlink-2c6a1-lidation-file-gone-from-4-1/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 5. A unlinks at the 4.2 file page; the card on the already-open task page refreshes without reload (realtime/query invalidation), file gone from 4.1
+- Location: drive-connector.spec.ts:418:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-unlink-42, WS drive-q1-unlink-42: chuyển workspace"': WS drive-q1-unlink-42
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-unlink-42, drive-q1-unlink-42-1793473561072@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473561072/rec-ws-1793473561072/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-unlink-42
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-unlink-42
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473561072/rec-ws-1793473561072/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   fil===== e2e/test-results/drive-connector-6a-Contras-65b37-eate-task-dialog-light-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 6a. Contrast + focus on Settings › Integrations Drive row and connected view (1.1, 1.3), and the Picker trigger in the create-task dialog, light + dark
+- Location: drive-connector.spec.ts:487:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-a11y, WS drive-q1-a11y: chuyển workspace"': WS drive-q1-a11y
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-a11y, drive-q1-a11y-1793473585749@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473585749/rec-ws-1793473585749/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-a11y
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-a11y
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473585749/rec-ws-1793473585749/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  395 |     await expect(unknownBlock).toBeVisible();
+  396 |     await expect(unknownBlock.getByText("Bạn chưa cho UniWork đọc tệp này.")).toBeVisible();
+  397 |     await expect(
+  398 |       unknownBlock.getByRole("button", { name: "Cho UniWork đọc tệp" }),
+  399 |     ).toBeVisible();
+  400 |     await expect(unknownBlock.getByRole("link", { name: "Mở trên Google Drive" })).toBeVisible();
+  401 | 
+  402 |     // B's 4.1 Documents › Google Drive shows none of A's files (empty state), and the sidebar Drive section is hidden for B.
+  403 |     await pageB.goto(`/${accountA.orgSlug}/${accountA.wsSlug}/documents?view=drive`);
+  404 |     await expect(pageB.getByRole("heading", { level: 1, name: "Google Drive" })).toBeVisible({
+  405 |       timeout: 30_000,
+  406 |     });
+  407 |     await expect(
+  408 |       pageB.getByText("Chưa có tệp Google Drive nào được liên kết."),
+  409 |     ).toBeVisible({ timeout: 20_000 });
+  410 |     await expect(pageB.getByText(fakeDriveName(seedFile.id))).toHaveCount(0);
+  411 |     const sidebarB = pageB.getByRole("navigation", { name: "Điều hướng tài liệu" });
+  412 |     await expect(sidebarB.getByRole("button", { name: /^Google Drive/ })).toHaveCount(0);
+  413 |   } finally {
+  414 |     await contextB.close();
+  415 |   }
+  416 | });
+  417 | 
+  418 | test("5. A unlinks at the 4.2 file page; the card on the already-open task page refreshes without reload (realtime/query invalidation), file gone from 4.1", async ({
+  419 |   page,
+  420 |   context,
+  421 | }) => {
+  422 |   await page.setViewportSize({ width: 1440, height: 900 });
+  423 |   const account===== e2e/test-results/drive-connector-6b-Contras-08276--detail-page-4-2-light-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> 6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive file detail page (4.2), light + dark
+- Location: drive-connector.spec.ts:575:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1-a11y-41-42, WS drive-q1-a11y-41-42: chuyển workspace"': WS drive-q1-a11y-41-42
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1-a11y-41-42, drive-q1-a11y-41-42-1793473610472@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473610472/rec-ws-1793473610472/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1-a11y-41-42
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1-a11y-41-42
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473610472/rec-ws-1793473610472/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  89  |   pr===== e2e/test-results/drive-connector-Part-2-—-a-f9963-ds-a-Drive-file---proposals/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> Part 2 — agent mode sends a Drive file -> proposals
+- Location: drive-connector.spec.ts:656:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1p2-agent-propose, WS drive-q1p2-agent-propose: chuyển workspace"': WS drive-q1p2-agent-propose
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1p2-agent-propose, drive-q1p2-agent-propose-1793473634988@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473634988/rec-ws-1793473634988/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1p2-agent-propose
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1p2-agent-propose
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473634988/rec-ws-1793473634988/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  89  |   prompt?: string,
+  90===== e2e/test-results/drive-connector-Part-2-—-b-6e63e-e-tasks-from-Drive-proposal/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> Part 2 — batch create tasks from Drive proposal
+- Location: drive-connector.spec.ts:787:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1p2-batch-create, WS drive-q1p2-batch-create: chuyển workspace"': WS drive-q1p2-batch-create
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1p2-batch-create, drive-q1p2-batch-create-1793473683743@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473683743/rec-ws-1793473683743/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1p2-batch-create
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1p2-batch-create
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473683743/rec-ws-1793473683743/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  89  |   prompt?: string,
+  90  | ) {
+  9===== e2e/test-results/drive-connector-Part-2-—-proposal-review-dialog/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> Part 2 — proposal review dialog
+- Location: drive-connector.spec.ts:698:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1p2-review-dialog, WS drive-q1p2-review-dialog: chuyển workspace"': WS drive-q1p2-review-dialog
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1p2-review-dialog, drive-q1p2-review-dialog-1793473659530@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473659530/rec-ws-1793473659530/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1p2-review-dialog
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1p2-review-dialog
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473659530/rec-ws-1793473659530/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  89  |   prompt?: string,
+  90  | ) {
+  91  |   aw===== e2e/test-results/drive-connector-Part-2-—-s-1bf5d-y-created-from-the-document/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> Part 2 — second-create warning when tasks were already created from the document
+- Location: drive-connector.spec.ts:843:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1p2-recreate-warn, WS drive-q1p2-recreate-warn: chuyển workspace"': WS drive-q1p2-recreate-warn
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1p2-recreate-warn, drive-q1p2-recreate-warn-1793473708381@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473708381/rec-ws-1793473708381/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1p2-recreate-warn
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1p2-recreate-warn
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473708381/rec-ws-1793473708381/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+  ===== e2e/test-results/drive-connector-Part-2-—-T-3d96b--4-2-Drive-file-detail-page/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: drive-connector.spec.ts >> Part 2 — 'Tasks created' block on 4.2 Drive file detail page
+- Location: drive-connector.spec.ts:925:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('drive-integration-row')
+Expected: visible
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 20000ms
+  - waiting for getByTestId('drive-integration-row')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org drive-q1p2-42-created-block, WS drive-q1p2-42-created-block: chuyển workspace"': WS drive-q1p2-42-created-block
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "drive-q1p2-42-created-block, drive-q1p2-42-created-block-1793473732917@example.com: tài khoản"': D
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1793473732917/rec-ws-1793473732917/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Cài đặt" [level=1]
+  - navigation "Mục cài đặt":
+    - tablist:
+      - paragraph: Tài khoản
+      - tab "Hồ sơ"
+      - tab "Bảo mật"
+      - tab "Tùy chọn"
+      - tab "Thông báo"
+      - tab "Phím tắt"
+      - paragraph: Tổ chức
+      - paragraph: Org drive-q1p2-42-created-block
+      - tab "Thành viên tổ chức"
+      - tab "Phòng ban"
+      - tab "Thanh toán"
+      - tab "Hóa đơn"
+      - tab "Tài liệu"
+      - tab "Cuộc họp"
+      - tab "Truy cập AI"
+      - tab "Nhật ký hoạt động"
+      - tab "Dữ liệu tổ chức"
+      - paragraph: Workspace
+      - paragraph: WS drive-q1p2-42-created-block
+      - tab "Chung"
+      - tab "Thành viên"
+      - tab "Trạng thái công việc"
+      - tab "Nhãn"
+      - tab "Tích hợp" [selected]
+      - tab "AI"
+      - tab "Thùng rác"
+  - tabpanel "Tích hợp":
+    - heading "Tích hợp" [level=2]
+    - paragraph: Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.
+    - heading "Dùng được" [level=3]
+    - list "Dùng được":
+      - listitem:
+        - text: "Email Hub Bạn chưa kết nối Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"
+        - link "Kết nối hộp thư":
+          - /url: /rec-org-1793473732917/rec-ws-1793473732917/email
+    - heading "Trong lộ trình" [level=3]
+    - paragraph: Đã có trong lộ trình sản phẩm, chưa dùng được.
+    - list "Trong lộ trình":
+      - listitem: Webhook Sắp có Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  45  | async function installFakeDrivePicker(page: Page, files: FakeDriveSeedFile[]) {
+  46  |   await page.addInitScript((picked) => {
+  47  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  48  |   }, files);
+  49  |   await page.evaluate((picked) => {
+  50  |     Reflect.set(window, "__UNIWORK_FAKE_DRIVE_PICKER__", picked);
+  51  |   }, files);
+  52  | }
+  53  | 
+  54  | function isCreateTaskPost(url: string, method: string): boolean {
+  55  |   if (method !== "POST") return false;
+  56  |   try {
+  57  |     const { pathname } = new URL(url);
+  58  |     return /\/api\/v1\/workspaces\/[^/]+\/tasks$/.test(pathname);
+  59  |   } catch {
+  60  |     return false;
+  61  |   }
+  62  | }
+  63  | 
+  64  | function isCreateDriveProposalPost(url: string, method: string): boolean {
+  65  |   if (method !== "POST") return false;
+  66  |   try {
+  67  |     const { pathname } = new URL(url);
+  68  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  69  |   } catch {
+  70  |     return false;
+  71  |   }
+  72  | }
+  73  | 
+  74  | function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  75  |   if (method !== "POST") return false;
+  76  |   try {
+  77  |     const { pathname } = new URL(url);
+  78  |     return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  79  |   } catch {
+  80  |     return false;
+  81  |   }
+  82  | }
+  83  | 
+  84  | async function openAgentModeAndProposeFromPickedDriveFile(
+  85  |   page: Page,
+  86  |   orgSlug: string,
+  87  |   wsSlug: string,
+  88  |   file: FakeDriveSeedFile,
+ ===== e2e/test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> original UNI artwork and face stay unchanged while the foreleg waves
+- Location: landing-scenes.spec.ts:6:1
+
+# Error details
+
+```
+Error: expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 2
+Received:    3
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Trang chủ" [ref=e83] [cursor=pointer]
+                      - tab "Hộp việc" [ref=e86] [cursor=pointer]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Làm việc
+                      - tab "Công việc" [selected] [ref=e91] [cursor=pointer]
+                      - tab "Việc của tôi" [ref=e94] [cursor=pointer]
+                      - tab "Dự án" [ref=e97] [cursor=pointer]
+                      - tab "Lịch" [ref=e100] [cursor=pointer]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: Trao đổi
+                      - tab "Email Hub" [ref=e105] [cursor=pointer]
+                      - tab "Cuộc họp" [ref=e108] [cursor=pointer]
+                      - tab "Tài liệu" [ref=e111] [cursor=pointer]
+                      - tab "Trò chuyện" [ref=e114] [cursor=pointer]
+                      - tab "Danh bạ" [ref=e117] [cursor=pointer]
+                    - generic [ref=e120]:
+                      - generic [ref=e121]: Công việc & dự án
+                      - tab "Quy trình" [ref=e122] [cursor=pointer]
+                    - generic [ref=e125]:
+                      - generic [ref=e126]: Kết quả
+                      - tab "Kết quả công việc" [ref=e127] [cursor=pointer]
+                      - tab "Phê duyệt kết quả" [ref=e130] [cursor=pointer]
+                      - tab "Duyệt quyết định" [ref=e133] [cursor=pointer]
+                      - tab "Lịch sử quyết định" [ref=e136] [cursor=pointer]
+                    - generic [ref=e139]:
+                      - generic [ref=e140]: Tri thức
+                      - tab "Kho tri thức" [ref=e141] [cursor=pointer]
+                    - generic [ref=e144]:
+                      - generic [ref=e145]: AI & tự động hóa
+                      - tab "Hỏi UNI" [ref=e146] [cursor=pointer]
+                      - tab "Nhân sự AI" [ref=e149] [cursor=pointer]
+                      - tab "Tự động hóa" [ref=e152] [cursor=pointer]
+                      - tab "AI Brain" [ref=e155] [cursor=pointer]
+                      - tab "Skill Hub" [ref=e158] [cursor=pointer]
+                      - tab "Work Catalog" [ref=e161] [cursor=pointer]
+                      - tab "AI Market" [ref=e164] [cursor=pointer]
+                    - generic [ref=e167]:
+                      - generic [ref=e168]: Tổ chức
+                      - tab "Nhật ký hoạt động" [ref=e169] [cursor=pointer]
+                      - tab "Báo cáo" [ref=e172] [cursor=pointer]
+                - generic [ref=e175]:
+                  - generic [ref=e176]: MA
+                  - generic [ref=e177]:
+                    - strong [ref=e178]: Mai An
+                    - generic [ref=e179]: Thành viên
+              - generic [ref=e180]:
+                - generic [ref=e181]:
+                  - button "Thu gọn menu" [expanded] [ref=e182] [cursor=pointer]
+                  - generic [ref=e183]:
+                    - searchbox "Tìm trong sản phẩm…" [ref=e1===== e2e/test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> local state survives view switches across the demo
+- Location: landing-workspace.spec.ts:42:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('#product-preview').locator('.manual-preview:not([hidden]) .product-email-list li').first().getByRole('button', { name: 'Gắn sao', exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Trang chủ" [ref=e83] [cursor=pointer]
+                      - tab "Hộp việc" [ref=e86] [cursor=pointer]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Làm việc
+                      - tab "Công việc" [ref=e91] [cursor=pointer]
+                      - tab "Việc của tôi" [ref=e94] [cursor=pointer]
+                      - tab "Dự án" [ref=e97] [cursor=pointer]
+                      - tab "Lịch" [ref=e100] [cursor=pointer]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: Trao đổi
+                      - tab "Email Hub" [selected] [ref=e105] [cursor=pointer]
+                      - tab "Cuộc họp" [ref=e108] [cursor=pointer]
+                      - tab "Tài liệu" [ref=e111] [cursor=pointer]
+                      - tab "Trò chuyện" [ref=e114] [cursor=pointer]
+                      - tab "Danh bạ" [ref=e117] [cursor=pointer]
+                    - generic [ref=e120]:
+                      - generic [ref=e121]: Công việc & dự án
+                      - tab "Quy trình" [ref=e122] [cursor=pointer]
+                    - generic [ref=e125]:
+                      - generic [ref=e126]: Kết quả
+                      - tab "Kết quả công việc" [ref=e127] [cursor=pointer]
+                      - tab "Phê duyệt kết quả" [ref=e130] [cursor=pointer]
+                      - tab "Duyệt quyết định" [ref=e133] [cursor=pointer]
+                      - tab "Lịch sử quyết định" [ref=e136] [cursor=pointer]
+                    - generic [ref=e139]:
+                      - generic [ref=e140]: Tri thức
+                      - tab "Kho tri thức" [ref=e141] [cursor=pointer]
+                    - generic [ref=e144]:
+                      - generic [ref=e145]: AI & tự động hóa
+                      - tab "Hỏi UNI" [ref=e146] [cursor=pointer]
+                      - tab "Nhân sự AI" [ref=e149] [cursor=pointer]
+                      - tab "Tự động hóa" [ref=e152] [cursor=pointer]
+                      - tab "AI Brain" [ref=e155] [cursor=pointer]
+                      - tab "Skill Hub" [ref=e158] [cursor=pointer]
+                      - tab "Work Catalog" [ref=e161] [cursor=pointer]
+                      - tab "AI Market" [ref=e164] [cursor=pointer]
+                    - generic [ref=e167]:
+                      - generic [ref=e168]: Tổ chức
+                      - tab "Nhật ký hoạt động" [ref=e169] [cursor=pointer]
+                      - tab "Báo cáo" [ref=e172] [cursor=pointer]
+                - generic [ref=e175]:
+                  - generic [ref=e176]: MA
+                  - generic [ref=e177]:
+                    - strong [ref=e178]: Mai An
+                    - generic [ref=e179]: Thành viên
+              - generic [ref=e180]:
+                - generic [ref=e181]:
+              ===== e2e/test-results/membership-invite-link-mem-8928f-omeone-with-no-organization/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: membership-invite-link.spec.ts >> membership invite link >> a workspace invite link joins someone with no organization
+- Location: membership-invite-link.spec.ts:27:3
+
+# Error details
+
+```
+Error: expect(page).toHaveURL(expected) failed
+
+Expected pattern: /\/mil-owner-1793474803517\/team-owner-1793474803517\/?$/
+Received string:  "http://localhost:14100/join/01M69PVGD2BQANK6C5FZ6SGG6S#secret=nHc_Jk0M8a7zFQC7sFghoOo7NmtmFats8V7Bdi7cBQQ#secret=nHc_Jk0M8a7zFQC7sFghoOo7NmtmFats8V7Bdi7cBQQ"
+Timeout: 20000ms
+
+Call log:
+  - Expect "toHaveURL" with timeout 20000ms
+    44 × locator resolved to <html lang="vi" class="N972dW_variable G564uW_variable q1nj0W_variable light">…</html>
+       - unexpected value "http://localhost:14100/join/01M69PVGD2BQANK6C5FZ6SGG6S#secret=nHc_Jk0M8a7zFQC7sFghoOo7NmtmFats8V7Bdi7cBQQ#secret=nHc_Jk0M8a7zFQC7sFghoOo7NmtmFats8V7Bdi7cBQQ"
+
+```
+
+```yaml
+- radiogroup "Ngôn ngữ":
+  - radio "Tiếng Việt" [checked]
+  - text: Tiếng Việt
+  - radio "English"
+  - text: English
+- complementary:
+  - img "UniWork"
+  - paragraph: Con người và AI cùng sở hữu công việc.
+  - paragraph: Việc, cuộc họp và trao đổi của cả đội ở một chỗ, có AI làm cùng như một đồng nghiệp.
+- main:
+  - heading "Không dùng được lời mời này" [level=1]
+  - paragraph: Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.
+  - note: Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại một link mới.
+  - link "Xem workspace của tôi":
+    - /url: /workspaces
+  - link "Xem lời mời của tôi":
+    - /url: /invitations
+- region "Notifications alt+T"
+- alert: Xác thực email · UniWork
+```
+
+# Test source
+
+```ts
+  1  | import { expect, test, type Page } from "@playwright/test";
+  2  | import { VERIFICATION_CODE } from "./auth-nav";
+  3  | import { VI_LOCALE_STATE } from "./locale-state";
+  4  | import { onboardToWorkspace, workspaceSeed } from "./onboard";
+  5  | 
+  6  | /**
+  7  |  * UNI-2226: shareable workspace invite link. Owner creates the link in
+  8  |  * Settings › Members; a second account with no organization opens /join/…
+  9  |  * and lands in the workspace — including when they still need to register.
+  10 |  */
+  11 | test.describe("membership invite link", () => {
+  12 |   test.describe.configure({ timeout: 240_000 });
+  13 | 
+  14 |   async function createWorkspaceInviteLink(owner: Page, orgSlug: string, wsSlug: string) {
+  15 |     await owner.goto(`/${orgSlug}/${wsSlug}/settings?tab=members`);
+  16 |     await expect(owner.getByRole("heading", { name: "Mời bằng liên kết" })).toBeVisible({ timeout: 15_000 });
+  17 |     await owner.getByRole("button", { name: "Tạo liên kết" }).click();
+  18 |     await expect(owner.getByRole("button", { name: /Sao chép liên kết|Đã sao chép liên kết/ })).toBeVisible({
+  19 |       timeout: 15_000,
+  20 |     });
+  21 |     const linkText = await owner.locator("span.text-caption").filter({ hasText: "/join/" }).first().innerText();
+  22 |     const match = linkText.match(/\/join\/([^#\s]+)#secret=([^\s]+)/);
+  23 |     expect(match).toBeTruthy();
+  24 |     return { linkId: match![1], secret: match![2] };
+  25 |   }
+  26 | 
+  27 |   test("a workspace invite link joins someone with no organization", async ({ browser }) => {
+  28 |     const stamp = Date.now();
+  29 |     const ownerSeed = workspaceSeed("mil", "owner", stamp);
+  30 | 
+  31 |     const owner = await (await browser.newContext({ storageState: VI_LOCALE_STATE })).newPage();
+  32 |     await onboardToWorkspace(owner, ownerSeed);
+  33 |     const { linkId, secret } = await createWorkspaceInviteLink(owner, ownerSeed.orgSlug, ownerSeed.wsSlug);
+  34 | 
+  35 |     // Unregistered: /join → login?next= → register → verify → back to /join → join org.
+  36 |     const invitee = await (await browser.newContext({ storageState: VI_LOCALE_STATE })).newPage();
+  37 |     await invitee.goto(`/join/${linkId}#secret=${secret}`);
+  38 |     await expect(invitee).toHaveURL(/\/login\?next=/, { timeout: 15_000 });
+  39 |     await invitee.getByRole("link", { name: "Đăng ký" }).click();
+  40 |     await expect(invitee).toHaveURL(/\/register\?next=/, { timeout: 15_000 });
+  41 | 
+  42 |     const email = `mil-join-${stamp}@example.com`;
+  43 |     await invitee.getByLabel("Tên hiển thị").fill("mil-join");
+  44 |     await invitee.getByLabel("Email").fill(email);
+  45 |     await invitee.getByLabel("Mật khẩu", { exact: true }).fill("password123");
+  46 |     await invitee.getByRole("button", { name: "Đăng ký" }).click();
+  47 |     await expect(invitee).toHaveURL(/\/verify\?next=/, { timeout: 15_000 });
+  48 |     await invitee.getByLabel("Mã xác thực").fill(VERIFICATION_CODE);
+  49 |     await expect(invitee).toHaveURL(new RegExp(`/join/${linkId}`), { timeout: 20_000 });
+  50 | 
+  51 |     await expect(invitee.getByRole("heading", { name: new RegExp(`Tham gia ${ownerSeed.orgName}`) })).toBeVisible({
+  52 |       timeout: 20_000,
+  53 |     });
+  54 |     await invitee.getByRole("button", { name: "Tham gia", exact: true }).click();
+  55 |     // The join lands on the workspace root (Home), which has no trailing slash.
+> 56 |     await expect(invitee).toHaveURL(new RegExp(`/${ownerSeed.orgSlug}/${ownerSeed.wsSlug}/?$`), { timeout: 20_000 });
+     |                           ^ Error: expect(page).toHaveURL(expected) failed
+  57 | 
+  58 |     await owner.context().close();
+  59 |     await invitee.context().close();
+  60 |   });
+  61 | });
+  62 | 
+```===== e2e/test-results/seo-guides-render-without--48407-ated-localized-destinations/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: seo.spec.ts >> guides render without JavaScript and expose related localized destinations
+- Location: seo.spec.ts:46:1
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('article')
+Expected substring: "yêu cầu dùng khóa API riêng đi qua máy chủ UniWork"
+Received string:    "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi b===== S9_SERVER_AI
+19:27:11.029 INF http request method=GET path=/api/v1/workspaces/01M69PW7CVWKYHXN1MBDXD02CF/ai/capabilities status=200 duration=5.17ms request_id=cursor/jvxeelXFe3-024279 correlation_id=86b182d2095f00c5a9942b2856ea2c80 trace_id=86b182d2095f00c5a9942b2856ea2c80 span_id=42041556a4912efb organization_id=01M69PW7AQT5VRESGQ8AA05W8B workspace_id=01M69PW7CVWKYHXN1MBDXD02CF actor_id=01M69PW6YF8KDPD20J1PRSHHCX actor_kind=human
+19:27:13.315 INF http request method=GET path=/api/v1/workspaces/01M69PW7CVWKYHXN1MBDXD02CF/ai/capabilities status=200 duration=9.431ms request_id=cursor/jvxeelXFe3-024350 correlation_id=dc955dccc02da8f0b932d2051e916b45 trace_id=dc955dccc02da8f0b932d2051e916b45 span_id=e97cee3f3121843d organization_id=01M69PW7AQT5VRESGQ8AA05W8B workspace_id=01M69PW7CVWKYHXN1MBDXD02CF actor_id=01M69PW9MC79G6XANSACCW11PC actor_kind=human
+19:27:13.989 INF http request method=GET path=/api/v1/workspaces/01M69PW7CVWKYHXN1MBDXD02CF/ai/capabilities status=200 duration=2.726ms request_id=cursor/jvxeelXFe3-024392 correlation_id=c7270c93a9190270c05e7dccbaeda2af trace_id=c7270c93a9190270c05e7dccbaeda2af span_id=aafb7619b3cc0fdc organization_id=01M69PW7AQT5VRESGQ8AA05W8B workspace_id=01M69PW7CVWKYHXN1MBDXD02CF actor_id=01M69PW6YF8KDPD20J1PRSHHCX actor_kind=human
+19:27:35.526 INF http request method=GET path=/api/v1/workspaces/01M69PX02X1XT8VX2A1D3ZG94H/ai/capabilities status=200 duration=3.785ms request_id=cursor/jvxeelXFe3-024819 correlation_id=b6a06a3d8dd42711c8f47c2da553a781 trace_id=b6a06a3d8dd42711c8f47c2da553a781 span_id=1fdfba433cca52ee organization_id=01M69PX007DCD6JF7JSCW7MWZR workspace_id=01M69PX02X1XT8VX2A1D3ZG94H actor_id=01M69PWZM27YYMEKFW6TSJJR1N actor_kind=human
+19:27:36.767 INF http request method=GET path=/api/v1/workspaces/01M69PX02X1XT8VX2A1D3ZG94H/ai/capabilities status=200 duration=8.994ms request_id=cursor/jvxeelXFe3-024892 correlation_id=2f92bdc710ea36556842b0e62cff0d54 trace_id=2f92bdc710ea36556842b0e62cff0d54 span_id=96c4614b14652de2 organization_id=01M69PX007DCD6JF7JSCW7MWZR workspace_id=01M69PX02X1XT8VX2A1D3ZG94H actor_id=01M69PWZM27YYMEKFW6TSJJR1N actor_kind=human
+19:27:38.465 INF http request method=GET path=/api/v1/workspaces/01M69PX2ZKA212RY35TXQAH27Q/ai/capabilities status=200 duration=3.015ms request_id=cursor/jvxeelXFe3-024956 correlation_id=83f40b7584988af9f7cb154f135772c9 trace_id=83f40b7584988af9f7cb154f135772c9 span_id=e0e4c4988a403b8f organization_id=01M69PX2XFXW8A8Y19Y4WXPB76 workspace_id=01M69PX2ZKA212RY35TXQAH27Q actor_id=01M69PX2JB7H5PPEGZH07AK98V actor_kind=human
+19:27:40.354 INF http request method=GET path=/api/v1/workspaces/01M69PX4TD4C3211YTWKEHTSVM/ai/capabilities status=200 duration=5.546ms request_id=cursor/jvxeelXFe3-025038 correlation_id=5e577f03fbb559526d5d759f7ad0fbf8 trace_id=5e577f03fbb559526d5d759f7ad0fbf8 span_id=bc7380eca579a072 organization_id=01M69PX4RCWXYNVQ10MPXKM65W workspace_id=01M69PX4TD4C3211YTWKEHTSVM actor_id=01M69PX4C2VGN68700AAHHGMS0 actor_kind=human
+19:27:41.176 INF http request method=GET path=/api/v1/workspaces/01M69PX4TD4C3211YTWKEHTSVM/ai/capabilities status=200 duration=4.209ms request_id=cursor/jvxeelXFe3-025087 correlation_id=454139077f79b4c89a1ecb1752fbe78d trace_id=454139077f79b4c89a1ecb1752fbe78d span_id=899984e22e47e0b5 organization_id=01M69PX4RCWXYNVQ10MPXKM65W workspace_id=01M69PX4TD4C3211YTWKEHTSVM actor_id=01M69PX4C2VGN68700AAHHGMS0 actor_kind=human
+19:27:43.438 INF http request method=GET path=/api/v1/workspaces/01M69PX4TD4C3211YTWKEHTSVM/ai/capabilities status=200 duration=10.485ms request_id=cursor/jvxeelXFe3-025146 correlation_id=6a9710d694c495c3898ad554da40eef3 trace_id=6a9710d694c495c3898ad554da40eef3 span_id=1d051d5fe23a4ee3 organization_id=01M69PX4RCWXYNVQ10MPXKM65W workspace_id=01M69PX4TD4C3211YTWKEHTSVM actor_id=01M69PX2JB7H5PPEGZH07AK98V actor_kind=human
+19:27:45.978 INF http request method=GET path=/api/v1/workspaces/01M69PXA9ZFMXM2MEC2F9KR2GD/ai/capabilities status=200 duration=4.481ms request_id=cursor/jvxeelXFe3-025235 correlation_id=f29985ed91614c9fd7450f2f768c1221 trace_id=f29985ed91614c9fd7450f2f768c1221 span_id=2f0640bc4c00f168 organization_id=01M69PXA7WAERYN45WCYDYQ4AV workspace_id=01M69PXA9ZFMXM2MEC2F9KR2GD actor_id=01M69PX9V3V42FJ3NBV80A2EW5 actor_kind=human
+19:27:47.868 INF http request method=GET path=/api/v1/workspaces/01M69PXC48QZ0KN3G5Q7715D6H/ai/capabilities status=200 duration=3.496ms request_id=cursor/jvxeelXFe3-025321 correlation_id=4bcd8b637ad6fa872048c3539275af20 trace_id=4bcd8b637ad6fa872048c3539275af20 span_id=b77998461607ff13 organization_id=01M69PXC1Q55NNRZ2ENK3E48DE workspace_id=01M69PXC48QZ0KN3G5Q7715D6H actor_id=01M69PXBQFABDZ8RBM7SNN0E3K actor_kind=human
+19:27:48.718 INF http request method=GET path=/api/v1/workspaces/01M69PXC48QZ0KN3G5Q7715D6H/ai/capabilities status=200 duration=3.139ms request_id=cursor/jvxeelXFe3-025377 correlation_id=1e1ca46fdbbafe164d44ed71891b5090 trace_id=1e1ca46fdbbafe164d44ed71891b5090 span_id=4b16c4048b1bce05 organization_id=01M69PXC1Q55NNRZ2ENK3E48DE workspace_id=01M69PXC48QZ0KN3G5Q7715D6H actor_id=01M69PXBQFABDZ8RBM7SNN0E3K actor_kind=human
+19:27:54.176 INF http request method=GET path=/api/v1/workspaces/01M69PXJA6ZY2ZNR6J774MA9NC/ai/capabilities status=200 duration=4.718ms request_id=cursor/jvxeelXFe3-025482 correlation_id=1c0b4fa4f71a3962c46e7d9b42c57a17 trace_id=1c0b4fa4f71a3962c46e7d9b42c57a17 span_id=9d5d38f8d5fbde0d organization_id=01M69PXJ843KBPP5DJZ9F8R5XS workspace_id=01M69PXJA6ZY2ZNR6J774MA9NC actor_id=01M69PXHTS9XDA1SPVPQX6J3CE actor_kind=human
+19:27:55.003 INF http request method=GET path=/api/v1/workspaces/01M69PXJA6ZY2ZNR6J774MA9NC/ai/capabilities status=200 duration=3.248ms request_id=cursor/jvxeelXFe3-025532 correlation_id=7e75d9de1309055baf1b5b21763abe54 trace_id=7e75d9de1309055baf1b5b21763abe54 span_id=cfbbdd8d3c976639 organization_id=01M69PXJ843KBPP5DJZ9F8R5XS workspace_id=01M69PXJA6ZY2ZNR6J774MA9NC actor_id=01M69PXHTS9XDA1SPVPQX6J3CE actor_kind=human
+19:27:57.160 INF http request method=GET path=/api/v1/workspaces/01M69PXJA6ZY2ZNR6J774MA9NC/ai/capabilities status=200 duration=3.923ms request_id=cursor/jvxeelXFe3-025601 correlation_id=f3cb2d31f4c357ec2f71393c3e15601f trace_id=f3cb2d31f4c357ec2f71393c3e15601f span_id=ca1adda92db8ef7f organization_id=01M69PXJ843KBPP5DJZ9F8R5XS workspace_id=01M69PXJA6ZY2ZNR6J774MA9NC actor_id=01M69PXMGQXQVR0CYCCRKTX3N7 actor_kind=human
+19:27:59.010 INF http request method=GET path=/api/v1/workspaces/01M69PXQ188ZZ31QT85F9FXVS8/ai/capabilities status=200 duration=5.596ms request_id=cursor/jvxeelXFe3-025679 correlation_id=e3fb1ec82bead2b38c35a3a45a4223a3 trace_id=e3fb1ec82bead2b38c35a3a45a4223a3 span_id=5028797b8b20022b organization_id=01M69PXPZ51YHSTYZWSF4AHBTJ workspace_id=01M69PXQ188ZZ31QT85F9FXVS8 actor_id=01M69PXPJB8TFC5BB2N0BZ2ZN8 actor_kind=human
+19:27:59.813 INF http request method=GET path=/api/v1/workspaces/01M69PXQ188ZZ31QT85F9FXVS8/ai/capabilities status=200 duration=3.317ms request_id=cursor/jvxeelXFe3-025726 correlation_id=cee44184563fb10d68875299c304508e trace_id=cee44184563fb10d68875299c304508e span_id=5023d9d114f4bcc1 organization_id=01M69PXPZ51YHSTYZWSF4AHBTJ workspace_id=01M69PXQ188ZZ31QT85F9FXVS8 actor_id=01M69PXPJB8TFC5BB2N0BZ2ZN8 actor_kind=human
+19:28:02.497 INF http request method=GET path=/api/v1/workspaces/01M69PXQ188ZZ31QT85F9FXVS8/ai/capabilities status=200 duration=8.005ms request_id=cursor/jvxeelXFe3-025772 correlation_id=a9466b67dd303a32b8cc3f1a3e2dcd68 trace_id=a9466b67dd303a32b8cc3f1a3e2dcd68 span_id=abe1c8e14b80b2f7 organization_id=01M69PXPZ51YHSTYZWSF4AHBTJ workspace_id=01M69PXQ188ZZ31QT85F9FXVS8 actor_id=01M69PXMGQXQVR0CYCCRKTX3N7 actor_kind=human
+19:28:04.832 INF http request method=GET path=/api/v1/workspaces/01M69PXWPZRN07Q5SXFV8B6P7G/ai/capabilities status=200 duration=2.277ms request_id=cursor/jvxeelXFe3-025848 correlation_id=d1e9f069e141950e06cb4a95913e17b1 trace_id=d1e9f069e141950e06cb4a95913e17b1 span_id=94e88dc99cbaa821 organization_id=01M69PXWMWR0130W8X8WXXH3FN workspace_id=01M69PXWPZRN07Q5SXFV8B6P7G actor_id=01M69PXWA6GM3CXKQQC6QY6SHG actor_kind=human
+19:28:05.718 INF http request method=GET path=/api/v1/workspaces/01M69PXWPZRN07Q5SXFV8B6P7G/ai/capabilities status=200 duration=3.949ms request_id=cursor/jvxeelXFe3-025901 correlation_id=3d6e0a073379c1cf3889f416ca760910 trace_id=3d6e0a073379c1cf3889f416ca760910 span_id=e1ffd40bab6e12b2 organization_id=01M69PXWMWR0130W8X8WXXH3FN workspace_id=01M69PXWPZRN07Q5SXFV8B6P7G actor_id=01M69PXWA6GM3CXKQQC6QY6SHG actor_kind=human
+19:28:06.818 INF http request method=GET path=/api/v1/workspaces/01M69PXZ0Z2DWPEESRMST8RG52/ai/capabilities status=200 duration=5.455ms request_id=cursor/jvxeelXFe3-025952 correlation_id=f9552dbea1caa928c826a7f140a47284 trace_id=f9552dbea1caa928c826a7f140a47284 span_id=fbcd0ed48a33a195 organization_id=01M69PXYYB8C8VP4Y50JQEEA39 workspace_id=01M69PXZ0Z2DWPEESRMST8RG52 actor_id=01M69PXWA6GM3CXKQQC6QY6SHG actor_kind=human
+19:28:08.755 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=4.27ms request_id=cursor/jvxeelXFe3-026036 correlation_id=67ed00750ddc31ee615fad76a88f06db trace_id=67ed00750ddc31ee615fad76a88f06db span_id=d1d6557e774b0e37 organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PXZYDYXK5ADM8SHB8TNX4 actor_kind=human
+19:28:10.856 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=3.97ms request_id=cursor/jvxeelXFe3-026132 correlation_id=b4a311d0aa2a57cf8dbae7d8fd5699a7 trace_id=b4a311d0aa2a57cf8dbae7d8fd5699a7 span_id=c01064942d498d25 organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PY1ZDZZFN83G66F1M3FS9 actor_kind=human
+19:28:11.590 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=3.547ms request_id=cursor/jvxeelXFe3-026184 correlation_id=f4ac2d6597c87df2bebdc8699c147860 trace_id=f4ac2d6597c87df2bebdc8699c147860 span_id=f63b8214926a6b09 organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PXZYDYXK5ADM8SHB8TNX4 actor_kind=human
+19:28:12.311 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=7.265ms request_id=cursor/jvxeelXFe3-026213 correlation_id=2b39a2db7ffbc8bb6c06cc052fb4bde9 trace_id=2b39a2db7ffbc8bb6c06cc052fb4bde9 span_id=0e504c975814a92d organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PXZYDYXK5ADM8SHB8TNX4 actor_kind=human
+19:28:14.409 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=2.224ms request_id=cursor/jvxeelXFe3-026251 correlation_id=2e664aab9eb0e01e8aad7559af12cf77 trace_id=2e664aab9eb0e01e8aad7559af12cf77 span_id=8ae82f4046eb04c8 organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PY1ZDZZFN83G66F1M3FS9 actor_kind=human
+19:28:15.107 INF http request method=GET path=/api/v1/workspaces/01M69PY0F97NZRT0QM5ECY004C/ai/capabilities status=200 duration=9.389ms request_id=cursor/jvxeelXFe3-026276 correlation_id=a214abf28acca461e09eac67f0369698 trace_id=a214abf28acca461e09eac67f0369698 span_id=463b92e853b3a102 organization_id=01M69PY0D6K89BEKXM753A1ZY4 workspace_id=01M69PY0F97NZRT0QM5ECY004C actor_id=01M69PXZYDYXK5ADM8SHB8TNX4 actor_kind=human
+19:28:18.461 INF http request method=GET path=/api/v1/workspaces/01M69PYA103D1P95BMECNFJMKD/ai/capabilities status=200 duration=4.101ms request_id=cursor/jvxeelXFe3-026360 correlation_id=518e68c921a0f76748d6e2ee36deb4e8 trace_id=518e68c921a0f76748d6e2ee36deb4e8 span_id=57a45002c0e9af58 organization_id=01M69PY9YX6ZXJQF40JD4NMH1Z workspace_id=01M69PYA103D1P95BMECNFJMKD actor_id=01M69PY9MSDM54XD3MEA6XHHDM actor_kind=human
+19:28:19.285 INF http request method=GET path=/api/v1/workspaces/01M69PYA103D1P95BMECNFJMKD/ai/capabilities status=200 duration=6.395ms request_id=cursor/jvxeelXFe3-026413 correlation_id=1f72c7e769d4bd44810e915b516d8d6e trace_id=1f72c7e769d4bd44810e915b516d8d6e span_id=bab2e4aeaf1f0e12 organization_id=01M69PY9YX6ZXJQF40JD4NMH1Z workspace_id=01M69PYA103D1P95BMECNFJMKD actor_id=01M69PY9MSDM54XD3MEA6XHHDM actor_kind=human
+19:28:19.876 INF http request method=GET path=/api/v1/workspaces/01M69PYA103D1P95BMECNFJMKD/ai/capabilities status=200 duration=3.252ms request_id=cursor/jvxeelXFe3-026445 correlation_id=0c54a36dffbfd586ac2dc850e849341c trace_id=0c54a36dffbfd586ac2dc850e849341c span_id=f4495c7d847b1101 organization_id=01M69PY9YX6ZXJQF40JD4NMH1Z workspace_id=01M69PYA103D1P95BMECNFJMKD actor_id=01M69PY9MSDM54XD3MEA6XHHDM actor_kind=human
+19:28:37.385 INF http request method=GET path=/api/v1/workspaces/01M69PYWFKFSYDYEKKHFBC6QW8/ai/capabilities status=200 duration=5.342ms request_id=cursor/jvxeelXFe3-026591 correlation_id=45d6728148f699160edd20b864174eee trace_id=45d6728148f699160edd20b864174eee span_id=64f01f1cee3d29c3 organization_id=01M69PYWDJ7JY2D5PH1WQ16J1J workspace_id=01M69PYWFKFSYDYEKKHFBC6QW8 actor_id=01M69PYW2AHRFVR55M25B7Y22M actor_kind=human
+19:28:39.811 INF http request method=GET path=/api/v1/workspaces/01M69PYYWQS50GB52XAG4KJJET/ai/capabilities status=200 duration=4.128ms request_id=cursor/jvxeelXFe3-026671 correlation_id=4868a51b826ea23fa0bddba43f96452a trace_id=4868a51b826ea23fa0bddba43f96452a span_id=ed067eb51aa7c8f8 organization_id=01M69PYYT3CQS6RD4T814Y10MG workspace_id=01M69PYYWQS50GB52XAG4KJJET actor_id=01M69PYYGDDW0SFD7AYEMEEMDQ actor_kind=human
+19:28:40.636 INF http request method=GET path=/api/v1/workspaces/01M69PYYWQS50GB52XAG4KJJET/ai/capabilities status=200 duration=6.122ms request_id=cursor/jvxeelXFe3-026722 correlation_id=8859f06c6991ebb05f1c87f1633cf8e4 trace_id=8859f06c6991ebb05f1c87f1633cf8e4 span_id=f0daa615e1785700 organization_id=01M69PYYT3CQS6RD4T814Y10MG workspace_id=01M69PYYWQS50GB52XAG4KJJET actor_id=01M69PYYGDDW0SFD7AYEMEEMDQ actor_kind=human
+19:28:42.383 INF http request method=GET path=/api/v1/workspaces/01M69PYYWQS50GB52XAG4KJJET/ai/capabilities status=200 duration=4.569ms request_id=cursor/jvxeelXFe3-026766 correlation_id=1c602eaf2df352f4194ba27a1a2ba36c trace_id=1c602eaf2df352f4194ba27a1a2ba36c span_id=6cdde7ad0496f6cc organization_id=01M69PYYT3CQS6RD4T814Y10MG workspace_id=01M69PYYWQS50GB52XAG4KJJET actor_id=01M69PYYGDDW0SFD7AYEMEEMDQ actor_kind=human
+19:28:46.877 INF http request method=GET path=/api/v1/workspaces/01M69PZ5SHEK8B0K6DX91ZDHAB/ai/capabilities status=200 duration=2.383ms request_id=cursor/jvxeelXFe3-026869 correlation_id=f182fc1a516cb41061adcb8ffc602fdd trace_id=f182fc1a516cb41061adcb8ffc602fdd span_id=e4efe8b276bf5a05 organization_id=01M69PZ5QE4M8K7ETZYRCWBW16 workspace_id=01M69PZ5SHEK8B0K6DX91ZDHAB actor_id=01M69PZ5EA5R49RJQ8DD7FSVVN actor_kind=human
+19:28:47.719 INF http request method=GET path=/api/v1/workspaces/01M69PZ5SHEK8B0K6DX91ZDHAB/ai/capabilities status=200 duration=2.922ms request_id=cursor/jvxeelXFe3-026923 correlation_id=7f91e036c5bc150486316d8154f71913 trace_id=7f91e036c5bc150486316d8154f71913 span_id=45aca781b56ea118 organization_id=01M69PZ5QE4M8K7ETZYRCWBW16 workspace_id=01M69PZ5SHEK8B0K6DX91ZDHAB actor_id=01M69PZ5EA5R49RJQ8DD7FSVVN actor_kind=human
+19:28:55.051 INF http request method=GET path=/api/v1/workspaces/01M69PZDQMQCBBBX6C6TJWDX1A/ai/capabilities status=200 duration=7.826ms request_id=cursor/jvxeelXFe3-027033 correlation_id=b535cd86c9a2727aaa10bfe4b2da498c trace_id=b535cd86c9a2727aaa10bfe4b2da498c span_id=64b8800933d4d7ac organization_id=01M69PZDNK8H37SJ7PWA99E1WH workspace_id=01M69PZDQMQCBBBX6C6TJWDX1A actor_id=01M69PZDAZHMRXDFGM6CSEJ39K actor_kind=human
+19:28:55.904 INF http request method=GET path=/api/v1/workspaces/01M69PZDQMQCBBBX6C6TJWDX1A/ai/capabilities status=200 duration=6.257ms request_id=cursor/jvxeelXFe3-027083 correlation_id=91b2f2fd2963814c729afb7eeb93fc4d trace_id=91b2f2fd2963814c729afb7eeb93fc4d span_id=cbd5d1ab0202a25e organization_id=01M69PZDNK8H37SJ7PWA99E1WH workspace_id=01M69PZDQMQCBBBX6C6TJWDX1A actor_id=01M69PZDAZHMRXDFGM6CSEJ39K actor_kind=human
+19:28:56.553 INF http request method=GET path=/api/v1/workspaces/01M69PZDQMQCBBBX6C6TJWDX1A/ai/capabilities status=200 duration=3.201ms request_id=cursor/jvxeelXFe3-027113 correlation_id=20f6aa43b055bc398f702ff64b199ae3 trace_id=20f6aa43b055bc398f702ff64b199ae3 span_id=3bfd9b8ce0c2c549 organization_id=01M69PZDNK8H37SJ7PWA99E1WH workspace_id=01M69PZDQMQCBBBX6C6TJWDX1A actor_id=01M69PZDAZHMRXDFGM6CSEJ39K actor_kind=human
+19:28:59.700 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=5.284ms request_id=cursor/jvxeelXFe3-027179 correlation_id=cee393b8e389f35c12bffd2e192501b8 trace_id=cee393b8e389f35c12bffd2e192501b8 span_id=90c35a0fa9d6b481 organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:00.514 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=4.646ms request_id=cursor/jvxeelXFe3-027230 correlation_id=f0af84cc5315cf629133098accf49cce trace_id=f0af84cc5315cf629133098accf49cce span_id=4dd0b58c52656c66 organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:01.989 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=6.503ms request_id=cursor/jvxeelXFe3-027391 correlation_id=265af706692a35cdc51ae7dc322f5533 trace_id=265af706692a35cdc51ae7dc322f5533 span_id=d80941ce7b386974 organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:06.803 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=3.786ms request_id=cursor/jvxeelXFe3-027434 correlation_id=ea79aaae035b847cac63d564cb84f7bc trace_id=ea79aaae035b847cac63d564cb84f7bc span_id=aeeabc5862530a8c organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:30.495 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=11.169ms request_id=cursor/jvxeelXFe3-027494 correlation_id=3837d96b60ef9e7d12df28217864c374 trace_id=3837d96b60ef9e7d12df28217864c374 span_id=cc2b538048bb3008 organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:36.312 INF http request method=GET path=/api/v1/workspaces/01M69PZJ9G6DWESF42FHASJTJR/ai/capabilities status=200 duration=13.313ms request_id=cursor/jvxeelXFe3-027523 correlation_id=188db7f14845ad50f38f30e959255798 trace_id=188db7f14845ad50f38f30e959255798 span_id=d8b6bda3ae336e01 organization_id=01M69PZJ7F6WCG39ZDTNB2YTFJ workspace_id=01M69PZJ9G6DWESF42FHASJTJR actor_id=01M69PZHWPZSYSXKH3D1SA86K8 actor_kind=human
+19:29:38.533 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=4.1ms request_id=cursor/jvxeelXFe3-027581 correlation_id=d35da6666119f66878489377109e9a74 trace_id=d35da6666119f66878489377109e9a74 span_id=d3d64fff2031a39f organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:39.418 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=7.034ms request_id=cursor/jvxeelXFe3-027631 correlation_id=7f0b74d88927ba66f0b84dc0d5618067 trace_id=7f0b74d88927ba66f0b84dc0d5618067 span_id=a46a3d817d8c60ea organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:40.279 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=7.271ms request_id=cursor/jvxeelXFe3-027655 correlation_id=0a1dde21c17748dc6caee7110539ef39 trace_id=0a1dde21c17748dc6caee7110539ef39 span_id=2038ce7295942821 organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:41.026 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=3.867ms request_id=cursor/jvxeelXFe3-027677 correlation_id=30ec78f3d974345fa9f4117083adc93d trace_id=30ec78f3d974345fa9f4117083adc93d span_id=8947a97fa63c9239 organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:41.649 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=6.327ms request_id=cursor/jvxeelXFe3-027700 correlation_id=16c3085ccb8c2e342fc4be8ba548f147 trace_id=16c3085ccb8c2e342fc4be8ba548f147 span_id=0a629e32f9b65f50 organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:42.401 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=5.997ms request_id=cursor/jvxeelXFe3-027726 correlation_id=95158c1c6a5949b00d68ed2214e7fc38 trace_id=95158c1c6a5949b00d68ed2214e7fc38 span_id=4c4b46400110c12f organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:43.207 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=1.62ms request_id=cursor/jvxeelXFe3-027768 correlation_id=a8cf086e6ae759351f2c319defa42521 trace_id=a8cf086e6ae759351f2c319defa42521 span_id=79daf884c244d104 organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:43.876 INF http request method=GET path=/api/v1/workspaces/01M69Q0R6ZMEE6QV4MRF5J4HCM/ai/capabilities status=200 duration=2.411ms request_id=cursor/jvxeelXFe3-027802 correlation_id=df9f61fed002232d9edff41cdc808cb3 trace_id=df9f61fed002232d9edff41cdc808cb3 span_id=c0bc891eaeeb7914 organization_id=01M69Q0R4YCJXM75G66Y1WKAGJ workspace_id=01M69Q0R6ZMEE6QV4MRF5J4HCM actor_id=01M69Q0QV8PHDD0JAKFJK4R404 actor_kind=human
+19:29:45.686 INF http request method=GET path=/api/v1/workspaces/01M69Q0Z6YNH2PSCW7X7Y376E7/ai/capabilities status=200 duration=3.217ms request_id=cursor/jvxeelXFe3-027857 correlation_id=fbee3ec260caeb2cbc7066d0aa902aa9 trace_id=fbee3ec260caeb2cbc7066d0aa902aa9 span_id=bf7f3446d468f3c5 organization_id=01M69Q0Z4VPKZSW9JWV2DJG6J8 workspace_id=01M69Q0Z6YNH2PSCW7X7Y376E7 actor_id=01M69Q0YSM37MK5ZA4APFXEQ0W actor_kind=human
+19:29:46.534 INF http request method=GET path=/api/v1/workspaces/01M69Q0Z6YNH2PSCW7X7Y376E7/ai/capabilities status=200 duration=8.064ms request_id=cursor/jvxeelXFe3-027904 correlation_id=ee96cb9873246823413bc14bb12ba30f trace_id=ee96cb9873246823413bc14bb12ba30f span_id=f0cbcb2b92f90f98 organization_id=01M69Q0Z4VPKZSW9JWV2DJG6J8 workspace_id=01M69Q0Z6YNH2PSCW7X7Y376E7 actor_id=01M69Q0YSM37MK5ZA4APFXEQ0W actor_kind=human
+19:29:55.975 INF http request method=GET path=/api/v1/workspaces/01M69Q19892S0ER95GHZMT73TA/ai/capabilities status=200 duration=11.007ms request_id=cursor/jvxeelXFe3-028049 correlation_id=0fbe92c662cdcfca75050672ab2929d5 trace_id=0fbe92c662cdcfca75050672ab2929d5 span_id=9939b372691a8cb2 organization_id=01M69Q1966SZDCVT1TTB32P8T2 workspace_id=01M69Q19892S0ER95GHZMT73TA actor_id=01M69Q18WJR94W6Y1SB56YVSH9 actor_kind=human
+19:29:56.807 INF http request method=GET path=/api/v1/workspaces/01M69Q19892S0ER95GHZMT73TA/ai/capabilities status=200 duration=2.837ms request_id=cursor/jvxeelXFe3-028100 correlation_id=b86672d2bea15c4ed07436cdb56edfcd trace_id=b86672d2bea15c4ed07436cdb56edfcd span_id=b114098a53340ead organization_id=01M69Q1966SZDCVT1TTB32P8T2 workspace_id=01M69Q19892S0ER95GHZMT73TA actor_id=01M69Q18WJR94W6Y1SB56YVSH9 actor_kind=human
+19:29:57.953 INF http request method=GET path=/api/v1/workspaces/01M69Q19892S0ER95GHZMT73TA/ai/capabilities status=200 duration=5.354ms request_id=cursor/jvxeelXFe3-028131 correlation_id=638936dca1ec95da2182ab08cb2c826a trace_id=638936dca1ec95da2182ab08cb2c826a span_id=83160cc9ea34bbb9 organization_id=01M69Q1966SZDCVT1TTB32P8T2 workspace_id=01M69Q19892S0ER95GHZMT73TA actor_id=01M69Q18WJR94W6Y1SB56YVSH9 actor_kind=human
+19:30:00.385 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=4.856ms request_id=cursor/jvxeelXFe3-028199 correlation_id=f923484f13e7fe53d82981d80c8e3f11 trace_id=f923484f13e7fe53d82981d80c8e3f11 span_id=877674a3debd36de organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:02.438 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=6.076ms request_id=cursor/jvxeelXFe3-028284 correlation_id=25a839b755e203aae981157c27d82c2d trace_id=25a839b755e203aae981157c27d82c2d span_id=5594fb882a4b15c2 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1EYYZKG5JR0CFQTJ3KPJ actor_kind=human
+19:30:03.477 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=3.509ms request_id=cursor/jvxeelXFe3-028335 correlation_id=144b8c6766bbf3f541ebe516bf473566 trace_id=144b8c6766bbf3f541ebe516bf473566 span_id=d7f93b0a46d70cbc organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:04.319 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=5.525ms request_id=cursor/jvxeelXFe3-028375 correlation_id=a88560c6556fb2865b00fda1afb0e018 trace_id=a88560c6556fb2865b00fda1afb0e018 span_id=8ff83932389c35cb organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1EYYZKG5JR0CFQTJ3KPJ actor_kind=human
+19:30:06.013 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=13.552ms request_id=cursor/jvxeelXFe3-028426 correlation_id=f6bd4a6285738aa2e34c43674945161c trace_id=f6bd4a6285738aa2e34c43674945161c span_id=f975ed89b1b0d19f organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:06.776 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=6.354ms request_id=cursor/jvxeelXFe3-028462 correlation_id=4460f34376075342657d7f7bd1993704 trace_id=4460f34376075342657d7f7bd1993704 span_id=6d5185ff63442a61 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1EYYZKG5JR0CFQTJ3KPJ actor_kind=human
+19:30:08.090 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=1.957ms request_id=cursor/jvxeelXFe3-028510 correlation_id=94191a7fd2b080ed4f160860d1ff938d trace_id=94191a7fd2b080ed4f160860d1ff938d span_id=5ea3cddc8ff9fcd5 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:08.843 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=3.737ms request_id=cursor/jvxeelXFe3-028547 correlation_id=136001ea3202327c1beaa9db1215e5c1 trace_id=136001ea3202327c1beaa9db1215e5c1 span_id=8619cfe15305ebe4 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1EYYZKG5JR0CFQTJ3KPJ actor_kind=human
+19:30:11.830 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=4.341ms request_id=cursor/jvxeelXFe3-028593 correlation_id=95951a334f7c8e36844e30eca58335a4 trace_id=95951a334f7c8e36844e30eca58335a4 span_id=5e7f29f10405e50b organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:13.849 INF http request method=GET path=/api/v1/workspaces/01M69Q1TQNFAFPNYD4VQEEG0A2/ai/capabilities status=200 duration=6.367ms request_id=cursor/jvxeelXFe3-028675 correlation_id=dc682e30b51a5843958cc97f389bc265 trace_id=dc682e30b51a5843958cc97f389bc265 span_id=85c58c90088aba55 organization_id=01M69Q1TNGTR7CZ0BQBCAWWY3Q workspace_id=01M69Q1TQNFAFPNYD4VQEEG0A2 actor_id=01M69Q1TAVV28VQHWHXQYYF13A actor_kind=human
+19:30:15.584 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=5.846ms request_id=cursor/jvxeelXFe3-028735 correlation_id=5491a418fefa87889a8ce1780dd8624e trace_id=5491a418fefa87889a8ce1780dd8624e span_id=9df43657a1845dcd organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:16.546 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=11.16ms request_id=cursor/jvxeelXFe3-028769 correlation_id=d32558640e504c976d09d4de5943b1ef trace_id=d32558640e504c976d09d4de5943b1ef span_id=3e052f45eb5b2772 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1EYYZKG5JR0CFQTJ3KPJ actor_kind=human
+19:30:18.672 INF http request method=GET path=/api/v1/workspaces/01M69Q1DF7YVQ692DQSVE4F2WZ/ai/capabilities status=200 duration=4.68ms request_id=cursor/jvxeelXFe3-028837 correlation_id=f282d312696ea4ea4d79d9f6734b45e5 trace_id=f282d312696ea4ea4d79d9f6734b45e5 span_id=a689afce2f2c4380 organization_id=01M69Q1DD2AAB1DMMPX908G3WP workspace_id=01M69Q1DF7YVQ692DQSVE4F2WZ actor_id=01M69Q1D0W23MPPPKNN6CXBAEK actor_kind=human
+19:30:21.969 INF http request method=GET path=/api/v1/workspaces/01M69Q20SDK9ZGJ2SVHF0FJ1C6/ai/capabilities status=200 duration=2.936ms request_id=cursor/jvxeelXFe3-028890 correlation_id=ff0ba38566537863a3abe25b5cb2b143 trace_id=ff0ba38566537863a3abe25b5cb2b143 span_id=b9735d1db6f5b9d8 organization_id=01M69Q20S6Z9DWKDBVAR1VF3Y0 workspace_id=01M69Q20SDK9ZGJ2SVHF0FJ1C6 actor_id=01M69Q20RGW0DVF7KCD2FWQ0S8 actor_kind=human
+19:30:23.207 INF http request method=GET path=/api/v1/workspaces/01M69Q20SDK9ZGJ2SVHF0FJ1C6/ai/capabilities status=200 duration=2.424ms request_id=cursor/jvxeelXFe3-028919 correlation_id=6e0d5075e1e76941684ce36cf53a178e trace_id=6e0d5075e1e76941684ce36cf53a178e span_id=2dce62468b603545 organization_id=01M69Q20S6Z9DWKDBVAR1VF3Y0 workspace_id=01M69Q20SDK9ZGJ2SVHF0FJ1C6 actor_id=01M69Q20RGW0DVF7KCD2FWQ0S8 actor_kind=human
+19:30:28.489 INF http request method=GET path=/api/v1/workspaces/01M69Q20SDK9ZGJ2SVHF0FJ1C6/ai/capabilities status=200 duration=25.393ms request_id=cursor/jvxeelXFe3-028947 correlation_id=32a9b49188cfcd2e55aeda0f3e822446 trace_id=32a9b49188cfcd2e55aeda0f3e822446 span_id=aa465de6d5e448a9 organization_id=01M69Q20S6Z9DWKDBVAR1VF3Y0 workspace_id=01M69Q20SDK9ZGJ2SVHF0FJ1C6 actor_id=01M69Q20RGW0DVF7KCD2FWQ0S8 actor_kind=human
+19:30:29.073 INF http request method=GET path=/api/v1/workspaces/01M69Q20SDK9ZGJ2SVHF0FJ1C6/ai/capabilities status=200 duration=2.742ms request_id=cursor/jvxeelXFe3-028971 correlation_id=562847d97bb55af4b5f38000ee430918 trace_id=562847d97bb55af4b5f38000ee430918 span_id=09a522e01043ef6f organization_id=01M69Q20S6Z9DWKDBVAR1VF3Y0 workspace_id=01M69Q20SDK9ZGJ2SVHF0FJ1C6 actor_id=01M69Q20RGW0DVF7KCD2FWQ0S8 actor_kind=human
+19:30:42.272 INF http request method=GET path=/api/v1/workspaces/01M69Q2MJ7GHFP5YTST93T9DH2/ai/capabilities status=200 duration=7.137ms request_id=cursor/jvxeelXFe3-029010 correlation_id=1eba3d2272e86c4ca8029ffb091b8648 trace_id=1eba3d2272e86c4ca8029ffb091b8648 span_id=6246d03494ac9bf4 organization_id=01M69Q2MJ1ERZH2C5WD48328TY workspace_id=01M69Q2MJ7GHFP5YTST93T9DH2 actor_id=01M69Q2MHK67RC9TZSQKZAPJJ2 actor_kind=human
+19:30:43.482 INF http request method=GET path=/api/v1/workspaces/01M69Q2MJ7GHFP5YTST93T9DH2/ai/capabilities status=200 duration=11.026ms request_id=cursor/jvxeelXFe3-029039 correlation_id=b1323ae65a2a7f642a9ff7c32f37d778 trace_id=b1323ae65a2a7f642a9ff7c32f37d778 span_id=80d630c23537b707 organization_id=01M69Q2MJ1ERZH2C5WD48328TY workspace_id=01M69Q2MJ7GHFP5YTST93T9DH2 actor_id=01M69Q2MHK67RC9TZSQKZAPJJ2 actor_kind=human
+19:30:46.783 INF http request method=GET path=/api/v1/workspaces/01M69Q2RWWWQTX8C81J31FTHQE/ai/capabilities status=200 duration=4.551ms request_id=cursor/jvxeelXFe3-029102 correlation_id=7aa3f5e89df203365a87551096dfd739 trace_id=7aa3f5e89df203365a87551096dfd739 span_id=b56cf8b705b8bb28 organization_id=01M69Q2RWN8PVBVGB801NMCRJ3 workspace_id=01M69Q2RWWWQTX8C81J31FTHQE actor_id=01M69Q2RYZ9SZMFGYKHBHGVDES actor_kind=human
+19:30:47.383 INF http request method=GET path=/api/v1/workspaces/01M69Q2RWWWQTX8C81J31FTHQE/ai/capabilities status=200 duration=5.67ms request_id=cursor/jvxeelXFe3-029148 correlation_id=1ad75c016e357e0240a424d8aa8d70f6 trace_id=1ad75c016e357e0240a424d8aa8d70f6 span_id=30dd12cd68a9d480 organization_id=01M69Q2RWN8PVBVGB801NMCRJ3 workspace_id=01M69Q2RWWWQTX8C81J31FTHQE actor_id=01M69Q2RYZ9SZMFGYKHBHGVDES actor_kind=human
+19:30:49.199 INF http request method=GET path=/api/v1/workspaces/01M69Q2RWWWQTX8C81J31FTHQE/ai/capabilities status=200 duration=1.668ms request_id=cursor/jvxeelXFe3-029217 correlation_id=ed190b9b5887f1fa6b5905a05adf2fb9 trace_id=ed190b9b5887f1fa6b5905a05adf2fb9 span_id=523eb2a0b317e2bd organization_id=01M69Q2RWN8PVBVGB801NMCRJ3 workspace_id=01M69Q2RWWWQTX8C81J31FTHQE actor_id=01M69Q2RYZ9SZMFGYKHBHGVDES actor_kind=human
+skipped: documents has gated or skipped tests
+
+E2E_DOCS_EXIT=1
