@@ -9,11 +9,10 @@ import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
-import { TINTS, TintTile } from "@/components/ui/tint-tile";
+import { TINTS } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
 import { formatFileSize, isReminderDue, messageContent, pollResults, voiceCallLogLabel } from "@/lib/message-display";
 import { messageBodySegments, spokenLink } from "@/lib/message-format";
@@ -23,6 +22,8 @@ import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatImageSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { Card, ink } from "./message-card-chrome";
+import { DocumentCard } from "./document-card";
 import { PollVoteActivityChip } from "./poll-vote-activity-chip";
 import { VoiceCard } from "./voice-card";
 import { toast } from "@/data/stores/toast-store";
@@ -47,16 +48,14 @@ export interface MessageCardContext {
   onLinkMenu: (url: string) => void;
   /** Scroll the conversation to a message (poll vote activity → original poll). */
   onJumpToMessage?: (messageId: string) => void;
+  /** Turn one suggested item of a call summary into a task. */
+  onCreateSummaryTask?: (messageId: string, title: string) => void;
+  /** Set while messages are being selected; a row draws a check from it. */
+  selection?: ReadonlySet<string>;
 }
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
-export const INTERACTIVE_VIEWS = new Set(["image", "file", "voice", "poll", "unsupported"]);
-
-/** The text classes of a card in the brand bubble (own) or the other bubble. */
-const ink = (own: boolean) => ({
-  text: own ? "text-chat-bubble-own-foreground" : "text-foreground",
-  meta: own ? "text-chat-bubble-own-meta" : "text-muted-foreground",
-});
+export const INTERACTIVE_VIEWS = new Set(["image", "file", "voice", "poll", "document", "call-summary", "unsupported"]);
 
 function useTheme() {
   const { colorScheme } = useColorScheme();
@@ -127,36 +126,6 @@ function Pill({ label, tint, icon }: { label: string; tint?: Tint; icon?: keyof 
     <View className={cn("min-h-[22px] flex-row items-center gap-1 rounded-full px-2", tint ? TINTS[tint].bg : "bg-muted")}>
       {icon && tint ? <Ionicons name={icon} size={12} color={theme[TINTS[tint].ink]} /> : null}
       <Text className={cn("text-meta font-semibold", tint ? TINTS[tint].text : "text-muted-foreground")}>{label}</Text>
-    </View>
-  );
-}
-
-/** The head of a card: its tinted tile, the kind as an overline, and an optional pill. */
-function Card({
-  own,
-  tint,
-  icon,
-  kind,
-  badge,
-  children,
-}: {
-  own: boolean;
-  tint: Tint;
-  icon: keyof typeof Ionicons.glyphMap;
-  kind: string;
-  badge?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <View className="min-w-[230px] gap-1">
-      <View className="mb-1 flex-row items-center gap-2.5">
-        <TintTile tint={tint} icon={icon} size={28} iconSize={16} />
-        <Text className={cn("flex-1 text-meta font-semibold uppercase tracking-wider", ink(own).meta)} numberOfLines={1}>
-          {kind}
-        </Text>
-        {badge}
-      </View>
-      {children}
     </View>
   );
 }
@@ -407,7 +376,15 @@ function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageC
 }
 
 /** UNI's summary of a call: the summary, its highlights and the tasks it suggests (read-only here). */
-function CallSummaryCard({ summary, own }: { summary: NonNullable<ChatMessageRecord["voice_call_summary"]>; own: boolean }) {
+function CallSummaryCard({
+  summary,
+  own,
+  onCreateTask,
+}: {
+  summary: NonNullable<ChatMessageRecord["voice_call_summary"]>;
+  own: boolean;
+  onCreateTask?: (title: string) => void;
+}) {
   const { t } = useTranslation();
   const heading = cn("mt-2 text-meta font-semibold uppercase tracking-wider", ink(own).meta);
   return (
@@ -427,6 +404,18 @@ function CallSummaryCard({ summary, own }: { summary: NonNullable<ChatMessageRec
           <View key={index} className={cn("rounded-xl px-3 py-2", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}>
             <Text className={cn("text-callout font-semibold", ink(own).text)}>{item.title}</Text>
             {meta ? <Text className={cn("text-caption", ink(own).meta)}>{meta}</Text> : null}
+            {onCreateTask ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("chat.link.create")}
+                onPress={() => onCreateTask(item.title)}
+                className="min-h-11 justify-center"
+              >
+                <Text className={cn("text-caption font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")}>
+                  {t("chat.link.create")}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         );
       })}
@@ -541,8 +530,16 @@ export function MessageContent({
       );
     case "call-log":
       return <CallLogChip record={record} ctx={ctx} />;
+    case "document":
+      return <DocumentCard document={content.document} own={own} orgSlug={ctx.orgSlug} wsSlug={ctx.wsSlug} />;
     case "call-summary":
-      return <CallSummaryCard summary={content.summary} own={own} />;
+      return (
+        <CallSummaryCard
+          summary={content.summary}
+          own={own}
+          onCreateTask={ctx.onCreateSummaryTask ? (title) => ctx.onCreateSummaryTask?.(record.id, title) : undefined}
+        />
+      );
     case "system":
       return null;
     case "unsupported":

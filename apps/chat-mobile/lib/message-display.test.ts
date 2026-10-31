@@ -42,6 +42,8 @@ const byKind: Record<(typeof KNOWN_MESSAGE_KINDS)[number], ChatMessageRecord> = 
   voice: { ...base, kind: "voice", voice: { duration_ms: 4000, content_type: "audio/mp4", size_bytes: 1, url: "", url_expires_at: "" } },
   file: { ...base, kind: "file", file: file("plan.pdf", "application/pdf") },
   post: { ...base, kind: "post", post: { title: "Tin", body: "Nội dung", pin_to_top: false } },
+  document: { ...base, kind: "document", document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: true, viewer_level: "view" } },
+  document_version: { ...base, kind: "document_version", document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: true, viewer_level: "view" } },
 };
 
 describe("messageView", () => {
@@ -72,7 +74,7 @@ describe("messageView", () => {
     // The schema keeps any kind string, so a newer server's kind reaches the list.
     const future = ChatMessageSchema.parse({ ...base, kind: "whiteboard" });
     expect(messageView(future)).toBe("unsupported");
-    for (const kind of ["file", "voice", "poll", "poll_vote", "note", "post", "reminder"]) {
+    for (const kind of ["file", "voice", "poll", "poll_vote", "note", "post", "reminder", "document", "document_version"]) {
       expect(messageView({ ...base, kind }), kind).toBe("unsupported");
     }
   });
@@ -138,6 +140,9 @@ describe("labels", () => {
     expect(messagePreviewText(byKind.post, tVi)).toBe("Tin");
     expect(messagePreviewText(byKind.note, tVi)).toBe("Ghi chú");
     expect(messagePreviewText(byKind.reminder, tVi)).toBe("Họp");
+    expect(messagePreviewText(byKind.document, tVi)).toBe("Kế hoạch");
+    expect(messagePreviewText(byKind.document_version, tVi)).toBe("Kế hoạch");
+    expect(messagePreviewText({ ...base, kind: "document" }, tVi)).toBe("hi");
     expect(messagePreviewText({ ...base, body: "![gif:vui](https://media.tenor.com/a.gif)" }, tVi)).toBe("GIF · vui");
     expect(messagePreviewText({ ...base, body: " " }, tVi)).toBe("");
   });
@@ -156,5 +161,8 @@ describe("pendingPreviewText", () => {
     expect(pendingPreviewText({ body: "", file: { uri: "file:///a", name: "báo giá.pdf" } }, tVi)).toBe("báo giá.pdf");
     expect(pendingPreviewText({ body: "", file: { uri: "file:///v", name: "voice.m4a" }, voiceDurationMs: 3_000 }, tVi)).toBe("Tin nhắn thoại");
     expect(pendingPreviewText({ body: "", reminder: { body: "Gửi báo giá", remindAt: "2026-10-18T02:00:00.000Z", repeat: "none" } }, tVi)).toBe("Gửi báo giá");
+    expect(pendingPreviewText({ body: "", poll: { question: "Ăn gì?", options: ["Phở", "Bún"] } }, tVi)).toBe("Ăn gì?");
+    expect(pendingPreviewText({ body: "", note: { body: "Ghi chú" } }, tVi)).toBe("Ghi chú");
+    expect(pendingPreviewText({ body: "", post: { title: "Tin", body: "Nội dung" } }, tVi)).toBe("Tin");
   });
 });

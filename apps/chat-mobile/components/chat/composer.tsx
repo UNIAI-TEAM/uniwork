@@ -16,6 +16,7 @@
 // off leaves the record button out (an empty draft shows a disabled send).
 import { Ionicons } from "@expo/vector-icons";
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
+import { toggleComposerPriority, type ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -78,7 +79,11 @@ interface Props {
   edit: ComposerEdit | null;
   onCancelReply: () => void;
   onCancelEdit: () => void;
-  onSend: (body: string) => void;
+  onSend: (body: string, priority?: ComposerMessagePriority) => void;
+  onOpenPoll?: () => void;
+  onOpenNote?: () => void;
+  onOpenPost?: () => void;
+  onOpenDocuments?: () => void;
   onSendFile: (file: PendingFile) => void;
   onEdit: (messageId: string, body: string) => void;
   onTyping: () => void;
@@ -97,6 +102,7 @@ export function Composer(props: Props) {
   const [draft, setDraft] = useState(kept.initialText);
   const [cursor, setCursor] = useState(kept.initialText.length);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [priority, setPriority] = useState<ComposerMessagePriority | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allLabel = t("chat.mention_all");
   // 48 dp of target and a ripple on Android (lib/platform-ui.ts): the round 44 pt buttons, the 42 pt sticker
@@ -173,7 +179,10 @@ export function Composer(props: Props) {
       restoreDraft();
       return;
     }
-    props.onSend(serializeComposerDraftToMessageBody(trimmed, candidates, allLabel));
+    const body = serializeComposerDraftToMessageBody(trimmed, candidates, allLabel);
+    if (priority) props.onSend(body, priority);
+    else props.onSend(body);
+    setPriority(null);
     kept.clear();
     setDraft("");
     setCursor(0);
@@ -302,6 +311,19 @@ export function Composer(props: Props) {
             <Ionicons name="close" size={18} color={theme.mutedForeground} />
           </Pressable>
         </View>
+      ) : null}
+      {priority ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("chat.composer_clear_priority")}
+          onPress={() => setPriority(null)}
+          className="mx-4 mt-2 min-h-11 flex-row items-center gap-2 self-start rounded-full bg-secondary px-3"
+        >
+          <Text className={cn("text-caption font-semibold", priority === "urgent" ? "text-destructive" : "text-primary")}>
+            {t(priority === "urgent" ? "chat.message_flag_urgent" : "chat.message_flag_important")}
+          </Text>
+          <Text className="text-caption text-muted-foreground">{t("chat.composer_clear_priority")}</Text>
+        </Pressable>
       ) : null}
       <View className={cn("flex-row items-end gap-1.5 py-2 pe-2", attach ? "ps-2" : "ps-3")}>
         {attach && !voice.active ? (
@@ -445,6 +467,64 @@ export function Composer(props: Props) {
             onPress: props.onOpenExpressions,
           },
           { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
+          ...(attach && props.onOpenPoll
+            ? [
+                {
+                  key: "poll",
+                  label: t("chat.composer_create_poll"),
+                  icon: "stats-chart-outline" as const,
+                  tint: "blue" as const,
+                  onPress: props.onOpenPoll,
+                },
+              ]
+            : []),
+          ...(attach && props.onOpenNote
+            ? [
+                {
+                  key: "note",
+                  label: t("chat.composer_create_note"),
+                  icon: "document-text-outline" as const,
+                  tint: "yellow" as const,
+                  onPress: props.onOpenNote,
+                },
+              ]
+            : []),
+          ...(attach && props.onOpenPost
+            ? [
+                {
+                  key: "post",
+                  label: t("chat.composer_create_post"),
+                  icon: "newspaper-outline" as const,
+                  tint: "orange" as const,
+                  onPress: props.onOpenPost,
+                },
+              ]
+            : []),
+          ...(attach && props.onOpenDocuments
+            ? [
+                {
+                  key: "document",
+                  label: t("chat.composer_attach_document"),
+                  icon: "folder-outline" as const,
+                  tint: "blue" as const,
+                  onPress: props.onOpenDocuments,
+                },
+              ]
+            : []),
+          {
+            key: "important",
+            label: t("chat.composer_mark_important"),
+            icon: "alert-circle-outline" as const,
+            tint: "orange" as const,
+            onPress: () => setPriority((current) => toggleComposerPriority(current, "important")),
+          },
+          {
+            key: "urgent",
+            label: t("chat.composer_mark_urgent"),
+            icon: "notifications-outline" as const,
+            tint: "red" as const,
+            onPress: () => setPriority((current) => toggleComposerPriority(current, "urgent")),
+          },
         ]}
       />
     </Animated.View>

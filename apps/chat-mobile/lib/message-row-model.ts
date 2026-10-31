@@ -4,6 +4,7 @@
 // memoized cell (components/chat/message-cell.tsx) skips it: a new message
 // re-renders the new row and the one whose run it continues, a typing frame or
 // a presence change re-renders none.
+import type { MessageTaskRef } from "./link-windows";
 import type { TimelineMessage, TimelineRow } from "./timeline-display";
 
 export type Receipt = "sent" | "delivered" | "seen";
@@ -41,7 +42,7 @@ export interface MessageRowModel {
   showThread: boolean;
   /** A swipe quotes it in the composer: a server message outside a thread. */
   swipeToReply: boolean;
-  taskIds: readonly string[] | undefined;
+  taskIds: readonly MessageTaskRef[] | undefined;
 }
 
 export interface MessageRowModelInput {
@@ -62,11 +63,22 @@ export interface MessageRowModelInput {
   unknownQuoteSender: string;
   receiptOf: (message: TimelineMessage, own: boolean) => Receipt | null;
   highlightedId: string | null | undefined;
-  taskIdsByMessage: ReadonlyMap<string, readonly string[]>;
+  taskIdsByMessage: ReadonlyMap<string, readonly MessageTaskRef[]>;
 }
 
 const sameList = <T>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean =>
   a === b || (a !== undefined && b !== undefined && a.length === b.length && a.every((item, index) => item === b[index]));
+
+/** Task cards match by their fields: a rebuilt list of the same links is the same row. */
+const sameTasks = (a: readonly MessageTaskRef[] | undefined, b: readonly MessageTaskRef[] | undefined): boolean =>
+  a === b ||
+  (a !== undefined &&
+    b !== undefined &&
+    a.length === b.length &&
+    a.every((item, index) => {
+      const other = b[index];
+      return other !== undefined && item.taskId === other.taskId && item.linkId === other.linkId && item.relation === other.relation;
+    }));
 
 const sameQuote = (a: QuoteModel | null, b: QuoteModel | null): boolean =>
   a === b || (a !== null && b !== null && a.id === b.id && a.sender === b.sender && a.text === b.text);
@@ -90,7 +102,7 @@ export function sameRowModel(a: MessageRowModel, b: MessageRowModel): boolean {
     a.swipeToReply === b.swipeToReply &&
     sameQuote(a.quote, b.quote) &&
     sameList(a.album, b.album) &&
-    sameList(a.taskIds, b.taskIds)
+    sameTasks(a.taskIds, b.taskIds)
   );
 }
 
@@ -165,7 +177,7 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
       read.receipt === receipt &&
       read.highlighted === highlighted &&
       sameList(read.album, album) &&
-      sameList(read.taskIds, taskIds)
+      sameTasks(read.taskIds, taskIds)
     ) {
       models.set(row.key, read);
       continue;

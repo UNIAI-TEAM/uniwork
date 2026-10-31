@@ -14,7 +14,20 @@ import { formatChatSidebarPreviewText } from "./rooms-display";
 import type { PendingSend } from "./send-pipeline";
 
 /** Every `chat_messages.kind` the server writes (migration poll_vote_kind + document kinds). */
-export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "poll_vote", "reminder", "note", "voice", "file", "post"] as const;
+export const KNOWN_MESSAGE_KINDS = [
+  "text",
+  "system",
+  "voice_call_log",
+  "poll",
+  "poll_vote",
+  "reminder",
+  "note",
+  "voice",
+  "file",
+  "post",
+  "document",
+  "document_version",
+] as const;
 
 type Payload<K extends keyof ChatMessageRecord> = NonNullable<ChatMessageRecord[K]>;
 
@@ -35,6 +48,7 @@ export type MessageContent =
   | { view: "note"; note: Payload<"note"> }
   | { view: "post"; post: Payload<"post"> }
   | { view: "reminder"; reminder: Payload<"reminder"> }
+  | { view: "document"; document: Payload<"document"> }
   | { view: "call-log" }
   | { view: "call-summary"; summary: Payload<"voice_call_summary"> }
   | { view: "poll-vote-activity"; pollVote: Payload<"poll_vote"> }
@@ -44,7 +58,18 @@ export type MessageView = MessageContent["view"];
 
 type ContentFields = Pick<
   ChatMessageRecord,
-  "kind" | "body" | "file" | "voice" | "poll" | "poll_vote" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
+  | "kind"
+  | "body"
+  | "file"
+  | "voice"
+  | "poll"
+  | "poll_vote"
+  | "note"
+  | "post"
+  | "reminder"
+  | "document"
+  | "voice_call"
+  | "voice_call_summary"
 >;
 
 const UNSUPPORTED: MessageContent = { view: "unsupported" };
@@ -78,6 +103,9 @@ export function messageContent(record: ContentFields): MessageContent {
       return record.post ? { view: "post", post: record.post } : UNSUPPORTED;
     case "reminder":
       return record.reminder ? { view: "reminder", reminder: record.reminder } : UNSUPPORTED;
+    case "document":
+    case "document_version":
+      return record.document?.document_id ? { view: "document", document: record.document } : UNSUPPORTED;
     default:
       return UNSUPPORTED;
   }
@@ -164,13 +192,15 @@ export function isChatMediaUrlFresh(url: string | undefined, expiresAt: string |
  * preview's words for it, without the sender prefix.
  */
 export function messagePreviewText(
-  record: Pick<ChatMessageRecord, "body" | "kind" | "sender_id" | "created_at" | "file" | "poll" | "note" | "post" | "reminder">,
+  record: Pick<ChatMessageRecord, "body" | "kind" | "sender_id" | "created_at" | "file" | "poll" | "note" | "post" | "reminder" | "document">,
   t: TranslateFn,
 ): string {
   const body =
     record.kind === "file"
       ? (record.file?.filename ?? record.body)
-      : (record.poll?.question ?? record.post?.title ?? record.note?.body ?? record.reminder?.body ?? record.body);
+      : record.kind === "document" || record.kind === "document_version"
+        ? (record.document?.title ?? record.body)
+        : (record.poll?.question ?? record.post?.title ?? record.note?.body ?? record.reminder?.body ?? record.body);
   const preview = { body, kind: record.kind, senderId: record.sender_id, senderName: "", createdAt: record.created_at };
   return (
     formatChatSidebarPreviewText(preview, {
@@ -189,9 +219,15 @@ export function messagePreviewText(
  * A message still on its way, in its bubble and its sheet: the text with
  * mentions as names, its file's name, "Voice message", or the reminder's text.
  */
-export function pendingPreviewText(pending: Pick<PendingSend, "body" | "file" | "voiceDurationMs" | "reminder">, t: TranslateFn): string {
+export function pendingPreviewText(
+  pending: Pick<PendingSend, "body" | "file" | "voiceDurationMs" | "reminder" | "poll" | "note" | "post">,
+  t: TranslateFn,
+): string {
   if (pending.voiceDurationMs !== undefined) return t("chat.sidebar_voice_message_preview");
   if (pending.file) return pending.file.name;
   if (pending.reminder) return pending.reminder.body;
+  if (pending.poll) return pending.poll.question;
+  if (pending.note) return pending.note.body;
+  if (pending.post) return pending.post.title;
   return deserializeMessageBodyToComposerDraft(pending.body);
 }

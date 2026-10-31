@@ -34,7 +34,8 @@ describe("notification channels", () => {
     expect(native.ensureChannels).toHaveBeenCalledWith(callChannelNames(t));
     expect(notifications.setNotificationChannelAsync.mock.calls.map(([id]) => id)).toEqual(["missed_calls", "mentions", "messages", "general", "chat_quiet"]);
     expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("missed_calls", expect.objectContaining({ name: "«mobile.notify.channel_missed»", importance: 6, lockscreenVisibility: 1 }));
-    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("messages", expect.objectContaining({ importance: 6, lockscreenVisibility: 2, sound: "default" }));
+    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("messages", expect.objectContaining({ importance: 6, lockscreenVisibility: 2, enableVibrate: true }));
+    expect(notifications.setNotificationChannelAsync.mock.calls.find(([id]) => id === "messages")?.[1]).not.toHaveProperty("sound");
     expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("general", expect.objectContaining({ importance: 5 }));
     // A chat message that follows an alert of its room within the server's window replaces it without a sound. At
     // default importance, not low: a low one moves the conversation into Android's collapsed "Silent" section and
@@ -43,7 +44,8 @@ describe("notification channels", () => {
       "chat_quiet",
       expect.objectContaining({ name: "«mobile.notify.channel_quiet»", importance: 5, lockscreenVisibility: 2, sound: null, enableVibrate: false }),
     );
-    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("general", expect.objectContaining({ sound: "default", enableVibrate: true }));
+    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("general", expect.objectContaining({ enableVibrate: true }));
+    expect(notifications.setNotificationChannelAsync.mock.calls.find(([id]) => id === "general")?.[1]).not.toHaveProperty("sound");
     expect(notifications.deleteNotificationChannelAsync).toHaveBeenCalledWith("chat");
     expect(NOTIFICATION_CHANNELS).toHaveLength(5);
   });

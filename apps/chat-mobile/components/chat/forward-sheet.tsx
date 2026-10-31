@@ -49,13 +49,25 @@ const ForwardRoomRow = memo(function ForwardRoomRow({ room, title, onPick }: For
   );
 });
 
-export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace; messageId: string | null; onClose: () => void }) {
+export function ForwardSheet({
+  chat,
+  messageId,
+  messageIds,
+  onClose,
+}: {
+  chat: ChatWorkspace;
+  messageId: string | null;
+  /** Several messages at once; when set, each is forwarded to the room that is picked. */
+  messageIds?: readonly string[];
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const { choose, onDismiss } = useAfterDismiss(onClose);
   const [query, setQuery] = useState("");
   const forwardMessage = useForwardMessage(chat.wsId).mutateAsync;
-  const rooms = useQuery({ ...roomsOptions(chat.wsId), enabled: messageId !== null });
-  const nicknames = useQuery({ ...nicknamesOptions(chat.wsId), enabled: messageId !== null }).data;
+  const ids = messageIds && messageIds.length > 0 ? messageIds : messageId ? [messageId] : [];
+  const rooms = useQuery({ ...roomsOptions(chat.wsId), enabled: ids.length > 0 });
+  const nicknames = useQuery({ ...nicknamesOptions(chat.wsId), enabled: ids.length > 0 }).data;
   const rows = useMemo(() => {
     const titled = (rooms.data ?? []).map((room) => ({
       room,
@@ -68,8 +80,8 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   // An Alert, not a toast: this sheet is a Modal, a native window above the
   // root view where components/ui/toast-host.tsx draws, so a toast would be hidden.
   const forward = (roomId: string) => {
-    if (!messageId) return;
-    void forwardMessage({ messageId, roomIds: [roomId] }).catch(() => Alert.alert(t("common.error")));
+    if (ids.length === 0) return;
+    void Promise.all(ids.map((id) => forwardMessage({ messageId: id, roomIds: [roomId] }))).catch(() => Alert.alert(t("common.error")));
   };
   // One pick handler for every row (they are memoized); it reads this render's message and sheet.
   const latest = useRef({ choose, forward });
@@ -84,7 +96,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
 
   return (
     <BottomSheet
-      visible={messageId !== null}
+      visible={ids.length > 0}
       onClose={onClose}
       onDismiss={onDismiss}
       dragFrom="handle"

@@ -37,11 +37,20 @@ export function linkWindows(ids: readonly string[]): string[][] {
   return windows;
 }
 
+/** One task under a message: which link, and whether the task was made from the message. */
+export interface MessageTaskRef {
+  taskId: string;
+  linkId: string;
+  relation: string;
+}
+
 /** What the screen reads of a message link (data/chat-api.ts › MessageLinkSchema). */
 interface MessageLink {
+  id: string;
   message_id: string;
   target_type: string;
   target_id: string;
+  relation?: string;
 }
 
 /**
@@ -55,9 +64,9 @@ interface MessageLink {
 export function taskIdsByMessage(
   windows: readonly (readonly string[])[],
   answers: readonly (readonly MessageLink[] | undefined)[],
-  previous: ReadonlyMap<string, readonly string[]>,
-): Map<string, readonly string[]> {
-  const map = new Map<string, readonly string[]>();
+  previous: ReadonlyMap<string, readonly MessageTaskRef[]>,
+): Map<string, readonly MessageTaskRef[]> {
+  const map = new Map<string, readonly MessageTaskRef[]>();
   windows.forEach((ids, i) => {
     const answer = answers[i];
     if (!answer) {
@@ -67,7 +76,11 @@ export function taskIdsByMessage(
       }
       return;
     }
-    for (const link of answer) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
+    for (const link of answer) {
+      if (link.target_type !== "task") continue;
+      const next: MessageTaskRef = { taskId: link.target_id, linkId: link.id, relation: link.relation ?? "" };
+      map.set(link.message_id, [...(map.get(link.message_id) ?? []), next]);
+    }
   });
   return map;
 }
