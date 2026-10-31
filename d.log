@@ -1,0 +1,5 @@
+$ cd server && test -z "$(gofmt -l ./)"; a=$?; go vet ./... > /tmp/pr9r1-vet.log 2>&1; b=$?; tail -20 /tmp/pr9r1-vet.log; go tool staticcheck ./... > /tmp/pr9r1-sc.log 2>&1; c=$?; tail -30 /tmp/pr9r1-sc.log; echo; echo "GOFMT_EXIT=$a"; echo "VET_EXIT=$b"; echo "STATICCHECK_EXIT=$c"; [ $a -eq 0 ] && [ $b -eq 0 ] && [ $c -eq 0 ]
+
+GOFMT_EXIT=0
+VET_EXIT=0
+STATICCHECK_EXIT=0
