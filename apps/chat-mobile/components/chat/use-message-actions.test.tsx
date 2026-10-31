@@ -84,7 +84,7 @@ describe("useMessageActions", () => {
   });
 
   it("says each failure in its own words", async () => {
-    for (const fn of [mockCommands.edit, mockCommands.react, mockCommands.vote, mockCommands.pin, mockCommands.createTask]) {
+    for (const fn of [mockCommands.edit, mockCommands.react, mockCommands.vote, mockCommands.pin]) {
       fn.mockRejectedValueOnce(new Error("down"));
     }
     const { hook } = await setup();
@@ -99,18 +99,16 @@ describe("useMessageActions", () => {
     await run(() => actions.react("m1", "👍"));
     await run(() => actions.votePoll("m1", "o1"));
     await run(() => actions.sheet.onPin(message));
-    await run(() => actions.sheet.onCreateTask(message));
     expect(said).toEqual([
       viText("chat.message_list.edit_failed"),
       viText("chat.message_list.react_failed"),
       viText("chat.message_list.poll_vote_failed"),
       viText("common.error"),
-      viText("chat.link.create_error"),
     ]);
   });
 
-  it("copies the body as typed, makes a task titled from it, and opens the thread", async () => {
-    const { hook } = await setup();
+  it("copies the body as typed, opens the create-task form filled from it, and opens the thread", async () => {
+    const { hook, sheets } = await setup();
     const { sheet } = hook.result.current;
     sheet.onCopy(message);
     sheet.onCreateTask(message);
@@ -118,7 +116,11 @@ describe("useMessageActions", () => {
     sheet.onReact(message, "❤️");
     await flush();
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith("Họp @Lan lúc 3 giờ");
-    expect(mockCommands.createTask).toHaveBeenCalledWith({ messageId: "m1", title: "Họp @Lan lúc 3 giờ" });
+    expect(sheets).toHaveBeenCalledWith({
+      type: "open",
+      sheet: { kind: "createTask", messageId: "m1", title: "Họp @Lan lúc 3 giờ", description: "Họp @Lan lúc 3 giờ", count: 1 },
+    });
+    expect(mockCommands.createTask).not.toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith(expect.stringContaining("m1"));
     expect(mockCommands.react).toHaveBeenCalledWith({ messageId: "m1", emoji: "❤️" });
   });

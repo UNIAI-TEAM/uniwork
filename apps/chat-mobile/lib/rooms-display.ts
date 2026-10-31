@@ -179,6 +179,8 @@ export function formatChatSidebarPreviewText(
     // "Tin nhắn thoại · 0:42", rounded up as the voice note itself shows it.
     const ms = preview.durationMs ?? 0;
     body = ms > 0 ? `${label} · ${formatVoiceCallDuration(Math.ceil(ms / 1000))}` : label;
+  } else if (preview.kind === "document" || preview.kind === "document_version") {
+    body = preview.body.trim() || options.fileMessageLabel || null;
   } else if (preview.kind === "file") {
     // A photo is sent as a file named after itself: the list says "Ảnh".
     const name = preview.body.trim();

@@ -25,6 +25,7 @@
 // failure of the network or the session never counts against a message.
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import { DEFAULT_ROOM_POLL_SETTINGS } from "@uniwork/core/chat/poll-utils";
 import { isPermanentChatSendRefusal, runWithChatSendRetry } from "@uniwork/core/chat/send-retry";
 import { MAX_SEND_ITEM_FAILURES, failureScope } from "@/lib/delivery-failure";
 import type { PendingFile, PendingSend } from "@/lib/send-pipeline";
@@ -35,7 +36,7 @@ import { createRetryTimers, type RetryTimers } from "./retry-timers";
 import { useChatSendStore } from "./stores/chat-send-store";
 
 export interface ChatSendDeps {
-  api: Pick<ChatApi, "sendMessage" | "sendThreadMessage" | "sendFileMessage" | "sendVoiceMessage">;
+  api: Pick<ChatApi, "sendMessage" | "sendThreadMessage" | "sendFileMessage" | "sendVoiceMessage" | "sendDocumentLink">;
   isOnline: () => boolean;
   retry?: typeof runWithChatSendRetry;
   files: OutboxFiles;
@@ -70,6 +71,11 @@ export interface ChatSendInput {
   file?: PendingFile;
   voiceDurationMs?: number;
   reminder?: PendingSend["reminder"];
+  poll?: PendingSend["poll"];
+  note?: PendingSend["note"];
+  post?: PendingSend["post"];
+  priority?: PendingSend["priority"];
+  documentId?: string;
 }
 
 /** The server's bounds on a clip (chat_voice_message.go): 1 ms to 2 minutes. */
@@ -77,19 +83,56 @@ const MAX_VOICE_MS = 120_000;
 
 function deliver(entry: PendingSend, deps: ChatSendDeps) {
   const { workspaceId, roomId, clientMsgId } = entry;
+  const reply = entry.replyToMessageId;
+  const priority = entry.priority;
   if (entry.file && entry.voiceDurationMs !== undefined) {
     return deps.api.sendVoiceMessage(workspaceId, roomId, {
       uri: entry.file.uri,
       duration_ms: Math.min(MAX_VOICE_MS, Math.max(1, Math.round(entry.voiceDurationMs))),
       client_msg_id: clientMsgId,
-      reply_to_message_id: entry.replyToMessageId,
+      reply_to_message_id: reply,
     });
   }
   if (entry.file) {
-    return deps.api.sendFileMessage(workspaceId, roomId, {
-      file: entry.file,
+    return deps.api.sendFileMessage(workspaceId, roomId, { file: entry.file, client_msg_id: clientMsgId, reply_to_message_id: reply });
+  }
+  if (entry.documentId) {
+    return deps.api.sendDocumentLink(workspaceId, roomId, { document_id: entry.documentId, client_msg_id: clientMsgId, reply_to_message_id: reply });
+  }
+  if (entry.poll) {
+    const settings = DEFAULT_ROOM_POLL_SETTINGS;
+    return deps.api.sendMessage(workspaceId, roomId, {
       client_msg_id: clientMsgId,
-      reply_to_message_id: entry.replyToMessageId,
+      reply_to_message_id: reply,
+      priority,
+      poll: {
+        question: entry.poll.question,
+        options: entry.poll.options,
+        settings: {
+          deadline_at: settings.deadlineAt,
+          pin_to_top: settings.pinToTop,
+          allow_multiple: settings.allowMultiple,
+          allow_add_options: settings.allowAddOptions,
+          hide_results_until_vote: settings.hideResultsUntilVote,
+          hide_voters: settings.hideVoters,
+        },
+      },
+    });
+  }
+  if (entry.note) {
+    return deps.api.sendMessage(workspaceId, roomId, {
+      client_msg_id: clientMsgId,
+      reply_to_message_id: reply,
+      priority,
+      note: { body: entry.note.body },
+    });
+  }
+  if (entry.post) {
+    return deps.api.sendMessage(workspaceId, roomId, {
+      client_msg_id: clientMsgId,
+      reply_to_message_id: reply,
+      priority,
+      post: { title: entry.post.title, body: entry.post.body },
     });
   }
   if (entry.reminder) {
@@ -102,7 +145,8 @@ function deliver(entry: PendingSend, deps: ChatSendDeps) {
   return deps.api.sendMessage(workspaceId, roomId, {
     body: entry.body,
     client_msg_id: clientMsgId,
-    reply_to_message_id: entry.replyToMessageId,
+    reply_to_message_id: reply,
+    priority,
   });
 }
 

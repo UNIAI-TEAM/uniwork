@@ -24,6 +24,8 @@ export interface MessageHandlers {
   onPressPending: (message: TimelineMessage) => void;
   onToggleReaction: (message: TimelineMessage, emoji: string) => void;
   onReply: (message: TimelineMessage) => void;
+  /** While a selection is open (message-row.tsx). */
+  onToggleSelect?: (message: TimelineMessage) => void;
 }
 
 interface Props {
@@ -73,11 +75,12 @@ export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handl
       onToggleReaction={handlers.onToggleReaction}
       // Reply as a screen-reader action wherever the swipe replies by touch.
       onReply={model.swipeToReply ? handlers.onReply : undefined}
+      onToggleSelect={handlers.onToggleSelect}
     />
   );
   if (!model.root) {
     return (
-      <SwipeToReply enabled={model.swipeToReply && !hidden} onReply={() => handlers.onReply(message)}>
+      <SwipeToReply enabled={model.swipeToReply && !hidden && ctx.selection === undefined} onReply={() => handlers.onReply(message)}>
         {bubble}
       </SwipeToReply>
     );

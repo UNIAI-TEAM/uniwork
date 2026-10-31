@@ -125,6 +125,25 @@ export const roomSearchOptions = (wsId: string, roomId: string, q: string) =>
     staleTime: 30_000,
   });
 
+/** Messages in every conversation of the sidebar scope; asks nothing below two characters, as the room search. */
+export const workspaceSearchOptions = (wsId: string, q: string, scope: "messages" | "workspace") =>
+  queryOptions({
+    queryKey: chatKeys.workspaceSearch(wsId, scope, q.trim()),
+    queryFn: () => chatApi.searchWorkspaceMessages(wsId, q.trim(), scope),
+    enabled: q.trim().length >= 2,
+    staleTime: 30_000,
+  });
+
+export const documentPickOptions = (wsId: string, q: string) =>
+  queryOptions({
+    queryKey: chatKeys.documents(wsId, q.trim()),
+    queryFn: () => chatApi.listDocuments(wsId, q),
+    staleTime: 30_000,
+  });
+
+export const taskPickOptions = (wsId: string) =>
+  queryOptions({ queryKey: chatKeys.tasks(wsId), queryFn: () => chatApi.listTasks(wsId), staleTime: 30_000 });
+
 /** The last few messages of a room for a list row's long-press preview: read-only, it never marks the room read. */
 export const roomPreviewOptions = (wsId: string, roomId: string, limit: number) =>
   queryOptions({

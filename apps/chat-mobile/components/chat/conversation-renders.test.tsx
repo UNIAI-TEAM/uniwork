@@ -140,7 +140,13 @@ describe("Conversation render counts", () => {
   // The links of a window are asked again when its ids change (lib/link-windows.ts); the cards it had
   // stay on screen, and their rows stay as drawn, until the answer comes (audit S5 review P2).
   describe("task cards while a window's links refetch", () => {
-    const link = (messageId: string) => ({ id: `l-${messageId}`, message_id: messageId, target_type: "task", target_id: `t-${messageId}` });
+    const link = (messageId: string) => ({
+      id: `l-${messageId}`,
+      message_id: messageId,
+      target_type: "task",
+      target_id: `t-${messageId}`,
+      relation: "created_from",
+    });
     const never = () => new Promise<never>(() => undefined);
 
     beforeEach(() => {

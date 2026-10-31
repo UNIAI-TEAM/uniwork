@@ -105,12 +105,20 @@ export async function createTaskFromMessage(
   qc: QueryClient,
   wsId: string,
   roomId: string,
-  from: { messageId: string; title?: string } | { followUpId: string },
+  from:
+    | { messageId: string; title?: string; description?: string; due_date?: string; priority?: string; status?: string }
+    | { followUpId: string },
 ): Promise<ChatTask> {
   const task =
     "followUpId" in from
       ? await chatApi.convertFollowUpToTask(wsId, from.followUpId)
-      : await chatApi.createTaskFromMessage(wsId, from.messageId, { title: from.title });
+      : await chatApi.createTaskFromMessage(
+          wsId,
+          from.messageId,
+          Object.fromEntries(
+            Object.entries(from).filter(([key, value]) => key !== "messageId" && value !== undefined),
+          ),
+        );
   void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
   if ("followUpId" in from) void qc.invalidateQueries({ queryKey: chatKeys.followUps(wsId) });
   if (!task) throw new Error("chat_task_create_failed");
@@ -123,4 +131,43 @@ export async function leaveRoom(qc: QueryClient, wsId: string, roomId: string): 
   qc.removeQueries({ queryKey: chatKeys.roomMessages(wsId, roomId) });
   void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
   void qc.invalidateQueries({ queryKey: chatKeys.discoverableChannels(wsId) });
+}
+
+/** A preset wallpaper for everyone in the room; a failure puts the previous one back. */
+export async function setRoomWallpaper(qc: QueryClient, wsId: string, roomId: string, preset: string): Promise<void> {
+  const key = chatKeys.rooms(wsId);
+  await qc.cancelQueries({ queryKey: key });
+  const previous = qc.getQueryData<ChatRoomRecord[]>(key);
+  qc.setQueryData<ChatRoomRecord[]>(key, (old) => old?.map((room) => (room.id === roomId ? { ...room, wallpaper: { preset } } : room)));
+  try {
+    await chatApi.patchRoom(wsId, roomId, { wallpaper: { preset } });
+  } catch (error) {
+    qc.setQueryData(key, previous);
+    throw error;
+  }
+}
+
+/** A nickname only this person sees; "" clears it. */
+export async function setChatNickname(qc: QueryClient, wsId: string, userId: string, nickname: string): Promise<void> {
+  if (!(await chatApi.setNickname(wsId, userId, nickname))) throw new Error("chat_nickname_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.nicknames(wsId) });
+}
+
+/** An existing task under a message; the card shows once the room's links refetch. */
+export async function linkMessageToTask(qc: QueryClient, wsId: string, roomId: string, messageId: string, taskId: string): Promise<void> {
+  if (!(await chatApi.linkMessageToTask(wsId, messageId, taskId))) throw new Error("chat_link_task_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
+}
+
+/** Takes the task card off the message. The task itself stays. */
+export async function unlinkMessageTask(qc: QueryClient, wsId: string, roomId: string, messageId: string, linkId: string): Promise<void> {
+  if (!(await chatApi.deleteMessageLink(wsId, messageId, linkId))) throw new Error("chat_unlink_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
+}
+
+/** A file message becomes a document card in the same room. */
+export async function shareMessageAsDocument(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<void> {
+  const message = await chatApi.shareMessageAsDocument(wsId, roomId, messageId);
+  if (!message) throw new Error("chat_share_document_failed");
+  applyChatMessageResponse(qc, wsId, roomId, message, true);
 }

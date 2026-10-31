@@ -109,6 +109,7 @@ export const MOBILE_PATHS = [
   "server/internal/handler/push_preview_policy.go",
   "server/internal/handler/workspace.go",
   "server/internal/handler/task.go",
+  "server/internal/handler/document_collections.go",
   "server/internal/handler/organization_members.go",
   // GET /orgs: whether an account without a workspace already belongs to an organization (spec §5.2).
   "server/internal/handler/organization.go",

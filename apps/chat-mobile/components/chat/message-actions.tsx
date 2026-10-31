@@ -68,6 +68,12 @@ interface Props {
   onForward: (message: TimelineMessage) => void;
   /** Someone else's message only (report-sheet.tsx). */
   onReport: (message: TimelineMessage) => void;
+  /** Start a multi-select with this message. */
+  onSelect?: (message: TimelineMessage) => void;
+  /** Link an existing workspace task under this message. */
+  onLinkTask?: (message: TimelineMessage) => void;
+  /** Turn a file this person sent into a document the room can open. */
+  onShareAsDocument?: (message: TimelineMessage) => void;
 }
 
 interface MenuItem {
@@ -123,6 +129,14 @@ export function MessageActionsSheet(props: Props) {
         onPress: () => props.onThread(message),
       });
     if (text) items.push({ key: "copy", group: 0, icon: "copy-outline", label: t("chat.action_copy"), onPress: () => props.onCopy(message) });
+    if (props.onSelect)
+      items.push({
+        key: "select",
+        group: 0,
+        icon: "checkmark-circle-outline",
+        label: t("chat.action_select"),
+        onPress: () => props.onSelect?.(message),
+      });
     items.push({
       key: "pin",
       group: 0,
@@ -173,6 +187,16 @@ export function MessageActionsSheet(props: Props) {
       });
     }
     items.push({ key: "forward", group: 1, icon: "arrow-redo-outline", label: t("chat.forward.action"), onPress: () => props.onForward(message) });
+    if (props.onLinkTask)
+      items.push({ key: "link-task", group: 1, icon: "link-outline", label: t("chat.link.link_task"), onPress: () => props.onLinkTask?.(message) });
+    if (props.onShareAsDocument && record.can_share_as_document)
+      items.push({
+        key: "share-document",
+        group: 1,
+        icon: "document-outline",
+        label: t("chat.document_share_as_document"),
+        onPress: () => props.onShareAsDocument?.(message),
+      });
     if (own && text)
       items.push({ key: "edit", group: 2, icon: "create-outline", label: t("chat.action_edit"), onPress: () => props.onEdit(message) });
     if (own)

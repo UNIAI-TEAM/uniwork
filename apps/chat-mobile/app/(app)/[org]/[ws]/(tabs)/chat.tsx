@@ -27,6 +27,7 @@ import {
 import { RoomListView } from "@/components/chat/room-list-view";
 import { useRoomDraftLines } from "@/components/chat/use-drafts";
 import { RoomPreview } from "@/components/chat/room-preview";
+import { WorkspaceMessageSearch } from "@/components/chat/workspace-message-search";
 import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useDeepLinkTarget } from "@/components/chat/use-deep-link-target";
 import { roomMenuActions, useRoomCommands } from "@/components/chat/use-room-commands";
@@ -210,16 +211,27 @@ export default function ChatTab() {
             onMenu={setMenuRow}
             commands={commands}
             ListHeaderComponent={
-              catchUpPick.top && filter === "all" && filterText.trim() === "" ? (
-                <CatchUpBanner
-                  total={catchUpPick.total}
-                  rooms={catchUpPick.rooms}
-                  onPress={() =>
-                    catchUpPick.top?.roomId &&
-                    setCatchUp({ roomId: catchUpPick.top.roomId, title: catchUpPick.top.title, unread: catchUpPick.top.unread })
-                  }
-                />
-              ) : null
+              <>
+                {chat && filterText.trim().length >= 2 ? (
+                  <WorkspaceMessageSearch
+                    wsId={wsId}
+                    query={filterText}
+                    scope={scope}
+                    rooms={rooms.data ?? []}
+                    onOpen={(roomId, messageId) => router.push(chatRoutes.room(chat, roomId, messageId))}
+                  />
+                ) : null}
+                {catchUpPick.top && filter === "all" && filterText.trim() === "" ? (
+                  <CatchUpBanner
+                    total={catchUpPick.total}
+                    rooms={catchUpPick.rooms}
+                    onPress={() =>
+                      catchUpPick.top?.roomId &&
+                      setCatchUp({ roomId: catchUpPick.top.roomId, title: catchUpPick.top.title, unread: catchUpPick.top.unread })
+                    }
+                  />
+                ) : null}
+              </>
             }
             refreshControl={
               <RefreshControl

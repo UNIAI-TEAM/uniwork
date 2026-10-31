@@ -45,6 +45,12 @@ export const PendingSendSchema = z
     file: PendingFileSchema.optional(),
     voiceDurationMs: finite.nonnegative().optional(),
     reminder: ReminderSchema.optional(),
+    poll: z.object({ question: z.string(), options: z.array(z.string()).min(2) }).optional(),
+    note: z.object({ body: z.string() }).optional(),
+    post: z.object({ title: z.string(), body: z.string() }).optional(),
+    priority: z.enum(["important", "urgent"]).optional(),
+    /** An existing document shared into the room (no bytes; messages/document-link). */
+    documentId: id.optional(),
     createdAt: finite,
     status: z.enum(["queued", "sending", "failed"]),
     failures: z.number().int().nonnegative().optional(),

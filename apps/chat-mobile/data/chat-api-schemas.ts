@@ -66,11 +66,55 @@ export type ChatFollowUp = z.infer<typeof FollowUpSchema>;
 export const FollowUpEnvelopeSchema = z.object({ follow_up: FollowUpSchema.optional() });
 export const FollowUpListSchema = z.object({ follow_ups: z.array(FollowUpSchema).optional().default([]) });
 
-const MessageLinkSchema = z.object({ id: z.string(), message_id: z.string(), target_type: z.string(), target_id: z.string() });
+const MessageLinkSchema = z.object({
+  id: z.string(),
+  message_id: z.string(),
+  target_type: z.string(),
+  target_id: z.string(),
+  relation: z.string().catch(""),
+});
 export type ChatMessageLink = z.infer<typeof MessageLinkSchema>;
 export const LinkListSchema = z.object({ links: z.array(MessageLinkSchema).optional().default([]) });
+export const LinkEnvelopeSchema = z.object({ link: MessageLinkSchema.optional() });
 
-const TaskSchema = z.object({ id: z.string(), title: z.string().catch(""), identifier: z.string().catch(""), status: z.string().catch("") });
+export const DocumentPickSchema = z.object({ id: z.string(), title: z.string().catch("") });
+export type DocumentPick = z.infer<typeof DocumentPickSchema>;
+/** One unreadable row is dropped; the rest of the page stays. */
+export const DocumentPickListSchema = z.object({
+  documents: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) =>
+      (items ?? []).flatMap((item) => {
+        const parsed = DocumentPickSchema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
+});
+
+export const TaskPickSchema = z.object({ id: z.string(), title: z.string().catch(""), identifier: z.string().catch("") });
+export type TaskPick = z.infer<typeof TaskPickSchema>;
+export const TaskPickListSchema = z.object({
+  tasks: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) =>
+      (items ?? []).flatMap((item) => {
+        const parsed = TaskPickSchema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
+});
+
+const TaskAssigneeSchema = z.object({ display_name: z.string().catch("") });
+const TaskSchema = z.object({
+  id: z.string(),
+  title: z.string().catch(""),
+  identifier: z.string().catch(""),
+  status: z.string().catch(""),
+  priority: z.string().catch(""),
+  assignee: TaskAssigneeSchema.nullish(),
+});
 export type ChatTask = z.infer<typeof TaskSchema>;
 export const TaskEnvelopeSchema = z.object({ task: TaskSchema.optional() });
 
