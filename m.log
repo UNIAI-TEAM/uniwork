@@ -1,0 +1,2 @@
+$ git checkout HEAD -- apps/web/features/landing; git status --short | grep -v "^??" | head
+ M apps/web/next-env.d.ts

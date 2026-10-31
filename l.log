@@ -1,0 +1,1032 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-scenes.spec.ts landing-workspace.spec.ts --reporter=list > /tmp/pr9r3-devlanding.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr9r3-devlanding.log | tail -n 60; echo FAILED_TESTS; grep -E "^s+[0-9]+) " /tmp/pr9r3-devlanding.log | sort -u | head -80; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/pr9r3-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/pr9r3-devlanding.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/pr9r3-devlanding.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DEVLANDING_EXIT=$rc"
+      28 | }
+      29 |
+
+    Error Context: test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) landing-workspace.spec.ts:78:1 › tablet product stage stays readable and Starter keeps one honest action 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('#product-preview').getByRole('tab', { name: 'Cuộc họp', exact: true })
+    Expected: "true"
+    Received: "false"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('#product-preview').getByRole('tab', { name: 'Cuộc họp', exact: true })
+        14 × locator resolved to <button role="tab" type="button" tabindex="-1" title="Cuộc họp" aria-disabled="false" aria-selected="false" aria-label="Cuộc họp" data-feature="meetings" data-slot="tabs-trigger" data-orientation="vertical" id="base-ui-_R_2mpeaiav5ubr9b_" data-activation-direction="none" class="relative inline-flex h-[calc(100%-1px)] pointer-coarse:min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-body font-medium whitespace-nowrap text-muted-foreground transit…>…</button>
+           - unexpected value "false"
+
+
+      91 |   expect(displayBox!.width).toBeGreaterThan(600);
+      92 |   await selectWorkspaceFeature(page, "meetings");
+    > 93 |   await expect(stage.getByRole("tab", { name: "Cuộc họp", exact: true })).toHaveAttribute("aria-selected", "true");
+         |                                                                           ^
+      94 |
+      95 |   const pricing = page.locator("#bang-gia");
+      96 |   await expect(pricing.locator(".public-pricing-plan")).toHaveCount(3);
+
+    Error Context: test-results/landing-workspace-tablet-p-482e2-ter-keeps-one-honest-action/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-workspace-tablet-p-482e2-ter-keeps-one-honest-action/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-workspace-tablet-p-482e2-ter-keeps-one-honest-action/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9 failed
+    landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: desktop ──────────────
+    landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: mobile ───────────────
+    landing-scenes.spec.ts:103:1 › missing original artwork leaves the shared mark without removed controls 
+    landing-scenes.spec.ts:116:1 › shirt mark and artwork share coordinates before and after resize 
+    landing-workspace.spec.ts:6:1 › one workspace stage replaces the index and separate feature bands 
+    landing-workspace.spec.ts:23:1 › feature deep links select the right panel and sidebar works with keyboard 
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+    landing-workspace.spec.ts:78:1 › tablet product stage stays readable and Starter keeps one honest action 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-scenes.spec.ts landing-workspace.spec.ts --reporter=list
+FAILED_TESTS
+===== e2e/test-results/landing-scenes-mascot-expr-112fc-ative-scene-handoff-desktop/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> mascot expression and native scene handoff: desktop
+- Location: landing-scenes.spec.ts:57:3
+
+# Error details
+
+```
+Error: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+Call log:
+  - attempting scroll into view action
+    - waiting for element to be stable
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading "errors.render_title" [level=1] [ref=e3]
+    - paragraph [ref=e4]: errors.render_description
+    - button "common.retry" [ref=e5] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e6]
+```
+
+# Test source
+
+```ts
+  1   | import { mkdir } from "node:fs/promises";
+  2   | import { resolve } from "node:path";
+  3   | import { expect, test } from "@playwright/test";
+  4   | import { landingReady, gotoLanding } from "./landing-ready";
+  5   | 
+  6   | test("original UNI artwork and face stay unchanged while the foreleg waves", async ({ page }) => {
+  7   |   await page.setViewportSize({ width: 1440, height: 1000 });
+  8   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  9   |   await gotoLanding(page, "/");
+  10  |   await landingReady(page);
+  11  |   const character = page.locator('[data-scene="character"]');
+  12  |   await character.scrollIntoViewIfNeeded();
+  13  |   const portrait = character.locator(".mascot-portrait");
+  14  |   const canvas = portrait.locator("canvas");
+  15  |   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
+  16  |   await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; }" });
+  17  |   await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  18  |   await expect(portrait.locator("img")).toHaveAttribute("src", /\/landing\/mascot\/uni-horse-v2\.webp$/);
+  19  |   const faceClip = async () => canvas.evaluate(element => {
+  20  |     const rect = element.getBoundingClientRect();
+  21  |     const side = Math.min(rect.width, rect.height);
+  22  |     return { x: Math.round(rect.x + (rect.width - side) / 2 + side * .33), y: Math.round(rect.y + (rect.height - side) / 2 + side * .03), width: Math.floor(side * .48), height: Math.floor(side * .43) };
+  23  |   });
+  24  |   const originalClip = await faceClip();
+  25  |   const originalFace = await page.screenshot({ clip: originalClip });
+  26  |   const still = await canvas.screenshot();
+  27  |   await page.emulateMedia({ reducedMotion: "no-preference" });
+  28  |   await character.scrollIntoViewIfNeeded();
+  29  |   await expect.poll(async () => (await canvas.screenshot()).equals(still)).toBe(false);
+  30  |   const wavingClip = await faceClip();
+  31  |   const wavingFace = await page.screenshot({ clip: wavingClip });
+  32  |   if (process.env.LANDING_CAPTURE === "1") {
+  33  |     await test.info().attach("original-face", { body: originalFace, contentType: "image/png" });
+  34  |     await test.info().attach("waving-face", { body: wavingFace, contentType: "image/png" });
+  35  |     await test.info().attach("face-bounds", { body: JSON.stringify({ originalClip, wavingClip }), contentType: "application/json" });
+  36  |   }
+  37  |   expect(wavingClip).toEqual(originalClip);
+  38  |   const maxChannelChange = await page.evaluate(async ([before, after]) => {
+  39  |     const decode = async (base64: string) => {
+  40  |       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  41  |       const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  42  |       const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
+  43  |       context.drawImage(bitmap, 0, 0);
+  44  |       const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  45  |       bitmap.close();
+  46  |       return pixels;
+  47  |     };
+  48  |     const [a, b] = await Promise.all([decode(before!), decode(after!)]);
+  49  |     return a.reduce((maximum, channel, index) => Math.max(maximum, Math.abs(channel - b[index]!)), 0);
+  50  |   }, [originalFace.toString("base64"), wavingFace.toString("base64")]);
+  51  |   // Responsive canvas sampling and Chrome compositing can differ by two
+  52  |   // 8-bit rounding steps. Displaced facial edges exceed this narrow tolerance.
+  53  |   expect(maxChannelChange).toBeLessThanOrEqual(2);
+  54  | });
+  55  | 
+  56  | for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  57  |   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
+  58  |     await page.setViewportSize(viewport);
+  59  |     await page.emulateMedia({ reducedMotion: "no-preference" });
+  60  |     await gotoLanding(page, "/");
+  61  |     await landingReady(page);
+  62  |     const character = page.locator('[data-scene="character"]');
+> 63  |     await character.scrollIntoViewIfNeeded();
+      |                     ^ Error: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+  64  |     const portrait = character.locator(".mascot-portrait");
+  65  |     await expect(portrait).toHaveAttribute("data-running", "true", { timeout: 20000 });
+  66  |     await expect(portrait).toHaveAttribute("data-expression", "idle", { timeout: 6000 });
+  67  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  68  |     await page.locator(".landing-site > footer").scrollIntoViewIfNeeded();
+  69  |     await character.scrollIntoViewIfNeeded();
+  70  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  71  |     await expect(character.getByRole("button")).toHaveCount(0);
+  72  |     await expect(character.locator(".scene-character-caption")).toHaveCount(0);
+  73  |     if (process.env.LANDING_CAPTURE === "1") {
+===== e2e/test-results/landing-scenes-mascot-expr-70247-native-scene-handoff-mobile/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> mascot expression and native scene handoff: mobile
+- Location: landing-scenes.spec.ts:57:3
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.scrollIntoViewIfNeeded: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('[data-scene="character"]')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading "errors.render_title" [level=1] [ref=e3]
+    - paragraph [ref=e4]: errors.render_description
+    - button "common.retry" [ref=e5] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e6]
+```
+
+# Test source
+
+```ts
+  1   | import { mkdir } from "node:fs/promises";
+  2   | import { resolve } from "node:path";
+  3   | import { expect, test } from "@playwright/test";
+  4   | import { landingReady, gotoLanding } from "./landing-ready";
+  5   | 
+  6   | test("original UNI artwork and face stay unchanged while the foreleg waves", async ({ page }) => {
+  7   |   await page.setViewportSize({ width: 1440, height: 1000 });
+  8   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  9   |   await gotoLanding(page, "/");
+  10  |   await landingReady(page);
+  11  |   const character = page.locator('[data-scene="character"]');
+  12  |   await character.scrollIntoViewIfNeeded();
+  13  |   const portrait = character.locator(".mascot-portrait");
+  14  |   const canvas = portrait.locator("canvas");
+  15  |   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
+  16  |   await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; }" });
+  17  |   await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  18  |   await expect(portrait.locator("img")).toHaveAttribute("src", /\/landing\/mascot\/uni-horse-v2\.webp$/);
+  19  |   const faceClip = async () => canvas.evaluate(element => {
+  20  |     const rect = element.getBoundingClientRect();
+  21  |     const side = Math.min(rect.width, rect.height);
+  22  |     return { x: Math.round(rect.x + (rect.width - side) / 2 + side * .33), y: Math.round(rect.y + (rect.height - side) / 2 + side * .03), width: Math.floor(side * .48), height: Math.floor(side * .43) };
+  23  |   });
+  24  |   const originalClip = await faceClip();
+  25  |   const originalFace = await page.screenshot({ clip: originalClip });
+  26  |   const still = await canvas.screenshot();
+  27  |   await page.emulateMedia({ reducedMotion: "no-preference" });
+  28  |   await character.scrollIntoViewIfNeeded();
+  29  |   await expect.poll(async () => (await canvas.screenshot()).equals(still)).toBe(false);
+  30  |   const wavingClip = await faceClip();
+  31  |   const wavingFace = await page.screenshot({ clip: wavingClip });
+  32  |   if (process.env.LANDING_CAPTURE === "1") {
+  33  |     await test.info().attach("original-face", { body: originalFace, contentType: "image/png" });
+  34  |     await test.info().attach("waving-face", { body: wavingFace, contentType: "image/png" });
+  35  |     await test.info().attach("face-bounds", { body: JSON.stringify({ originalClip, wavingClip }), contentType: "application/json" });
+  36  |   }
+  37  |   expect(wavingClip).toEqual(originalClip);
+  38  |   const maxChannelChange = await page.evaluate(async ([before, after]) => {
+  39  |     const decode = async (base64: string) => {
+  40  |       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  41  |       const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  42  |       const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
+  43  |       context.drawImage(bitmap, 0, 0);
+  44  |       const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  45  |       bitmap.close();
+  46  |       return pixels;
+  47  |     };
+  48  |     const [a, b] = await Promise.all([decode(before!), decode(after!)]);
+  49  |     return a.reduce((maximum, channel, index) => Math.max(maximum, Math.abs(channel - b[index]!)), 0);
+  50  |   }, [originalFace.toString("base64"), wavingFace.toString("base64")]);
+  51  |   // Responsive canvas sampling and Chrome compositing can differ by two
+  52  |   // 8-bit rounding steps. Displaced facial edges exceed this narrow tolerance.
+  53  |   expect(maxChannelChange).toBeLessThanOrEqual(2);
+  54  | });
+  55  | 
+  56  | for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  57  |   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
+  58  |     await page.setViewportSize(viewport);
+  59  |     await page.emulateMedia({ reducedMotion: "no-preference" });
+  60  |     await gotoLanding(page, "/");
+  61  |     await landingReady(page);
+  62  |     const character = page.locator('[data-scene="character"]');
+> 63  |     await character.scrollIntoViewIfNeeded();
+      |                     ^ Error: locator.scrollIntoViewIfNeeded: Test timeout of 60000ms exceeded.
+  64  |     const portrait = character.locator(".mascot-portrait");
+  65  |     await expect(portrait).toHaveAttribute("data-running", "true", { timeout: 20000 });
+  66  |     await expect(portrait).toHaveAttribute("data-expression", "idle", { timeout: 6000 });
+  67  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  68  |     await page.locator(".landing-site > footer").scrollIntoViewIfNeeded();
+  69  |     await character.scrollIntoViewIfNeeded();
+  70  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  71  |     await expect(character.getByRole("button")).toHaveCount(0);
+  72  |     await expect(character.locator(".scene-character-caption")).toHaveCount(0);
+  73  |     if (process.env.LANDING_CAPTU===== e2e/test-results/landing-scenes-missing-ori-faecb-rk-without-removed-controls/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> missing original artwork leaves the shared mark without removed controls
+- Location: landing-scenes.spec.ts:103:1
+
+# Error details
+
+```
+Error: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+Call log:
+  - attempting scroll into view action
+    - waiting for element to be stable
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading "errors.render_title" [level=1] [ref=e3]
+    - paragraph [ref=e4]: errors.render_description
+    - button "common.retry" [ref=e5] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e6]
+```
+
+# Test source
+
+```ts
+  8   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  9   |   await gotoLanding(page, "/");
+  10  |   await landingReady(page);
+  11  |   const character = page.locator('[data-scene="character"]');
+  12  |   await character.scrollIntoViewIfNeeded();
+  13  |   const portrait = character.locator(".mascot-portrait");
+  14  |   const canvas = portrait.locator("canvas");
+  15  |   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
+  16  |   await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; }" });
+  17  |   await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  18  |   await expect(portrait.locator("img")).toHaveAttribute("src", /\/landing\/mascot\/uni-horse-v2\.webp$/);
+  19  |   const faceClip = async () => canvas.evaluate(element => {
+  20  |     const rect = element.getBoundingClientRect();
+  21  |     const side = Math.min(rect.width, rect.height);
+  22  |     return { x: Math.round(rect.x + (rect.width - side) / 2 + side * .33), y: Math.round(rect.y + (rect.height - side) / 2 + side * .03), width: Math.floor(side * .48), height: Math.floor(side * .43) };
+  23  |   });
+  24  |   const originalClip = await faceClip();
+  25  |   const originalFace = await page.screenshot({ clip: originalClip });
+  26  |   const still = await canvas.screenshot();
+  27  |   await page.emulateMedia({ reducedMotion: "no-preference" });
+  28  |   await character.scrollIntoViewIfNeeded();
+  29  |   await expect.poll(async () => (await canvas.screenshot()).equals(still)).toBe(false);
+  30  |   const wavingClip = await faceClip();
+  31  |   const wavingFace = await page.screenshot({ clip: wavingClip });
+  32  |   if (process.env.LANDING_CAPTURE === "1") {
+  33  |     await test.info().attach("original-face", { body: originalFace, contentType: "image/png" });
+  34  |     await test.info().attach("waving-face", { body: wavingFace, contentType: "image/png" });
+  35  |     await test.info().attach("face-bounds", { body: JSON.stringify({ originalClip, wavingClip }), contentType: "application/json" });
+  36  |   }
+  37  |   expect(wavingClip).toEqual(originalClip);
+  38  |   const maxChannelChange = await page.evaluate(async ([before, after]) => {
+  39  |     const decode = async (base64: string) => {
+  40  |       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  41  |       const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  42  |       const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
+  43  |       context.drawImage(bitmap, 0, 0);
+  44  |       const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  45  |       bitmap.close();
+  46  |       return pixels;
+  47  |     };
+  48  |     const [a, b] = await Promise.all([decode(before!), decode(after!)]);
+  49  |     return a.reduce((maximum, channel, index) => Math.max(maximum, Math.abs(channel - b[index]!)), 0);
+  50  |   }, [originalFace.toString("base64"), wavingFace.toString("base64")]);
+  51  |   // Responsive canvas sampling and Chrome compositing can differ by two
+  52  |   // 8-bit rounding steps. Displaced facial edges exceed this narrow tolerance.
+  53  |   expect(maxChannelChange).toBeLessThanOrEqual(2);
+  54  | });
+  55  | 
+  56  | for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  57  |   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
+  58  |     await page.setViewportSize(viewport);
+  59  |     await page.emulateMedia({ reducedMotion: "no-preference" });
+  60  |     await gotoLanding(page, "/");
+  61  |     await landingReady(page);
+  62  |     const character = page.locator('[data-scene="character"]');
+  63  |     await character.scrollIntoViewIfNeeded();
+  64  |     const portrait = character.locator(".mascot-portrait");
+  65  |     await expect(portrait).toHaveAttribute("data-running", "true", { timeout: 20000 });
+  66  |     await expect(portrait).toHaveAttribute("data-expression", "idle", { timeout: 6000 });
+  67  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  68  |     await page.locator(".landing-site > footer").scrollIntoViewIfNeeded();
+  69  |     await character.scrollIntoViewIfNeeded();
+  70  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  71  |     await expect(character.getByRole("button")).toHaveCount(0);
+  72  |     await expect(character.locator(".scene-character-caption")).toHaveCount(0);
+  73  |     if (process.env.LANDING_CAPTURE === "1") {
+  74  |       const dir = resolve(import.meta.dirname, "../.impeccable/review");
+  75  |       await mkdir(dir, { recursive: true });
+  76  |       await page.locator(".ai-stage").screenshot({ path: resolve(dir, `uni-original-${viewport.name}.png`), style: ".site-header, nextjs-portal { visibility: hidden !important; }" });
+  77  |     }
+  78  | 
+  79  |     const destination = await page.locator(".landing-trust-story").evaluate(el => el.getBoundingClientRect().top + window.scrollY -===== e2e/test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> original UNI artwork and face stay unchanged while the foreleg waves
+- Location: landing-scenes.spec.ts:6:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator: locator('[data-scene="character"]').locator('.mascot-portrait')
+Expected: "true"
+Timeout: 20000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 20000ms
+  - waiting for locator('[data-scene="character"]').locator('.mascot-portrait')
+    4 × locator resolved to <div role="img" class="mascot-portrait" aria-label="Linh vật ngựa UNI">…</div>
+      - unexpected value "null"
+
+```
+
+```yaml
+- main:
+  - heading "errors.render_title" [level=1]
+  - paragraph: errors.render_description
+  - button "common.retry"
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { mkdir } from "node:fs/promises";
+  2   | import { resolve } from "node:path";
+  3   | import { expect, test } from "@playwright/test";
+  4   | import { landingReady, gotoLanding } from "./landing-ready";
+  5   | 
+  6   | test("original UNI artwork and face stay unchanged while the foreleg waves", async ({ page }) => {
+  7   |   await page.setViewportSize({ width: 1440, height: 1000 });
+  8   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  9   |   await gotoLanding(page, "/");
+  10  |   await landingReady(page);
+  11  |   const character = page.locator('[data-scene="character"]');
+  12  |   await character.scrollIntoViewIfNeeded();
+  13  |   const portrait = character.locator(".mascot-portrait");
+  14  |   const canvas = portrait.locator("canvas");
+  15  |   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
+  16  |   await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; }" });
+> 17  |   await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+      |                          ^ Error: expect(locator).toHaveAttribute(expected) failed
+  18  |   await expect(portrait.locator("img")).toHaveAttribute("src", /\/landing\/mascot\/uni-horse-v2\.webp$/);
+  19  |   const faceClip = async () => canvas.evaluate(element => {
+  20  |     const rect = element.getBoundingClientRect();
+  21  |     const side = Math.min(rect.width, rect.height);
+  22  |     return { x: Math.round(rect.x + (rect.width - side) / 2 + side * .33), y: Math.round(rect.y + (rect.height - side) / 2 + side * .03), width: Math.floor(side * .48), height: Math.floor(side * .43) };
+  23  |   });
+  24  |   const originalClip = await faceClip();
+  25  |   const originalFace = await page.screenshot({ clip: originalClip });
+  26  |   const still = await canvas.screenshot();
+  27  |   await page.emulateMedia({ reducedMotion: "no-preference" });
+  28  |   await character.scrollIntoViewIfNeeded();
+  29  |   await expect.poll(async () => (await canvas.screenshot()).equals(still)).toBe(false);
+  30  |   const wavingClip = await faceClip();
+  31  |   const wavingFace = await page.screenshot({ clip: wavingClip });
+  32  |   if (process.env.LANDING_CAPTURE === "1") {
+  33  |     await test.info().attach("original-face", { body: originalFace, contentType: "image/png" });
+  34  |     await test.info().attach("waving-face", { body: wavingFace, contentType: "image/png" });
+  35  |     await test.info().attach("face-bounds", { body: JSON.stringify({ originalClip, wavingClip }), contentType: "application/json" });
+  36  |   }
+  37  |   expect(wavingClip).toEqual(originalClip);
+  38  |   const maxChannelChange = await page.evaluate(async ([before, after]) => {
+  39  |     const decode = async (base64: string) => {
+  40  |       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  41  |       const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  42  |       const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
+  43  |       context.drawImage(bitmap, 0, 0);
+  44  |       const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  45  |       bitmap.close();
+  46  |       return pixels;
+  47  |     };
+  48  |     const [a, b] = await Promise.all([decode(before!), decode(after!)]);
+  49  |     return a.reduce((maximum, channel, index) => Math.max(maximum, Math.abs(channel - b[index]!)), 0);
+  50  |   }, [originalFace.toString("base64"), wavingFace.toString("base64")]);
+  51  |   // Responsive canvas sampling and Chrome compositing can differ by two
+  52  |   // 8-bit rounding steps. Displaced facial edges exceed this narrow tolerance.
+  53  |   expect(maxChannelChange).toBeLessThanOrEqual(2);
+  54  | });
+  55  | 
+  56  | for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  57  |   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
+  58  |     await page.setViewportSize(viewport);
+  59  |     await page.emulateMedia({ reducedMotion: "no-preference" });
+  60  |     await gotoLanding(page, "/");
+  61  |     await landingReady(page);
+  62  |     const character = page.locator('[data-scene="character"]');
+  63  |     await character.scrollIntoViewIfNeeded();
+  64  |     const portrait = character.locator(".mascot-portrait");
+  65  |     await expect(portrait).toHaveAttribute("data-running", "true", { timeout: 20000 });
+  66  |     await expect(portrait).toHaveAttribute("data-expression", "idle", { timeout: 6000 });
+  67  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  68  |     await page.locator(".landing-site > footer").scrollIntoViewIfNeeded();
+  69  |     await character.scrollIntoViewIfNeeded();
+  70  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  71  |     awa===== e2e/test-results/landing-scenes-shirt-mark--9867c-tes-before-and-after-resize/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> shirt mark and artwork share coordinates before and after resize
+- Location: landing-scenes.spec.ts:116:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  locator('[data-scene="character"]').locator('.mascot-portrait')
+Expected: "true"
+Received: ""
+Timeout:  20000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 20000ms
+  - waiting for locator('[data-scene="character"]').locator('.mascot-portrait')
+    44 × locator resolved to <div role="img" class="mascot-portrait" aria-label="Linh vật ngựa UNI">…</div>
+       - unexpected value "null"
+
+```
+
+```yaml
+- img "Linh vật ngựa UNI"
+```
+
+# Test source
+
+```ts
+  23  |   });
+  24  |   const originalClip = await faceClip();
+  25  |   const originalFace = await page.screenshot({ clip: originalClip });
+  26  |   const still = await canvas.screenshot();
+  27  |   await page.emulateMedia({ reducedMotion: "no-preference" });
+  28  |   await character.scrollIntoViewIfNeeded();
+  29  |   await expect.poll(async () => (await canvas.screenshot()).equals(still)).toBe(false);
+  30  |   const wavingClip = await faceClip();
+  31  |   const wavingFace = await page.screenshot({ clip: wavingClip });
+  32  |   if (process.env.LANDING_CAPTURE === "1") {
+  33  |     await test.info().attach("original-face", { body: originalFace, contentType: "image/png" });
+  34  |     await test.info().attach("waving-face", { body: wavingFace, contentType: "image/png" });
+  35  |     await test.info().attach("face-bounds", { body: JSON.stringify({ originalClip, wavingClip }), contentType: "application/json" });
+  36  |   }
+  37  |   expect(wavingClip).toEqual(originalClip);
+  38  |   const maxChannelChange = await page.evaluate(async ([before, after]) => {
+  39  |     const decode = async (base64: string) => {
+  40  |       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  41  |       const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  42  |       const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
+  43  |       context.drawImage(bitmap, 0, 0);
+  44  |       const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  45  |       bitmap.close();
+  46  |       return pixels;
+  47  |     };
+  48  |     const [a, b] = await Promise.all([decode(before!), decode(after!)]);
+  49  |     return a.reduce((maximum, channel, index) => Math.max(maximum, Math.abs(channel - b[index]!)), 0);
+  50  |   }, [originalFace.toString("base64"), wavingFace.toString("base64")]);
+  51  |   // Responsive canvas sampling and Chrome compositing can differ by two
+  52  |   // 8-bit rounding steps. Displaced facial edges exceed this narrow tolerance.
+  53  |   expect(maxChannelChange).toBeLessThanOrEqual(2);
+  54  | });
+  55  | 
+  56  | for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  57  |   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
+  58  |     await page.setViewportSize(viewport);
+  59  |     await page.emulateMedia({ reducedMotion: "no-preference" });
+  60  |     await gotoLanding(page, "/");
+  61  |     await landingReady(page);
+  62  |     const character = page.locator('[data-scene="character"]');
+  63  |     await character.scrollIntoViewIfNeeded();
+  64  |     const portrait = character.locator(".mascot-portrait");
+  65  |     await expect(portrait).toHaveAttribute("data-running", "true", { timeout: 20000 });
+  66  |     await expect(portrait).toHaveAttribute("data-expression", "idle", { timeout: 6000 });
+  67  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  68  |     await page.locator(".landing-site > footer").scrollIntoViewIfNeeded();
+  69  |     await character.scrollIntoViewIfNeeded();
+  70  |     await expect(portrait).toHaveAttribute("data-running", "false");
+  71  |     await expect(character.getByRole("button")).toHaveCount(0);
+  72  |     await expect(character.locator(".scene-character-caption")).toHaveCount(0);
+  73  |     if (process.env.LANDING_CAPTURE === "1") {
+  74  |       const dir = resolve(import.meta.dirname, "../.impeccable/review");
+  75  |       await mkdir(dir, { recursive: true });
+  76  |       await page.locator(".ai-stage").screenshot({ path: resolve(dir, `uni-original-${viewport.name}.png`), style: ".site-header, nextjs-portal { visibility: hidden !important; }" });
+  77  |     }
+  78  | 
+  79  |     const destination = await page.locator(".landing-trust-story").evaluate(el => el.getBoundingClientRect().top + window.scrollY - window.innerHeight * .52);
+  80  |     // Wheel-driven movement keeps the preceding scene and next scene in view.
+  81  |     const current = await page.evaluate(() => window.scrollY);
+  82  |     for (let step = 0; step < 6; step++) {
+  83  |       await page.mouse.wheel(0, (destination - current) / 6);
+  84  |       await page.waitForTimeout(120);
+  85  |     }
+  86  |     await expect(page.locator("#security-title")).toBeInViewport();
+  87  |     await expect(page.locator("#security > div")).toHaveAttribute("data-scroll-reveal", "ready");
+  88  |     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  89  |     const panels = await page.locator(".ai-stage, .landing-trust-story").evaluateAll(elements => elements.map(el => {
+  90  |       const rect = el.getBoundingClientRect();
+  91  |       return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+  92  |     }));
+  93  |     expect(panels[1]!.top - panels[0]!.bottom).toBeGreaterThan(12);
+  94  |     expect(panels[1]!.top - panels[0]!.bottom).toBeLessThan(60);
+  95  |     if (process.env.LANDING_CAPTU===== e2e/test-results/landing-workspace-feature--03ad4-sidebar-works-with-keyboard/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> feature deep links select the right panel and sidebar works with keyboard
+- Location: landing-workspace.spec.ts:23:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  locator('#product-preview').getByRole('tab', { name: 'Email Hub', exact: true })
+Expected: "true"
+Received: "false"
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 5000ms
+  - waiting for locator('#product-preview').getByRole('tab', { name: 'Email Hub', exact: true })
+    14 × locator resolved to <button role="tab" type="button" tabindex="-1" title="Email Hub" data-feature="email" aria-disabled="false" aria-selected="false" aria-label="Email Hub" data-slot="tabs-trigger" data-orientation="vertical" id="base-ui-_R_1mpeaiav5ubr9b_" data-activation-direction="none" class="relative inline-flex h-[calc(100%-1px)] pointer-coarse:min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-body font-medium whitespace-nowrap text-muted-foreground transiti…>…</button>
+       - unexpected value "false"
+
+```
+
+```yaml
+- tab "Email Hub"
+```
+
+# Test source
+
+```ts
+  1   | import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
+  2   | import { expect, test } from "@playwright/test";
+  3   | import { landingReady, gotoLanding } from "./landing-ready";
+  4   | import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
+  5   | 
+  6   | test("one workspace stage replaces the index and separate feature bands", async ({ page }) => {
+  7   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  8   |   await gotoLanding(page, "/");
+  9   |   await landingReady(page);
+  10  |   const stage = page.locator("#product-preview");
+  11  |   await openManualPreview(page);
+  12  |   await expect(page.locator(".product-index, .product-story-band, .meeting-section")).toHaveCount(0);
+  13  |   await expect(stage.locator(".product-demo-menu")).toHaveCount(1);
+  14  |   await expect(stage.locator(".workspace-group-button")).toHaveCount(0);
+  15  |   for (const [name, key] of Object.entries({ "Công việc": "tasks", "Cuộc họp": "meetings", "Trò chuyện": "chat", "Email Hub": "email", "Hỏi UNI": "ask", "Việc của tôi": "today" })) {
+  16  |     await selectWorkspaceFeature(page, key);
+  17  |     await expect(stage.locator('.preview-main > [role="tabpanel"]:not([hidden])')).toHaveCount(1);
+  18  |     await expect(stage.getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+  19  |     await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
+  20  |   }
+  21  | });
+  22  | 
+  23  | test("feature deep links select the right panel and sidebar works with keyboard", async ({ page }) => {
+  24  |   await page.setViewportSize({ width: 1440, height: 900 });
+  25  |   await page.emulateMedia({ reducedMotion: "reduce" });
+  26  |   await gotoLanding(page, "/#email");
+  27  |   await landingReady(page);
+  28  |   const stage = page.locator("#product-preview");
+> 29  |   await expect(stage.getByRole("tab", { name: "Email Hub", exact: true })).toHaveAttribute("aria-selected", "true");
+      |                                                                            ^ Error: expect(locator).toHaveAttribute(expected) failed
+  30  |   await openManualPreview(page);
+  31  |   await expect(stage.locator(".manual-preview:not([hidden]) .product-email-preview")).toBeVisible();
+  32  |   const email = stage.getByRole("tab", { name: "Email Hub", exact: true });
+  33  |   await expect(email).toHaveAttribute("tabindex", "0");
+  34  |   await email.focus();
+  35  |   await page.keyboard.press("ArrowDown");
+  36  |   await expect(stage.getByRole("tab", { name: "Cuộc họp", exact: true })).toBeFocused();
+  37  |   await page.keyboard.press("Enter");
+  38  |   await expect(stage.locator(".product-playback")).toBeVisible();
+  39  |   await expect(page).toHaveURL(/#hop$/);
+  40  | });
+  41  | 
+  42  | test("local state survives view switches across the demo", async ({ page }) => {
+  43  |   await page.emulateMedia({ reducedMotion: "reduce" });
+  44  |   await gotoLanding(page, "/");
+  45  |   await landingReady(page);
+  46  |   const stage = page.locator("#product-preview");
+  47  |   await openManualPreview(page);
+  48  |   await selectWorkspaceFeature(page, "chat");
+  49  |   const message = stage.locator('.manual-preview:not([hidden]) .product-chat-messages article').first();
+  50  |   const actions = message.locator('[data-message-actions]');
+  51  |   const more = actions.getByRole('button', { name: vi.chat.action_more, exact: true });
+  52  |   await actions.getByRole('button').first().focus();
+  53  |   await page.keyboard.press('End');
+  54  |   await expect(more).toBeFocused();
+  55  |   await page.keyboard.press('Enter');
+  56  |   await page.getByRole('menuitem', { name: vi.chat.link.create_task, exact: true }).click();
+  57  |   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
+  58  |   await selectWorkspaceFeature(page, "tasks");
+  59  |   await expect(stage.getByRole("tabpanel").locator(".product-task-open")).toHaveCount(11);
+  60  |   await expect(stage.getByRole("tabpanel").locator(".product-task-open").filter({ hasText: vi.landing.productDemo.board.tasks.followup })).toBeVisible();
+  61  |   await selectWorkspaceFeature(page, "meetings");
+  62  |   await stage.getByRole("button", { name: "Mic", exact: true }).click();
+  63  |   await selectWorkspaceFeature(page, "email");
+  64  |   await stage.locator('.manual-preview:not([hidden]) .product-email-list li').first().getByRole("button", { name: "Gắn sao", exact: true }).click();
+  65  |   await selectWorkspaceFeature(page, "mee===== e2e/test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> local state survives view switches across the demo
+- Location: landing-workspace.spec.ts:42:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('#product-preview').locator('[role=tab][data-feature="chat"]')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading "errors.render_title" [level=1] [ref=e3]
+    - paragraph [ref=e4]: errors.render_description
+    - button "common.retry" [ref=e5] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e6]
+```
+
+# Test source
+
+```ts
+  1  | import type { Page } from "@playwright/test";
+  2  | 
+  3  | export const workspaceGroups = {
+  4  |   work: ["dashboard", "tasks", "projects", "today", "calendar", "workflows"],
+  5  |   communication: ["meetings", "chat", "email"],
+  6  |   results: ["outputs", "documents", "approvals", "decisions", "decision-history"],
+  7  |   knowledge: ["knowledge"],
+  8  |   ai: ["ask", "agents", "automation", "ai-brain", "skills", "work-catalog", "ai-market"],
+  9  |   organization: ["organization", "audit", "reports"],
+  10 | } as const;
+  11 | 
+  12 | export async function openManualPreview(page: Page) {
+  13 |   // Auth/config settlement remounts the landing; wait before toggling local state.
+  14 |   await page.waitForLoadState("networkidle");
+  15 |   const stage = page.locator("#product-preview");
+  16 |   if (await stage.getAttribute("data-presentation") !== "watch") return;
+  17 |   await stage.locator('[data-action="toggle-presentation"]').click();
+  18 | }
+  19 | 
+  20 | export async function selectWorkspaceFeature(page: Page, key: string, manual = true) {
+  21 |   const entry = Object.entries(workspaceGroups).find(([, values]) => (values as readonly string[]).includes(key));
+  22 |   if (!entry) throw new Error(`Unknown workspace feature: ${key}`);
+  23 |   const stage = page.locator("#product-preview");
+  24 |   const menu = stage.locator('[data-action="toggle-demo-menu"]');
+  25 |   if (await menu.isVisible() && await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+> 26 |   await stage.locator(`[role=tab][data-feature="${key}"]`).click();
+     |                                                            ^ Error: locator.click: Test timeout of 60000ms exceeded.
+  27 |   if (manual) await openManualPreview(page);
+  28 | }
+  29 | 
+  30 | /** The after-meeting follow-up lives in the list view; the room is the default one. */
+  31 | export async function openMeetingList(page: Page) {
+  32 |   const list = page.locator("#product-preview .manual-preview:not([hidden]) .product-meeting-preview");
+  33 |   await list.locator(".product-meeting-view-switch button").first().click();
+  34 |   await list.locator(".product-meeting-list").waitFor();
+  35 | }
+  36 | 
+```===== e2e/test-results/landing-workspace-one-work-7ef84--and-separate-feature-bands/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> one workspace stage replaces the index and separate feature bands
+- Location: landing-workspace.spec.ts:6:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.getAttribute: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('#product-preview')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading "errors.render_title" [level=1] [ref=e3]
+    - paragraph [ref=e4]: errors.render_description
+    - button "common.retry" [ref=e5] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e6]
+```
+
+# Test source
+
+```ts
+  1  | import type { Page } from "@playwright/test";
+  2  | 
+  3  | export const workspaceGroups = {
+  4  |   work: ["dashboard", "tasks", "projects", "today", "calendar", "workflows"],
+  5  |   communication: ["meetings", "chat", "email"],
+  6  |   results: ["outputs", "documents", "approvals", "decisions", "decision-history"],
+  7  |   knowledge: ["knowledge"],
+  8  |   ai: ["ask", "agents", "automation", "ai-brain", "skills", "work-catalog", "ai-market"],
+  9  |   organization: ["organization", "audit", "reports"],
+  10 | } as const;
+  11 | 
+  12 | export async function openManualPreview(page: Page) {
+  13 |   // Auth/config settlement remounts the landing; wait before toggling local state.
+  14 |   await page.waitForLoadState("networkidle");
+  15 |   const stage = page.locator("#product-preview");
+> 16 |   if (await stage.getAttribute("data-presentation") !== "watch") return;
+     |                   ^ Error: locator.getAttribute: Test timeout of 60000ms exceeded.
+  17 |   await stage.locator('[data-action="toggle-presentation"]').click();
+  18 | }
+  19 | 
+  20 | export async function selectWorkspaceFeature(page: Page, key: string, manual = true) {
+  21 |   const entry = Object.entries(workspaceGroups).find(([, values]) => (values as readonly string[]).includes(key));
+  22 |   if (!entry) throw new Error(`Unknown workspace feature: ${key}`);
+  23 |   const stage = page.locator("#product-preview");
+  24 |   const menu = stage.locator('[data-action="toggle-demo-menu"]');
+  25 |   if (await menu.isVisible() && await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+  26 |   await stage.locator(`[role=tab][data-feature="${key}"]`).click();
+  27 |   if (manual) await openManualPreview(page);
+  28 | }
+  29 | 
+  30 | /** The after-meeting follow-up lives in the list view; the room is the default one. */
+  31 | export async function openMeetingList(page: Page) {
+  32 |   const list = page.locator("#product-preview .manual-preview:not([hidden]) .product-meeting-preview");
+  33 |   await list.locator(".product-meeting-view-switch button").first().click();
+  34 |   await list.locator(".product-meeting-list").waitFor();
+  35 | }
+  36 | 
+```===== e2e/test-results/landing-workspace-tablet-p-482e2-ter-keeps-one-honest-action/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> tablet product stage stays readable and Starter keeps one honest action
+- Location: landing-workspace.spec.ts:78:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  locator('#product-preview').getByRole('tab', { name: 'Cuộc họp', exact: true })
+Expected: "true"
+Received: "false"
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 5000ms
+  - waiting for locator('#product-preview').getByRole('tab', { name: 'Cuộc họp', exact: true })
+    14 × locator resolved to <button role="tab" type="button" tabindex="-1" title="Cuộc họp" aria-disabled="false" aria-selected="false" aria-label="Cuộc họp" data-feature="meetings" data-slot="tabs-trigger" data-orientation="vertical" id="base-ui-_R_2mpeaiav5ubr9b_" data-activation-direction="none" class="relative inline-flex h-[calc(100%-1px)] pointer-coarse:min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-body font-medium whitespace-nowrap text-muted-foreground transit…>…</button>
+       - unexpected value "false"
+
+```
+
+```yaml
+- tab "Cuộc họp"
+```
+
+# Test source
+
+```ts
+  1   | import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
+  2   | import { expect, test } from "@playwright/test";
+  3   | import { landingReady, gotoLanding } from "./landing-ready";
+  4   | import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
+  5   | 
+  6   | test("one workspace stage replaces the index and separate feature bands", async ({ page }) => {
+  7   |   await page.emulateMedia({ reducedMotion: "reduce" });
+  8   |   await gotoLanding(page, "/");
+  9   |   await landingReady(page);
+  10  |   const stage = page.locator("#product-preview");
+  11  |   await openManualPreview(page);
+  12  |   await expect(page.locator(".product-index, .product-story-band, .meeting-section")).toHaveCount(0);
+  13  |   await expect(stage.locator(".product-demo-menu")).toHaveCount(1);
+  14  |   await expect(stage.locator(".workspace-group-button")).toHaveCount(0);
+  15  |   for (const [name, key] of Object.entries({ "Công việc": "tasks", "Cuộc họp": "meetings", "Trò chuyện": "chat", "Email Hub": "email", "Hỏi UNI": "ask", "Việc của tôi": "today" })) {
+  16  |     await selectWorkspaceFeature(page, key);
+  17  |     await expect(stage.locator('.preview-main > [role="tabpanel"]:not([hidden])')).toHaveCount(1);
+  18  |     await expect(stage.getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+  19  |     await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
+  20  |   }
+  21  | });
+  22  | 
+  23  | test("feature deep links select the right panel and sidebar works with keyboard", async ({ page }) => {
+  24  |   await page.setViewportSize({ width: 1440, height: 900 });
+  25  |   await page.emulateMedia({ reducedMotion: "reduce" });
+  26  |   await gotoLanding(page, "/#email");
+  27  |   await landingReady(page);
+  28  |   const stage = page.locator("#product-preview");
+  29  |   await expect(stage.getByRole("tab", { name: "Email Hub", exact: true })).toHaveAttribute("aria-selected", "true");
+  30  |   await openManualPreview(page);
+  31  |   await expect(stage.locator(".manual-preview:not([hidden]) .product-email-preview")).toBeVisible();
+  32  |   const email = stage.getByRole("tab", { name: "Email Hub", exact: true });
+  33  |   await expect(email).toHaveAttribute("tabindex", "0");
+  34  |   await email.focus();
+  35  |   await page.keyboard.press("ArrowDown");
+  36  |   await expect(stage.getByRole("tab", { name: "Cuộc họp", exact: true })).toBeFocused();
+  37  |   await page.keyboard.press("Enter");
+  38  |   await expect(stage.locator(".product-playback")).toBeVisible();
+  39  |   await expect(page).toHaveURL(/#hop$/);
+  40  | });
+  41  | 
+  42  | test("local state survives view switches across the demo", async ({ page }) => {
+  43  |   await page.emulateMedia({ reducedMotion: "reduce" });
+  44  |   await gotoLanding(page, "/");
+  45  |   await landingReady(page);
+  46  |   const stage = page.locator("#product-preview");
+  47  |   await openManualPreview(page);
+  48  |   await selectWorkspaceFeature(page, "chat");
+  49  |   const message = stage.locator('.manual-preview:not([hidden]) .product-chat-messages article').first();
+  50  |   const actions = message.locator('[data-message-actions]');
+  51  |   const more = actions.getByRole('button', { name: vi.chat.action_more, exact: true });
+  52  |   await actions.getByRole('button').first().focus();
+  53  |   await page.keyboard.press('End');
+  54  |   await expect(more).toBeFocused();
+  55  |   await page.keyboard.press('Enter');
+  56  |   await page.getByRole('menuitem', { name: vi.chat.link.create_task, exact: true }).click();
+  57  |   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
+  58  |   await selectWorkspaceFeature(page, "tasks");
+  59  |   await expect(stage.getByRole("tabpanel").locator(".product-task-open")).toHaveCount(11);
+  60  |   await expect(stage.getByRole("tabpanel").locator(".product-task-open").filter({ hasText: vi.landing.productDemo.board.tasks.followup })).toBeVisible();
+  61  |   await selectWorkspaceFeature(page, "meetings");
+  62  |   await stage.getByRole("button", { name: "Mic", exact: true }).click();
+  63  |   await selectWorkspaceFeature(page, "email");
+  64  |   await stage.locator('.manual-preview:not([hidden]) .product-email-list li').first().getByRole("button", { name: "Gắn sao", exact: true }).click();
+  65  |   await selectWorkspaceFeature(page, "meetings");
+  66  |   await expect(stage.getByRole("button", { name: "Mic", exact: true })).toHaveAttribute("aria-pressed", "true===== S9_SERVER_AI
+19:43:29.141 INF local storage adapter ready dir=/tmp/uniwork-uploads
+19:43:29.144 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+19:43:29.145 INF ai gateway enabled component=server provider=fake
+19:45:40.842 INF http request method=GET path=/api/v1/workspaces/01M69QY20F95FWVJ4AW5YXDVYT/ai/capabilities status=200 duration=25.568ms request_id=cursor/PUrZvvYzgc-000061 correlation_id=2e20acb3492f5ada8fcd40591f631377 trace_id=2e20acb3492f5ada8fcd40591f631377 span_id=8cdc7022a6674c97 organization_id=01M69QY200849XBQJCWR14GKB8 workspace_id=01M69QY20F95FWVJ4AW5YXDVYT actor_id=01M69QY1Z88KX5R5WGR3E6BAJ6 actor_kind=human
+19:45:42.182 INF http request method=GET path=/api/v1/workspaces/01M69QY20F95FWVJ4AW5YXDVYT/ai/capabilities status=200 duration=20.765ms request_id=cursor/PUrZvvYzgc-000099 correlation_id=a5a841385d34f14c69a083047caecdbe trace_id=a5a841385d34f14c69a083047caecdbe span_id=054291e5c5a9073e organization_id=01M69QY200849XBQJCWR14GKB8 workspace_id=01M69QY20F95FWVJ4AW5YXDVYT actor_id=01M69QY1Z88KX5R5WGR3E6BAJ6 actor_kind=human
+19:45:45.157 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=19.754ms request_id=cursor/PUrZvvYzgc-000151 correlation_id=cb0e91f098d76b137c734df0f1a989ce trace_id=cb0e91f098d76b137c734df0f1a989ce span_id=6deac18e18ddf207 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:46.199 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=25.71ms request_id=cursor/PUrZvvYzgc-000197 correlation_id=0f51eae0ee4f921adf3ed408dd177504 trace_id=0f51eae0ee4f921adf3ed408dd177504 span_id=b7766be5628e5677 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:47.066 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=21.091ms request_id=cursor/PUrZvvYzgc-000233 correlation_id=02e2be59508adc2c1b22a297e621613e trace_id=02e2be59508adc2c1b22a297e621613e span_id=f42b12961e8bbf9e organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:49.422 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=11.214ms request_id=cursor/PUrZvvYzgc-000283 correlation_id=e8f23c231cf7265960b682451b790069 trace_id=e8f23c231cf7265960b682451b790069 span_id=0f88b36da0881b23 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:52.169 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=7.603ms request_id=cursor/PUrZvvYzgc-000352 correlation_id=9dccb02bae3104342976127af90b3251 trace_id=9dccb02bae3104342976127af90b3251 span_id=355e4d43b158f244 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:52.853 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=11.984ms request_id=cursor/PUrZvvYzgc-000399 correlation_id=a3a6e21bdcc1f5ef34c0089a8e2108cc trace_id=a3a6e21bdcc1f5ef34c0089a8e2108cc span_id=2dcaa0cd94bc257d organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:53.792 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=6.375ms request_id=cursor/PUrZvvYzgc-000432 correlation_id=ba0f9c63a5a7074df6f4884591f2c799 trace_id=ba0f9c63a5a7074df6f4884591f2c799 span_id=cf1160ecf5064044 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:56.452 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=16.573ms request_id=cursor/PUrZvvYzgc-000485 correlation_id=104ffe0c123298b6d9e29d15a552532d trace_id=104ffe0c123298b6d9e29d15a552532d span_id=01610d53206cdf97 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:59.370 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=23.014ms request_id=cursor/PUrZvvYzgc-000547 correlation_id=acc552d8b5baf48944984484bb7a7a25 trace_id=acc552d8b5baf48944984484bb7a7a25 span_id=5976c0140dc068c6 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:00.096 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=12.937ms request_id=cursor/PUrZvvYzgc-000593 correlation_id=9828ce5ec17c5ebbc94a8d68ab87bdf9 trace_id=9828ce5ec17c5ebbc94a8d68ab87bdf9 span_id=2188bacee1c41b4d organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:01.017 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=11.912ms request_id=cursor/PUrZvvYzgc-000626 correlation_id=851408b6e5b70336d6ef1eb35220df71 trace_id=851408b6e5b70336d6ef1eb35220df71 span_id=971b04600eda6f3a organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:05.472 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=13.99ms request_id=cursor/PUrZvvYzgc-000704 correlation_id=2c15a8b0999bd4a4e970953dfb447165 trace_id=2c15a8b0999bd4a4e970953dfb447165 span_id=4334b1e12f57dce0 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:06.552 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=5.689ms request_id=cursor/PUrZvvYzgc-000749 correlation_id=05c59c2c71249d8150b9c8625f1596d7 trace_id=05c59c2c71249d8150b9c8625f1596d7 span_id=f5e0eb58395d2ecd organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:07.478 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=2.924ms request_id=cursor/PUrZvvYzgc-000803 correlation_id=2f3eafe628eeeb824b08c6d5e0ee38b7 trace_id=2f3eafe628eeeb824b08c6d5e0ee38b7 span_id=200815330660c8d9 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:10.378 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=10.396ms request_id=cursor/PUrZvvYzgc-000855 correlation_id=f496ebde7c8b2ee6f5bd1c1e7e36f240 trace_id=f496ebde7c8b2ee6f5bd1c1e7e36f240 span_id=ff01087a49a86578 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:11.458 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=8.727ms request_id=cursor/PUrZvvYzgc-000900 correlation_id=4d551a1cee5e47cacc87829a7f485ec4 trace_id=4d551a1cee5e47cacc87829a7f485ec4 span_id=ac9083b507748979 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:12.377 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=2.72ms request_id=cursor/PUrZvvYzgc-000931 correlation_id=b9b746cc2bcf69774d1360752376065d trace_id=b9b746cc2bcf69774d1360752376065d span_id=279a99914eaa7ff6 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:14.906 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=9.259ms request_id=cursor/PUrZvvYzgc-000978 correlation_id=6b5022e914f4d1aa942e37f64f261e28 trace_id=6b5022e914f4d1aa942e37f64f261e28 span_id=18149b871f50fee5 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:15.975 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=7.747ms request_id=cursor/PUrZvvYzgc-001025 correlation_id=3b2dc641b55840264bbc931097fd744e trace_id=3b2dc641b55840264bbc931097fd744e span_id=78cfa1db2f55bdd5 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:20.075 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=6.66ms request_id=cursor/PUrZvvYzgc-001092 correlation_id=55c6f9e1a25de90f32bb433232d6fa12 trace_id=55c6f9e1a25de90f32bb433232d6fa12 span_id=31b19994e33af92a organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:21.130 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=7.522ms request_id=cursor/PUrZvvYzgc-001137 correlation_id=6bb2c0206a65b7039d48e62cdd75f2e2 trace_id=6bb2c0206a65b7039d48e62cdd75f2e2 span_id=ad1b6854676e867d organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:22.870 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=13.1ms request_id=cursor/PUrZvvYzgc-001169 correlation_id=808e9b1844aa26bc2bcf5b9eb88e7b61 trace_id=808e9b1844aa26bc2bcf5b9eb88e7b61 span_id=8904b63eabc07b78 organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:26.663 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=4.095ms request_id=cursor/PUrZvvYzgc-001235 correlation_id=d7d02993dacbce6899fb306da537c17b trace_id=d7d02993dacbce6899fb306da537c17b span_id=a4e9204c8ce976a3 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:27.722 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=6.863ms request_id=cursor/PUrZvvYzgc-001277 correlation_id=218278ed032539d1a13dc286166c8913 trace_id=218278ed032539d1a13dc286166c8913 span_id=1c0623cdd287f849 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:28.582 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=5.561ms request_id=cursor/PUrZvvYzgc-001309 correlation_id=0ee1965381aa8fee81d9b6b5a81302d6 trace_id=0ee1965381aa8fee81d9b6b5a81302d6 span_id=a61d6ddaccfa80c7 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:31.095 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=6.425ms request_id=cursor/PUrZvvYzgc-001358 correlation_id=46a19f8f6dfccfcfbfae46e947f2ca56 trace_id=46a19f8f6dfccfcfbfae46e947f2ca56 span_id=a80ad59c1bc1ba98 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:34.590 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=3.829ms request_id=cursor/PUrZvvYzgc-001417 correlation_id=9f9fcb9703ac6c83ae21dcc21c895c2d trace_id=9f9fcb9703ac6c83ae21dcc21c895c2d span_id=0a5bab649244b728 organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:35.675 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=15.705ms request_id=cursor/PUrZvvYzgc-001462 correlation_id=be32f69cffcf4f2638c29d12716bec53 trace_id=be32f69cffcf4f2638c29d12716bec53 span_id=86abce1a6f871c7a organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:36.617 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=9.546ms request_id=cursor/PUrZvvYzgc-001493 correlation_id=2261be10e6aa8375fb615e83f6843243 trace_id=2261be10e6aa8375fb615e83f6843243 span_id=b5296b01e6ec80cc organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:40.625 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=13.007ms request_id=cursor/PUrZvvYzgc-001568 correlation_id=aea7c206b019ef01fa93b10f49604f3c trace_id=aea7c206b019ef01fa93b10f49604f3c span_id=66eb35f0f6ad0833 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:41.700 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=11.407ms request_id=cursor/PUrZvvYzgc-001608 correlation_id=606515d7d9738a1560f81765e4dc0e2c trace_id=606515d7d9738a1560f81765e4dc0e2c span_id=6b082a840739c8c9 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:42.566 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=7.259ms request_id=cursor/PUrZvvYzgc-001644 correlation_id=5ffe38c73adf90e1a72a2e952e565c9f trace_id=5ffe38c73adf90e1a72a2e952e565c9f span_id=ef924262b63cb880 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:44.426 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=4.502ms request_id=cursor/PUrZvvYzgc-001683 correlation_id=7dab655137bc6633af83f80e6bf42302 trace_id=7dab655137bc6633af83f80e6bf42302 span_id=bca3c59350b88772 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:47.315 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=3.236ms request_id=cursor/PUrZvvYzgc-001719 correlation_id=70955a8b54caf6e5f77c9b853a6df2ae trace_id=70955a8b54caf6e5f77c9b853a6df2ae span_id=dcdff019eba2fb0c organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:48.405 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=7.18ms request_id=cursor/PUrZvvYzgc-001761 correlation_id=bcc57c8711680c8b1414582e764dad6c trace_id=bcc57c8711680c8b1414582e764dad6c span_id=3f9ae8b58f0aa8d6 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:49.335 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=17.107ms request_id=cursor/PUrZvvYzgc-001792 correlation_id=368ebf41fa1dbd2a73a72926597bc7c9 trace_id=368ebf41fa1dbd2a73a72926597bc7c9 span_id=9efa4e4ea0e64a14 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:51.755 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=6.105ms request_id=cursor/PUrZvvYzgc-001848 correlation_id=9d39c681aea8eeffe92679a3dc97d35e trace_id=9d39c681aea8eeffe92679a3dc97d35e span_id=f617bf3a1ac443d6 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:54.482 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=3.951ms request_id=cursor/PUrZvvYzgc-001918 correlation_id=6c1fa89042a75c8db5891cb8fe364c84 trace_id=6c1fa89042a75c8db5891cb8fe364c84 span_id=fb8e527c425de48f organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:55.536 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=2.927ms request_id=cursor/PUrZvvYzgc-001964 correlation_id=beee71ebab8fece0ac4e6948f22cbedd trace_id=beee71ebab8fece0ac4e6948f22cbedd span_id=52be9e3cd2d9721b organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:56.418 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=9.637ms request_id=cursor/PUrZvvYzgc-001995 correlation_id=84d97b9f266f1ab8d136a350aeca788e trace_id=84d97b9f266f1ab8d136a350aeca788e span_id=fbb88951b07fcecf organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:58.760 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=2.581ms request_id=cursor/PUrZvvYzgc-002052 correlation_id=f53fa12e061a278c87108408634ba829 trace_id=f53fa12e061a278c87108408634ba829 span_id=9db08b8568fab9b4 organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:47:02.093 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=1.303ms request_id=cursor/PUrZvvYzgc-002118 correlation_id=437fb7e33749e219b0b3acaf1cdbcdc1 trace_id=437fb7e33749e219b0b3acaf1cdbcdc1 span_id=21477d0f424b6df5 organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:03.150 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=5.614ms request_id=cursor/PUrZvvYzgc-002159 correlation_id=0761d3fd2dad79ffbd7ff94b3d82eb4b trace_id=0761d3fd2dad79ffbd7ff94b3d82eb4b span_id=a391bf77bb73c2a5 organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:03.990 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=3.61ms request_id=cursor/PUrZvvYzgc-002193 correlation_id=2b2f4b7a9a98211b2e6031db8d3544a3 trace_id=2b2f4b7a9a98211b2e6031db8d3544a3 span_id=1fca0c879b64f8dc organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:06.449 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=9.693ms request_id=cursor/PUrZvvYzgc-002255 correlation_id=0d04e61bc6c774ae3ed6130f8ca464b0 trace_id=0d04e61bc6c774ae3ed6130f8ca464b0 span_id=46a9a4650964ed3c organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:48:38.131 INF http request method=GET path=/api/v1/workspaces/01M69R3H2YV1FBTRDT4F2FY9MR/ai/capabilities status=200 duration=12.309ms request_id=cursor/PUrZvvYzgc-002389 correlation_id=1a5128019aabe77f7f0b4c6ec649d990 trace_id=1a5128019aabe77f7f0b4c6ec649d990 span_id=810f0222674c332a organization_id=01M69R3H0W47SM3ARNRTQDJGDK workspace_id=01M69R3H2YV1FBTRDT4F2FY9MR actor_id=01M69R3GM2PXP6NJRF4AQE53FG actor_kind=human
+19:48:38.936 INF http request method=GET path=/api/v1/workspaces/01M69R3H2YV1FBTRDT4F2FY9MR/ai/capabilities status=200 duration=4.132ms request_id=cursor/PUrZvvYzgc-002436 correlation_id=902f42a4f554b93dffbdeb2ecd866e94 trace_id=902f42a4f554b93dffbdeb2ecd866e94 span_id=063434973d331f12 organization_id=01M69R3H0W47SM3ARNRTQDJGDK workspace_id=01M69R3H2YV1FBTRDT4F2FY9MR actor_id=01M69R3GM2PXP6NJRF4AQE53FG actor_kind=human
+19:50:46.431 INF http request method=GET path=/api/v1/workspaces/01M69R7EBN574FR1Q7YWG6VZ0R/ai/capabilities status=200 duration=25.041ms request_id=cursor/PUrZvvYzgc-002596 correlation_id=e22af3da07f305f101b9d44a2620a4cb trace_id=e22af3da07f305f101b9d44a2620a4cb span_id=57ab3e1364d2d471 organization_id=01M69R7E92FZRHN3M2DKDC2P1Q workspace_id=01M69R7EBN574FR1Q7YWG6VZ0R actor_id=01M69R7DW8Z1JHXZT4B37WGSM6 actor_kind=human
+19:50:47.233 INF http request method=GET path=/api/v1/workspaces/01M69R7EBN574FR1Q7YWG6VZ0R/ai/capabilities status=200 duration=5.84ms request_id=cursor/PUrZvvYzgc-002649 correlation_id=7f6597ec23c5c307c44b4390b4a0eea2 trace_id=7f6597ec23c5c307c44b4390b4a0eea2 span_id=946a7694048aca4b organization_id=01M69R7E92FZRHN3M2DKDC2P1Q workspace_id=01M69R7EBN574FR1Q7YWG6VZ0R actor_id=01M69R7DW8Z1JHXZT4B37WGSM6 actor_kind=human
+no passing test matched documents
+
+E2E_DEVLANDING_EXIT=1

@@ -1,0 +1,506 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-scenes.spec.ts landing-workspace.spec.ts membership-invite-link.spec.ts seo.spec.ts --reporter=list > /tmp/pr9r3-ours2.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr9r3-ours2.log | tail -n 60; echo FAILED_TESTS; grep -E "^s+[0-9]+) " /tmp/pr9r3-ours2.log | sort -u | head -80; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/pr9r3-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/pr9r3-ours2.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/pr9r3-ours2.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_OURS2_EXIT=$rc"
+      55 |     // The join lands on the workspace root (Home), which has no trailing slash.
+    > 56 |     await expect(invitee).toHaveURL(new RegExp(`/${ownerSeed.orgSlug}/${ownerSeed.wsSlug}/?$`), { timeout: 20_000 });
+         |                           ^
+      57 |
+      58 |     await owner.context().close();
+      59 |     await invitee.context().close();
+
+    Error Context: test-results/membership-invite-link-mem-8928f-omeone-with-no-organization/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/membership-invite-link-mem-8928f-omeone-with-no-organization/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/membership-invite-link-mem-8928f-omeone-with-no-organization/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) seo.spec.ts:46:1 › guides render without JavaScript and expose related localized destinations ─
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('article')
+    Expected substring: "yêu cầu dùng khóa API riêng đi qua máy chủ UniWork"
+    Received string:    "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi báo lỗi, ghi lại trình soạn thảo, định dạng, thao tác vừa thực hiện và thông báo lỗi. Không đưa khóa API hoặc toàn bộ tài liệu nội bộ vào ảnh chụp công khai.Kiểm tra kết quả AI trước khi lưuNêu rõ mục tiêu và phần nội dung cần xử lý. Đọc lại kết quả, kiểm tra số liệu, công thức, định dạng và các chi tiết có ảnh hưởng trước khi lưu hoặc gửi cho người khác.Giữ bản gốc hoặc phiên bản phù hợp khi thay đổi tài liệu quan trọng. Người dùng vẫn chịu trách nhiệm rà soát kết quả trước khi sử dụng.Thử trên bản sao của một tệp mẫu được phép sử dụng.Kiểm tra nội dung, công thức, bảng biểu và bố cục.Lưu, đóng rồi mở lại để kiểm tra kết quả.Kiểm tra workspace, phiên bản và người nhận trước khi chia sẻ.Giao diện minh họa của trình soạn thảo Docs. Nội dung và tên trong ảnh là dữ liệu mẫu, không phải hồ sơ khách hàng.Tiếp tục tìm hiểuUniOffice — soạn thảo, bảng tính và PDF với AIDữ liệu, quyền truy cập và kết nối AI trong UniWorkYêu cầu demo UniWork cho đội nhóm"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('article')
+        14 × locator resolved to <article class="public-guide">…</article>
+           - unexpected value "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi báo lỗi, ghi lại trình soạn thảo, định dạng, thao tác vừa thực hiện và thông báo lỗi. Không đưa khóa API hoặc toàn bộ tài liệu nội bộ vào ảnh chụp công khai.Kiểm tra kết quả AI trước khi lưuNêu rõ mục tiêu và phần nội dung cần xử lý. Đọc lại kết quả, kiểm tra số liệu, công thức, định dạng và các chi tiết có ảnh hưởng trước khi lưu hoặc gửi cho người khác.Giữ bản gốc hoặc phiên bản phù hợp khi thay đổi tài liệu quan trọng. Người dùng vẫn chịu trách nhiệm rà soát kết quả trước khi sử dụng.Thử trên bản sao của một tệp mẫu được phép sử dụng.Kiểm tra nội dung, công thức, bảng biểu và bố cục.Lưu, đóng rồi mở lại để kiểm tra kết quả.Kiểm tra workspace, phiên bản và người nhận trước khi chia sẻ.Giao diện minh họa của trình soạn thảo Docs. Nội dung và tên trong ảnh là dữ liệu mẫu, không phải hồ sơ khách hàng.Tiếp tục tìm hiểuUniOffice — soạn thảo, bảng tính và PDF với AIDữ liệu, quyền truy cập và kết nối AI trong UniWorkYêu cầu demo UniWork cho đội nhóm"
+
+
+      52 |   await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
+      53 |   await expect(page.locator(".public-guide-table")).toContainText(".xlsx");
+    > 54 |   await expect(page.locator("article")).toContainText("yêu cầu dùng khóa API riêng đi qua máy chủ UniWork");
+         |                                         ^
+      55 |   await expect(page.locator('link[hreflang="en"]')).toHaveAttribute("href", /\/learn\/office-files-and-ai$/);
+      56 |   await context.close();
+      57 | });
+
+    Error Context: test-results/seo-guides-render-without--48407-ated-localized-destinations/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+    membership-invite-link.spec.ts:27:3 › membership invite link › a workspace invite link joins someone with no organization 
+    seo.spec.ts:46:1 › guides render without JavaScript and expose related localized destinations ──
+  12 passed (2.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-scenes.spec.ts landing-workspace.spec.ts membership-invite-link.spec.ts seo.spec.ts --reporter=list
+FAILED_TESTS
+===== e2e/test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scenes.spec.ts >> original UNI artwork and face stay unchanged while the foreleg waves
+- Location: landing-scenes.spec.ts:6:1
+
+# Error details
+
+```
+Error: expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 2
+Received:    3
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Trang chủ" [ref=e83] [cursor=pointer]
+                      - tab "Hộp việc" [ref=e86] [cursor=pointer]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Làm việc
+                      - tab "Công việc" [selected] [ref=e91] [cursor=pointer]
+                      - tab "Việc của tôi" [ref=e94] [cursor=pointer]
+                      - tab "Dự án" [ref=e97] [cursor=pointer]
+                      - tab "Lịch" [ref=e100] [cursor=pointer]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: Trao đổi
+                      - tab "Email Hub" [ref=e105] [cursor=pointer]
+                      - tab "Cuộc họp" [ref=e108] [cursor=pointer]
+                      - tab "Tài liệu" [ref=e111] [cursor=pointer]
+                      - tab "Trò chuyện" [ref=e114] [cursor=pointer]
+                      - tab "Danh bạ" [ref=e117] [cursor=pointer]
+                    - generic [ref=e120]:
+                      - generic [ref=e121]: Công việc & dự án
+                      - tab "Quy trình" [ref=e122] [cursor=pointer]
+                    - generic [ref=e125]:
+                      - generic [ref=e126]: Kết quả
+                      - tab "Kết quả công việc" [ref=e127] [cursor=pointer]
+                      - tab "Phê duyệt kết quả" [ref=e130] [cursor=pointer]
+                      - tab "Duyệt quyết định" [ref=e133] [cursor=pointer]
+                      - tab "Lịch sử quyết định" [ref=e136] [cursor=pointer]
+                    - generic [ref=e139]:
+                      - generic [ref=e140]: Tri thức
+                      - tab "Kho tri thức" [ref=e141] [cursor=pointer]
+                    - generic [ref=e144]:
+                      - generic [ref=e145]: AI & tự động hóa
+                      - tab "Hỏi UNI" [ref=e146] [cursor=pointer]
+                      - tab "Nhân sự AI" [ref=e149] [cursor=pointer]
+                      - tab "Tự động hóa" [ref=e152] [cursor=pointer]
+                      - tab "AI Brain" [ref=e155] [cursor=pointer]
+                      - tab "Skill Hub" [ref=e158] [cursor=pointer]
+                      - tab "Work Catalog" [ref=e161] [cursor=pointer]
+                      - tab "AI Market" [ref=e164] [cursor=pointer]
+                    - generic [ref=e167]:
+                      - generic [ref=e168]: Tổ chức
+                      - tab "Nhật ký hoạt động" [ref=e169] [cursor=pointer]
+                      - tab "Báo cáo" [ref=e172] [cursor=pointer]
+                - generic [ref=e175]:
+                  - generic [ref=e176]: MA
+                  - generic [ref=e177]:
+                    - strong [ref=e178]: Mai An
+                    - generic [ref=e179]: Thành viên
+              - generic [ref=e180]:
+                - generic [ref=e181]:
+                  - button "Thu gọn menu" [expanded] [ref=e182] [cursor=pointer]
+                  - generic [ref=e183]:
+                    - searchbox "Tìm trong sản phẩm…" [ref=e1===== e2e/test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-workspace.spec.ts >> local state survives view switches across the demo
+- Location: landing-workspace.spec.ts:42:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('#product-preview').locator('.manual-preview:not([hidden]) .product-email-list li').first().getByRole('button', { name: 'Gắn sao', exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Trang chủ" [ref=e83] [cursor=pointer]
+                      - tab "Hộp việc" [ref=e86] [cursor=pointer]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Làm việc
+                      - tab "Công việc" [ref=e91] [cursor=pointer]
+                      - tab "Việc của tôi" [ref=e94] [cursor=pointer]
+                      - tab "Dự án" [ref=e97] [cursor=pointer]
+                      - tab "Lịch" [ref=e100] [cursor=pointer]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: Trao đổi
+                      - tab "Email Hub" [selected] [ref=e105] [cursor=pointer]
+                      - tab "Cuộc họp" [ref=e108] [cursor=pointer]
+                      - tab "Tài liệu" [ref=e111] [cursor=pointer]
+                      - tab "Trò chuyện" [ref=e114] [cursor=pointer]
+                      - tab "Danh bạ" [ref=e117] [cursor=pointer]
+                    - generic [ref=e120]:
+                      - generic [ref=e121]: Công việc & dự án
+                      - tab "Quy trình" [ref=e122] [cursor=pointer]
+                    - generic [ref=e125]:
+                      - generic [ref=e126]: Kết quả
+                      - tab "Kết quả công việc" [ref=e127] [cursor=pointer]
+                      - tab "Phê duyệt kết quả" [ref=e130] [cursor=pointer]
+                      - tab "Duyệt quyết định" [ref=e133] [cursor=pointer]
+                      - tab "Lịch sử quyết định" [ref=e136] [cursor=pointer]
+                    - generic [ref=e139]:
+                      - generic [ref=e140]: Tri thức
+                      - tab "Kho tri thức" [ref=e141] [cursor=pointer]
+                    - generic [ref=e144]:
+                      - generic [ref=e145]: AI & tự động hóa
+                      - tab "Hỏi UNI" [ref=e146] [cursor=pointer]
+                      - tab "Nhân sự AI" [ref=e149] [cursor=pointer]
+                      - tab "Tự động hóa" [ref=e152] [cursor=pointer]
+                      - tab "AI Brain" [ref=e155] [cursor=pointer]
+                      - tab "Skill Hub" [ref=e158] [cursor=pointer]
+                      - tab "Work Catalog" [ref=e161] [cursor=pointer]
+                      - tab "AI Market" [ref=e164] [cursor=pointer]
+                    - generic [ref=e167]:
+                      - generic [ref=e168]: Tổ chức
+                      - tab "Nhật ký hoạt động" [ref=e169] [cursor=pointer]
+                      - tab "Báo cáo" [ref=e172] [cursor=pointer]
+                - generic [ref=e175]:
+                  - generic [ref=e176]: MA
+                  - generic [ref=e177]:
+                    - strong [ref=e178]: Mai An
+                    - generic [ref=e179]: Thành viên
+              - generic [ref=e180]:
+                - generic [ref=e181]:
+              ===== e2e/test-results/membership-invite-link-mem-8928f-omeone-with-no-organization/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: membership-invite-link.spec.ts >> membership invite link >> a workspace invite link joins someone with no organization
+- Location: membership-invite-link.spec.ts:27:3
+
+# Error details
+
+```
+Error: expect(page).toHaveURL(expected) failed
+
+Expected pattern: /\/mil-owner-1793476244652\/team-owner-1793476244652\/?$/
+Received string:  "http://localhost:14100/join/01M69R7FT4TK15JSYP4KF2MKXT#secret=RJEIDV97DGB2hdfjJbF2j2Y9ATsR0AHek4Q_Wxobcd0#secret=RJEIDV97DGB2hdfjJbF2j2Y9ATsR0AHek4Q_Wxobcd0"
+Timeout: 20000ms
+
+Call log:
+  - Expect "toHaveURL" with timeout 20000ms
+    44 × locator resolved to <html lang="vi" class="N972dW_variable G564uW_variable q1nj0W_variable light">…</html>
+       - unexpected value "http://localhost:14100/join/01M69R7FT4TK15JSYP4KF2MKXT#secret=RJEIDV97DGB2hdfjJbF2j2Y9ATsR0AHek4Q_Wxobcd0#secret=RJEIDV97DGB2hdfjJbF2j2Y9ATsR0AHek4Q_Wxobcd0"
+
+```
+
+```yaml
+- radiogroup "Ngôn ngữ":
+  - radio "Tiếng Việt" [checked]
+  - text: Tiếng Việt
+  - radio "English"
+  - text: English
+- complementary:
+  - img "UniWork"
+  - paragraph: Con người và AI cùng sở hữu công việc.
+  - paragraph: Việc, cuộc họp và trao đổi của cả đội ở một chỗ, có AI làm cùng như một đồng nghiệp.
+- main:
+  - heading "Không dùng được lời mời này" [level=1]
+  - paragraph: Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.
+  - note: Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại một link mới.
+  - link "Xem workspace của tôi":
+    - /url: /workspaces
+  - link "Xem lời mời của tôi":
+    - /url: /invitations
+- region "Notifications alt+T"
+- alert: Xác thực email · UniWork
+```
+
+# Test source
+
+```ts
+  1  | import { expect, test, type Page } from "@playwright/test";
+  2  | import { VERIFICATION_CODE } from "./auth-nav";
+  3  | import { VI_LOCALE_STATE } from "./locale-state";
+  4  | import { onboardToWorkspace, workspaceSeed } from "./onboard";
+  5  | 
+  6  | /**
+  7  |  * UNI-2226: shareable workspace invite link. Owner creates the link in
+  8  |  * Settings › Members; a second account with no organization opens /join/…
+  9  |  * and lands in the workspace — including when they still need to register.
+  10 |  */
+  11 | test.describe("membership invite link", () => {
+  12 |   test.describe.configure({ timeout: 240_000 });
+  13 | 
+  14 |   async function createWorkspaceInviteLink(owner: Page, orgSlug: string, wsSlug: string) {
+  15 |     await owner.goto(`/${orgSlug}/${wsSlug}/settings?tab=members`);
+  16 |     await expect(owner.getByRole("heading", { name: "Mời bằng liên kết" })).toBeVisible({ timeout: 15_000 });
+  17 |     await owner.getByRole("button", { name: "Tạo liên kết" }).click();
+  18 |     await expect(owner.getByRole("button", { name: /Sao chép liên kết|Đã sao chép liên kết/ })).toBeVisible({
+  19 |       timeout: 15_000,
+  20 |     });
+  21 |     const linkText = await owner.locator("span.text-caption").filter({ hasText: "/join/" }).first().innerText();
+  22 |     const match = linkText.match(/\/join\/([^#\s]+)#secret=([^\s]+)/);
+  23 |     expect(match).toBeTruthy();
+  24 |     return { linkId: match![1], secret: match![2] };
+  25 |   }
+  26 | 
+  27 |   test("a workspace invite link joins someone with no organization", async ({ browser }) => {
+  28 |     const stamp = Date.now();
+  29 |     const ownerSeed = workspaceSeed("mil", "owner", stamp);
+  30 | 
+  31 |     const owner = await (await browser.newContext({ storageState: VI_LOCALE_STATE })).newPage();
+  32 |     await onboardToWorkspace(owner, ownerSeed);
+  33 |     const { linkId, secret } = await createWorkspaceInviteLink(owner, ownerSeed.orgSlug, ownerSeed.wsSlug);
+  34 | 
+  35 |     // Unregistered: /join → login?next= → register → verify → back to /join → join org.
+  36 |     const invitee = await (await browser.newContext({ storageState: VI_LOCALE_STATE })).newPage();
+  37 |     await invitee.goto(`/join/${linkId}#secret=${secret}`);
+  38 |     await expect(invitee).toHaveURL(/\/login\?next=/, { timeout: 15_000 });
+  39 |     await invitee.getByRole("link", { name: "Đăng ký" }).click();
+  40 |     await expect(invitee).toHaveURL(/\/register\?next=/, { timeout: 15_000 });
+  41 | 
+  42 |     const email = `mil-join-${stamp}@example.com`;
+  43 |     await invitee.getByLabel("Tên hiển thị").fill("mil-join");
+  44 |     await invitee.getByLabel("Email").fill(email);
+  45 |     await invitee.getByLabel("Mật khẩu", { exact: true }).fill("password123");
+  46 |     await invitee.getByRole("button", { name: "Đăng ký" }).click();
+  47 |     await expect(invitee).toHaveURL(/\/verify\?next=/, { timeout: 15_000 });
+  48 |     await invitee.getByLabel("Mã xác thực").fill(VERIFICATION_CODE);
+  49 |     await expect(invitee).toHaveURL(new RegExp(`/join/${linkId}`), { timeout: 20_000 });
+  50 | 
+  51 |     await expect(invitee.getByRole("heading", { name: new RegExp(`Tham gia ${ownerSeed.orgName}`) })).toBeVisible({
+  52 |       timeout: 20_000,
+  53 |     });
+  54 |     await invitee.getByRole("button", { name: "Tham gia", exact: true }).click();
+  55 |     // The join lands on the workspace root (Home), which has no trailing slash.
+> 56 |     await expect(invitee).toHaveURL(new RegExp(`/${ownerSeed.orgSlug}/${ownerSeed.wsSlug}/?$`), { timeout: 20_000 });
+     |                           ^ Error: expect(page).toHaveURL(expected) failed
+  57 | 
+  58 |     await owner.context().close();
+  59 |     await invitee.context().close();
+  60 |   });
+  61 | });
+  62 | 
+```===== e2e/test-results/seo-guides-render-without--48407-ated-localized-destinations/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: seo.spec.ts >> guides render without JavaScript and expose related localized destinations
+- Location: seo.spec.ts:46:1
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('article')
+Expected substring: "yêu cầu dùng khóa API riêng đi qua máy chủ UniWork"
+Received string:    "UniWork/Hướng dẫnHướng dẫn UniOffice: file trên máy, AI và workspaceHướng dẫn này giúp bạn mở một tài liệu trong UniOffice, chọn nơi lưu và kiểm tra kết quả AI trước khi chia sẻ. UniOffice có sáu nhóm trình soạn thảo: Docs, Sheets, Slides, PDF, HTML và Markdown. Các bước dưới đây phân biệt Office trên web, file trên máy và tài liệu trong workspace UniWork.Trong bài nàyOffice trên web hỗ trợ những định dạng nào?Cài bản dùng thử phù hợpPhân biệt nơi lưu fileThực hành: rà soát một tài liệu DOCX với AIKhi nào cần kết nốiNếu không mở được file, lưu hoặc dùng AIKiểm tra kết quả AI trước khi lưuOffice trên web hỗ trợ những định dạng nào?Các trình soạn thảo trên web tương ứng với DOCX, XLSX, PPTX, PDF, HTML và Markdown. Thao tác cụ thể còn phụ thuộc quyền của bạn, cấu hình của tổ chức và trình soạn thảo đang khả dụng.Mở được một định dạng không phải cam kết tương thích đầy đủ với mọi tệp, macro, đối tượng nhúng hay cách dàn trang của phần mềm khác. XLS, ODT hoặc định dạng khác không mặc nhiên thuộc sáu trình soạn thảo web nêu trên.Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và in; xuất PDFPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTMLCài bản dùng thử phù hợpMở trang UniOffice và chọn bộ cài được công bố cho hệ điều hành của bạn. Các lựa chọn tải và phiên bản phụ thuộc danh mục phát hành hiện có trên trang.Xem yêu cầu của bản phát hành trước khi cài. Bản dùng thử và trạng thái tính năng không phải cam kết về mọi định dạng hoặc mọi thao tác trên tài liệu.Phân biệt nơi lưu fileFile lưu trên máy nằm trên máy của bạn. Tài liệu lưu vào workspace gắn với workspace UniWork của nhóm, nơi quyền truy cập và chức năng chia sẻ được áp dụng.Chọn đúng nơi lưu theo nhu cầu cộng tác. Trước khi chia sẻ, kiểm tra người nhận và phạm vi truy cập của tài liệu.Mở file trên máy không đồng nghĩa đã lưu hoặc tự đồng bộ vào workspace. Kiểm tra thao tác lưu, phiên bản và người nhận trước khi cộng tác.Xác định file đang mở từ máy hay từ workspace.Kiểm tra nơi lưu trước khi ghi thay đổi.Kiểm tra người có quyền truy cập trước khi chia sẻ.Thực hành: rà soát một tài liệu DOCX với AIDùng bản sao của một tài liệu DOCX mà bạn được phép xử lý. Ví dụ dưới đây dành cho Docs trên web khi tổ chức đã bật trình soạn thảo và AI; thao tác không tự tạo hoặc chia sẻ tài liệu cho người khác.Mở tài liệu từ đúng workspace và xác nhận bạn có quyền chỉnh sửa.Đọc bản gốc, xác định phần cần tóm tắt hoặc viết lại trước khi gửi yêu cầu cho AI.Nếu AI khả dụng, nhập mục tiêu cụ thể theo ví dụ bên dưới. Không gửi phần nội dung mà tổ chức không cho phép xử lý bằng AI.Đối chiếu kết quả với bản gốc; kiểm tra số liệu, ngày, tên và phần AI có thể bỏ sót.Lưu bằng thao tác được cấp quyền, mở lại để kiểm tra rồi mới chia sẻ cho đúng người nhận.Ví dụ yêu cầu: Tóm tắt kế hoạch triển khaiTóm tắt tài liệu thành ba phần: mục tiêu, mốc công việc và các điểm còn cần xác nhận. Giữ nguyên tên và ngày có trong bản gốc; đánh dấu thông tin chưa được nêu thay vì tự bổ sung. Đây là ví dụ thực hành, không phải kết quả AI đã tạo hay dữ liệu khách hàng.Khi nào cần kết nốiTài liệu workspace, đăng nhập và AI cloud cần kết nối. Với nhu cầu làm việc offline, kiểm tra bản Office desktop và định dạng được bản phát hành đó hỗ trợ trước khi sử dụng.Không mặc định rằng AI chạy hoàn toàn trên máy hoặc mọi dữ liệu đều được xử lý ở cùng một nơi. Trao đổi về cấu hình nhà cung cấp và yêu cầu dữ liệu của tổ chức trước khi dùng nội dung nhạy cảm.Nếu không mở được file, lưu hoặc dùng AINếu không mở được file, kiểm tra định dạng trong bảng phía trên và thử một bản sao nhỏ, không chứa dữ liệu nhạy cảm. Đổi tên đuôi tệp không chuyển đổi được nội dung sang định dạng khác.Nếu thiếu thao tác lưu hoặc xuất, kiểm tra quyền của bạn và thao tác được trình soạn thảo hỗ trợ. Trạng thái chỉ xem không cấp quyền chỉnh sửa; tài liệu không nên được chuyển sang workspace khác chỉ để thử vượt quyền.Nếu AI không khả dụng, kiểm tra kết nối, quyền và gói sử dụng với quản trị viên; credit AI của gói có thể đã hết.Khi b===== S9_SERVER_AI
+19:43:29.141 INF local storage adapter ready dir=/tmp/uniwork-uploads
+19:43:29.144 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+19:43:29.145 INF ai gateway enabled component=server provider=fake
+19:45:40.842 INF http request method=GET path=/api/v1/workspaces/01M69QY20F95FWVJ4AW5YXDVYT/ai/capabilities status=200 duration=25.568ms request_id=cursor/PUrZvvYzgc-000061 correlation_id=2e20acb3492f5ada8fcd40591f631377 trace_id=2e20acb3492f5ada8fcd40591f631377 span_id=8cdc7022a6674c97 organization_id=01M69QY200849XBQJCWR14GKB8 workspace_id=01M69QY20F95FWVJ4AW5YXDVYT actor_id=01M69QY1Z88KX5R5WGR3E6BAJ6 actor_kind=human
+19:45:42.182 INF http request method=GET path=/api/v1/workspaces/01M69QY20F95FWVJ4AW5YXDVYT/ai/capabilities status=200 duration=20.765ms request_id=cursor/PUrZvvYzgc-000099 correlation_id=a5a841385d34f14c69a083047caecdbe trace_id=a5a841385d34f14c69a083047caecdbe span_id=054291e5c5a9073e organization_id=01M69QY200849XBQJCWR14GKB8 workspace_id=01M69QY20F95FWVJ4AW5YXDVYT actor_id=01M69QY1Z88KX5R5WGR3E6BAJ6 actor_kind=human
+19:45:45.157 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=19.754ms request_id=cursor/PUrZvvYzgc-000151 correlation_id=cb0e91f098d76b137c734df0f1a989ce trace_id=cb0e91f098d76b137c734df0f1a989ce span_id=6deac18e18ddf207 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:46.199 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=25.71ms request_id=cursor/PUrZvvYzgc-000197 correlation_id=0f51eae0ee4f921adf3ed408dd177504 trace_id=0f51eae0ee4f921adf3ed408dd177504 span_id=b7766be5628e5677 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:47.066 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=21.091ms request_id=cursor/PUrZvvYzgc-000233 correlation_id=02e2be59508adc2c1b22a297e621613e trace_id=02e2be59508adc2c1b22a297e621613e span_id=f42b12961e8bbf9e organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:49.422 INF http request method=GET path=/api/v1/workspaces/01M69QY6B8TMJFTDF8AMC0BZE3/ai/capabilities status=200 duration=11.214ms request_id=cursor/PUrZvvYzgc-000283 correlation_id=e8f23c231cf7265960b682451b790069 trace_id=e8f23c231cf7265960b682451b790069 span_id=0f88b36da0881b23 organization_id=01M69QY6B0ABPVXZNXXT2BNVRV workspace_id=01M69QY6B8TMJFTDF8AMC0BZE3 actor_id=01M69QY6AGBZXX7Y78JK4Z0Y4X actor_kind=human
+19:45:52.169 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=7.603ms request_id=cursor/PUrZvvYzgc-000352 correlation_id=9dccb02bae3104342976127af90b3251 trace_id=9dccb02bae3104342976127af90b3251 span_id=355e4d43b158f244 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:52.853 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=11.984ms request_id=cursor/PUrZvvYzgc-000399 correlation_id=a3a6e21bdcc1f5ef34c0089a8e2108cc trace_id=a3a6e21bdcc1f5ef34c0089a8e2108cc span_id=2dcaa0cd94bc257d organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:53.792 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=6.375ms request_id=cursor/PUrZvvYzgc-000432 correlation_id=ba0f9c63a5a7074df6f4884591f2c799 trace_id=ba0f9c63a5a7074df6f4884591f2c799 span_id=cf1160ecf5064044 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:56.452 INF http request method=GET path=/api/v1/workspaces/01M69QYD664TYQZSKQ3FXH404E/ai/capabilities status=200 duration=16.573ms request_id=cursor/PUrZvvYzgc-000485 correlation_id=104ffe0c123298b6d9e29d15a552532d trace_id=104ffe0c123298b6d9e29d15a552532d span_id=01610d53206cdf97 organization_id=01M69QYD5ZK0D213S3PN7EK111 workspace_id=01M69QYD664TYQZSKQ3FXH404E actor_id=01M69QYD5H9BJTEP8JT61SRS2M actor_kind=human
+19:45:59.370 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=23.014ms request_id=cursor/PUrZvvYzgc-000547 correlation_id=acc552d8b5baf48944984484bb7a7a25 trace_id=acc552d8b5baf48944984484bb7a7a25 span_id=5976c0140dc068c6 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:00.096 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=12.937ms request_id=cursor/PUrZvvYzgc-000593 correlation_id=9828ce5ec17c5ebbc94a8d68ab87bdf9 trace_id=9828ce5ec17c5ebbc94a8d68ab87bdf9 span_id=2188bacee1c41b4d organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:01.017 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=11.912ms request_id=cursor/PUrZvvYzgc-000626 correlation_id=851408b6e5b70336d6ef1eb35220df71 trace_id=851408b6e5b70336d6ef1eb35220df71 span_id=971b04600eda6f3a organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYM5BXGQ4E8CN5Y95PK5Z actor_kind=human
+19:46:05.472 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=13.99ms request_id=cursor/PUrZvvYzgc-000704 correlation_id=2c15a8b0999bd4a4e970953dfb447165 trace_id=2c15a8b0999bd4a4e970953dfb447165 span_id=4334b1e12f57dce0 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:06.552 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=5.689ms request_id=cursor/PUrZvvYzgc-000749 correlation_id=05c59c2c71249d8150b9c8625f1596d7 trace_id=05c59c2c71249d8150b9c8625f1596d7 span_id=f5e0eb58395d2ecd organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:07.478 INF http request method=GET path=/api/v1/workspaces/01M69QYM612FVM7REJEMYFN1WZ/ai/capabilities status=200 duration=2.924ms request_id=cursor/PUrZvvYzgc-000803 correlation_id=2f3eafe628eeeb824b08c6d5e0ee38b7 trace_id=2f3eafe628eeeb824b08c6d5e0ee38b7 span_id=200815330660c8d9 organization_id=01M69QYM5RPAW0CEXE4CMFCAE6 workspace_id=01M69QYM612FVM7REJEMYFN1WZ actor_id=01M69QYT19XPQBP8PJ7JVVZW6B actor_kind=human
+19:46:10.378 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=10.396ms request_id=cursor/PUrZvvYzgc-000855 correlation_id=f496ebde7c8b2ee6f5bd1c1e7e36f240 trace_id=f496ebde7c8b2ee6f5bd1c1e7e36f240 span_id=ff01087a49a86578 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:11.458 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=8.727ms request_id=cursor/PUrZvvYzgc-000900 correlation_id=4d551a1cee5e47cacc87829a7f485ec4 trace_id=4d551a1cee5e47cacc87829a7f485ec4 span_id=ac9083b507748979 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:12.377 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=2.72ms request_id=cursor/PUrZvvYzgc-000931 correlation_id=b9b746cc2bcf69774d1360752376065d trace_id=b9b746cc2bcf69774d1360752376065d span_id=279a99914eaa7ff6 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:14.906 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=9.259ms request_id=cursor/PUrZvvYzgc-000978 correlation_id=6b5022e914f4d1aa942e37f64f261e28 trace_id=6b5022e914f4d1aa942e37f64f261e28 span_id=18149b871f50fee5 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:15.975 INF http request method=GET path=/api/v1/workspaces/01M69QYZ03DMZYAGAK8PTYXMX5/ai/capabilities status=200 duration=7.747ms request_id=cursor/PUrZvvYzgc-001025 correlation_id=3b2dc641b55840264bbc931097fd744e trace_id=3b2dc641b55840264bbc931097fd744e span_id=78cfa1db2f55bdd5 organization_id=01M69QYYZV58RZH7B2PS2BS71V workspace_id=01M69QYZ03DMZYAGAK8PTYXMX5 actor_id=01M69QYYZFW6WHTGK12SY4TSQ2 actor_kind=human
+19:46:20.075 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=6.66ms request_id=cursor/PUrZvvYzgc-001092 correlation_id=55c6f9e1a25de90f32bb433232d6fa12 trace_id=55c6f9e1a25de90f32bb433232d6fa12 span_id=31b19994e33af92a organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:21.130 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=7.522ms request_id=cursor/PUrZvvYzgc-001137 correlation_id=6bb2c0206a65b7039d48e62cdd75f2e2 trace_id=6bb2c0206a65b7039d48e62cdd75f2e2 span_id=ad1b6854676e867d organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:22.870 INF http request method=GET path=/api/v1/workspaces/01M69QZ8F0D2ZNEZYZMWZ02NW8/ai/capabilities status=200 duration=13.1ms request_id=cursor/PUrZvvYzgc-001169 correlation_id=808e9b1844aa26bc2bcf5b9eb88e7b61 trace_id=808e9b1844aa26bc2bcf5b9eb88e7b61 span_id=8904b63eabc07b78 organization_id=01M69QZ8EV3GZMQPCNVHJS4J3R workspace_id=01M69QZ8F0D2ZNEZYZMWZ02NW8 actor_id=01M69QZ8EFXV4HXKG8AEQRA5R4 actor_kind=human
+19:46:26.663 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=4.095ms request_id=cursor/PUrZvvYzgc-001235 correlation_id=d7d02993dacbce6899fb306da537c17b trace_id=d7d02993dacbce6899fb306da537c17b span_id=a4e9204c8ce976a3 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:27.722 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=6.863ms request_id=cursor/PUrZvvYzgc-001277 correlation_id=218278ed032539d1a13dc286166c8913 trace_id=218278ed032539d1a13dc286166c8913 span_id=1c0623cdd287f849 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:28.582 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=5.561ms request_id=cursor/PUrZvvYzgc-001309 correlation_id=0ee1965381aa8fee81d9b6b5a81302d6 trace_id=0ee1965381aa8fee81d9b6b5a81302d6 span_id=a61d6ddaccfa80c7 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:31.095 INF http request method=GET path=/api/v1/workspaces/01M69QZEXMSRGZNSH2XN3H7PTJ/ai/capabilities status=200 duration=6.425ms request_id=cursor/PUrZvvYzgc-001358 correlation_id=46a19f8f6dfccfcfbfae46e947f2ca56 trace_id=46a19f8f6dfccfcfbfae46e947f2ca56 span_id=a80ad59c1bc1ba98 organization_id=01M69QZEXFBN1V3P11TZD64BRH workspace_id=01M69QZEXMSRGZNSH2XN3H7PTJ actor_id=01M69QZEX3CX46922F6WW69E6K actor_kind=human
+19:46:34.590 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=3.829ms request_id=cursor/PUrZvvYzgc-001417 correlation_id=9f9fcb9703ac6c83ae21dcc21c895c2d trace_id=9f9fcb9703ac6c83ae21dcc21c895c2d span_id=0a5bab649244b728 organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:35.675 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=15.705ms request_id=cursor/PUrZvvYzgc-001462 correlation_id=be32f69cffcf4f2638c29d12716bec53 trace_id=be32f69cffcf4f2638c29d12716bec53 span_id=86abce1a6f871c7a organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:36.617 INF http request method=GET path=/api/v1/workspaces/01M69QZPMWK8A66TB5JMVKYSAP/ai/capabilities status=200 duration=9.546ms request_id=cursor/PUrZvvYzgc-001493 correlation_id=2261be10e6aa8375fb615e83f6843243 trace_id=2261be10e6aa8375fb615e83f6843243 span_id=b5296b01e6ec80cc organization_id=01M69QZPMM7JWD42JQW9B48F47 workspace_id=01M69QZPMWK8A66TB5JMVKYSAP actor_id=01M69QZPM2ZZM1F7T2A69BD5QB actor_kind=human
+19:46:40.625 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=13.007ms request_id=cursor/PUrZvvYzgc-001568 correlation_id=aea7c206b019ef01fa93b10f49604f3c trace_id=aea7c206b019ef01fa93b10f49604f3c span_id=66eb35f0f6ad0833 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:41.700 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=11.407ms request_id=cursor/PUrZvvYzgc-001608 correlation_id=606515d7d9738a1560f81765e4dc0e2c trace_id=606515d7d9738a1560f81765e4dc0e2c span_id=6b082a840739c8c9 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:42.566 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=7.259ms request_id=cursor/PUrZvvYzgc-001644 correlation_id=5ffe38c73adf90e1a72a2e952e565c9f trace_id=5ffe38c73adf90e1a72a2e952e565c9f span_id=ef924262b63cb880 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:44.426 INF http request method=GET path=/api/v1/workspaces/01M69QZWGWZ49RWPS3EBJ2VNEE/ai/capabilities status=200 duration=4.502ms request_id=cursor/PUrZvvYzgc-001683 correlation_id=7dab655137bc6633af83f80e6bf42302 trace_id=7dab655137bc6633af83f80e6bf42302 span_id=bca3c59350b88772 organization_id=01M69QZWGMNG353SN1XKVAHP75 workspace_id=01M69QZWGWZ49RWPS3EBJ2VNEE actor_id=01M69QZWG7ABR52EN89VFWSRS7 actor_kind=human
+19:46:47.315 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=3.236ms request_id=cursor/PUrZvvYzgc-001719 correlation_id=70955a8b54caf6e5f77c9b853a6df2ae trace_id=70955a8b54caf6e5f77c9b853a6df2ae span_id=dcdff019eba2fb0c organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:48.405 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=7.18ms request_id=cursor/PUrZvvYzgc-001761 correlation_id=bcc57c8711680c8b1414582e764dad6c trace_id=bcc57c8711680c8b1414582e764dad6c span_id=3f9ae8b58f0aa8d6 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:49.335 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=17.107ms request_id=cursor/PUrZvvYzgc-001792 correlation_id=368ebf41fa1dbd2a73a72926597bc7c9 trace_id=368ebf41fa1dbd2a73a72926597bc7c9 span_id=9efa4e4ea0e64a14 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:51.755 INF http request method=GET path=/api/v1/workspaces/01M69R033E2FEJ8XEEQFM7S5Q8/ai/capabilities status=200 duration=6.105ms request_id=cursor/PUrZvvYzgc-001848 correlation_id=9d39c681aea8eeffe92679a3dc97d35e trace_id=9d39c681aea8eeffe92679a3dc97d35e span_id=f617bf3a1ac443d6 organization_id=01M69R033612ACF20ZJNE1WB4K workspace_id=01M69R033E2FEJ8XEEQFM7S5Q8 actor_id=01M69R032SH37MRV10JWG8PNNJ actor_kind=human
+19:46:54.482 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=3.951ms request_id=cursor/PUrZvvYzgc-001918 correlation_id=6c1fa89042a75c8db5891cb8fe364c84 trace_id=6c1fa89042a75c8db5891cb8fe364c84 span_id=fb8e527c425de48f organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:55.536 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=2.927ms request_id=cursor/PUrZvvYzgc-001964 correlation_id=beee71ebab8fece0ac4e6948f22cbedd trace_id=beee71ebab8fece0ac4e6948f22cbedd span_id=52be9e3cd2d9721b organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:56.418 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=9.637ms request_id=cursor/PUrZvvYzgc-001995 correlation_id=84d97b9f266f1ab8d136a350aeca788e trace_id=84d97b9f266f1ab8d136a350aeca788e span_id=fbb88951b07fcecf organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:46:58.760 INF http request method=GET path=/api/v1/workspaces/01M69R0A2XWCDM8XPA9Q6XGE83/ai/capabilities status=200 duration=2.581ms request_id=cursor/PUrZvvYzgc-002052 correlation_id=f53fa12e061a278c87108408634ba829 trace_id=f53fa12e061a278c87108408634ba829 span_id=9db08b8568fab9b4 organization_id=01M69R0A2PARC0MDP8H82VHGEB workspace_id=01M69R0A2XWCDM8XPA9Q6XGE83 actor_id=01M69R0A28CQJNE3E4WHJVTE6N actor_kind=human
+19:47:02.093 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=1.303ms request_id=cursor/PUrZvvYzgc-002118 correlation_id=437fb7e33749e219b0b3acaf1cdbcdc1 trace_id=437fb7e33749e219b0b3acaf1cdbcdc1 span_id=21477d0f424b6df5 organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:03.150 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=5.614ms request_id=cursor/PUrZvvYzgc-002159 correlation_id=0761d3fd2dad79ffbd7ff94b3d82eb4b trace_id=0761d3fd2dad79ffbd7ff94b3d82eb4b span_id=a391bf77bb73c2a5 organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:03.990 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=3.61ms request_id=cursor/PUrZvvYzgc-002193 correlation_id=2b2f4b7a9a98211b2e6031db8d3544a3 trace_id=2b2f4b7a9a98211b2e6031db8d3544a3 span_id=1fca0c879b64f8dc organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:47:06.449 INF http request method=GET path=/api/v1/workspaces/01M69R0HH4YP4BDMWMGEKXBRX4/ai/capabilities status=200 duration=9.693ms request_id=cursor/PUrZvvYzgc-002255 correlation_id=0d04e61bc6c774ae3ed6130f8ca464b0 trace_id=0d04e61bc6c774ae3ed6130f8ca464b0 span_id=46a9a4650964ed3c organization_id=01M69R0HGXM3YY7Z3131EDJNZG workspace_id=01M69R0HH4YP4BDMWMGEKXBRX4 actor_id=01M69R0HGFYATBA8SRAWVJWSS9 actor_kind=human
+19:48:38.131 INF http request method=GET path=/api/v1/workspaces/01M69R3H2YV1FBTRDT4F2FY9MR/ai/capabilities status=200 duration=12.309ms request_id=cursor/PUrZvvYzgc-002389 correlation_id=1a5128019aabe77f7f0b4c6ec649d990 trace_id=1a5128019aabe77f7f0b4c6ec649d990 span_id=810f0222674c332a organization_id=01M69R3H0W47SM3ARNRTQDJGDK workspace_id=01M69R3H2YV1FBTRDT4F2FY9MR actor_id=01M69R3GM2PXP6NJRF4AQE53FG actor_kind=human
+19:48:38.936 INF http request method=GET path=/api/v1/workspaces/01M69R3H2YV1FBTRDT4F2FY9MR/ai/capabilities status=200 duration=4.132ms request_id=cursor/PUrZvvYzgc-002436 correlation_id=902f42a4f554b93dffbdeb2ecd866e94 trace_id=902f42a4f554b93dffbdeb2ecd866e94 span_id=063434973d331f12 organization_id=01M69R3H0W47SM3ARNRTQDJGDK workspace_id=01M69R3H2YV1FBTRDT4F2FY9MR actor_id=01M69R3GM2PXP6NJRF4AQE53FG actor_kind=human
+19:50:46.431 INF http request method=GET path=/api/v1/workspaces/01M69R7EBN574FR1Q7YWG6VZ0R/ai/capabilities status=200 duration=25.041ms request_id=cursor/PUrZvvYzgc-002596 correlation_id=e22af3da07f305f101b9d44a2620a4cb trace_id=e22af3da07f305f101b9d44a2620a4cb span_id=57ab3e1364d2d471 organization_id=01M69R7E92FZRHN3M2DKDC2P1Q workspace_id=01M69R7EBN574FR1Q7YWG6VZ0R actor_id=01M69R7DW8Z1JHXZT4B37WGSM6 actor_kind=human
+19:50:47.233 INF http request method=GET path=/api/v1/workspaces/01M69R7EBN574FR1Q7YWG6VZ0R/ai/capabilities status=200 duration=5.84ms request_id=cursor/PUrZvvYzgc-002649 correlation_id=7f6597ec23c5c307c44b4390b4a0eea2 trace_id=7f6597ec23c5c307c44b4390b4a0eea2 span_id=946a7694048aca4b organization_id=01M69R7E92FZRHN3M2DKDC2P1Q workspace_id=01M69R7EBN574FR1Q7YWG6VZ0R actor_id=01M69R7DW8Z1JHXZT4B37WGSM6 actor_kind=human
+
+E2E_OURS2_EXIT=1
