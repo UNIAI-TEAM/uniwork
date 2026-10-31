@@ -151,7 +151,7 @@ describe("chat actions", () => {
   it("makes a task from a message or its follow-up and refreshes the room's task cards", async () => {
     const qc = new QueryClient();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
-    const task = { id: "t1", title: "Báo giá", identifier: "UNI-9", status: "todo" };
+    const task = { id: "t1", title: "Báo giá", identifier: "UNI-9", status: "todo", priority: "" };
     const direct = vi.spyOn(chatApi, "createTaskFromMessage").mockResolvedValueOnce(task).mockResolvedValueOnce(null);
     const convert = vi.spyOn(chatApi, "convertFollowUpToTask").mockResolvedValue(task);
     expect(await createTaskFromMessage(qc, "w1", "r1", { messageId: "m1", title: "Báo giá" })).toBe(task);
