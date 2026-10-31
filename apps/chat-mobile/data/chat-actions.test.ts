@@ -13,10 +13,15 @@ import {
   followUpCommand,
   joinChannel,
   leaveRoom,
+  linkMessageToTask,
   markThreadRead,
   resolveDMRoom,
+  setChatNickname,
   setRoomMuted,
+  setRoomWallpaper,
+  shareMessageAsDocument,
   togglePin,
+  unlinkMessageTask,
 } from "./chat-actions";
 import { refreshMessageMedia } from "./chat-cache";
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
@@ -154,10 +159,19 @@ describe("chat actions", () => {
     const task = { id: "t1", title: "Báo giá", identifier: "UNI-9", status: "todo", priority: "" };
     const direct = vi.spyOn(chatApi, "createTaskFromMessage").mockResolvedValueOnce(task).mockResolvedValueOnce(null);
     const convert = vi.spyOn(chatApi, "convertFollowUpToTask").mockResolvedValue(task);
-    expect(await createTaskFromMessage(qc, "w1", "r1", { messageId: "m1", title: "Báo giá" })).toBe(task);
+    expect(
+      await createTaskFromMessage(qc, "w1", "r1", {
+        messageId: "m1",
+        title: "Báo giá",
+        description: undefined,
+        due_date: "2026-11-01",
+        priority: "high",
+        status: "todo",
+      }),
+    ).toBe(task);
     expect(await createTaskFromMessage(qc, "w1", "r1", { followUpId: "f1" })).toBe(task);
     await expect(createTaskFromMessage(qc, "w1", "r1", { messageId: "m2" })).rejects.toThrow("chat_task_create_failed");
-    expect(direct).toHaveBeenCalledWith("w1", "m1", { title: "Báo giá" });
+    expect(direct).toHaveBeenCalledWith("w1", "m1", { title: "Báo giá", due_date: "2026-11-01", priority: "high", status: "todo" });
     expect(convert).toHaveBeenCalledWith("w1", "f1");
     expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([
       chatKeys.roomLinksRoot("w1", "r1"),
@@ -165,6 +179,61 @@ describe("chat actions", () => {
       chatKeys.followUps("w1"),
       chatKeys.roomLinksRoot("w1", "r1"),
     ]);
+  });
+
+  it("sets a room's wallpaper and puts the previous list back when the server refuses", async () => {
+    const qc = new QueryClient();
+    const permissions = {
+      allow_change_profile: true,
+      allow_pin_content: true,
+      allow_create_notes: true,
+      allow_create_polls: true,
+      allow_send_messages: true,
+      allow_forward: true,
+    };
+    const patch = vi.spyOn(chatApi, "patchRoom").mockResolvedValue(permissions);
+    await setRoomWallpaper(qc, "w1", "r1", "sky");
+    expect(rooms(qc)).toBeUndefined();
+    qc.setQueryData(chatKeys.rooms("w1"), [room("r1"), room("r2")]);
+    await setRoomWallpaper(qc, "w1", "r1", "stars");
+    expect(rooms(qc)?.map((item) => item.wallpaper)).toEqual([{ preset: "stars" }, undefined]);
+    patch.mockRejectedValueOnce(new TypeError("offline"));
+    await expect(setRoomWallpaper(qc, "w1", "r1", "mint")).rejects.toThrow("offline");
+    expect(rooms(qc)?.map((item) => item.wallpaper)).toEqual([{ preset: "stars" }, undefined]);
+    expect(patch).toHaveBeenCalledWith("w1", "r1", { wallpaper: { preset: "mint" } });
+  });
+
+  it("saves a nickname and refreshes the list; a refusal throws", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const set = vi.spyOn(chatApi, "setNickname").mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await setChatNickname(qc, "w1", "u2", "Bé");
+    expect(set).toHaveBeenCalledWith("w1", "u2", "Bé");
+    await expect(setChatNickname(qc, "w1", "u2", "")).rejects.toThrow("chat_nickname_failed");
+    expect(invalidate.mock.calls.map(([call]) => call?.queryKey)).toEqual([chatKeys.nicknames("w1")]);
+  });
+
+  it("links a message to a task and takes the card off; a refusal throws", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const link = { id: "l1", message_id: "m1", target_type: "task", target_id: "t1", relation: "created_from" };
+    vi.spyOn(chatApi, "linkMessageToTask").mockResolvedValueOnce(link).mockResolvedValueOnce(null);
+    vi.spyOn(chatApi, "deleteMessageLink").mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await linkMessageToTask(qc, "w1", "r1", "m1", "t1");
+    await expect(linkMessageToTask(qc, "w1", "r1", "m1", "t1")).rejects.toThrow("chat_link_task_failed");
+    await unlinkMessageTask(qc, "w1", "r1", "m1", "l1");
+    await expect(unlinkMessageTask(qc, "w1", "r1", "m1", "l1")).rejects.toThrow("chat_unlink_failed");
+    expect(invalidate.mock.calls.map(([call]) => call?.queryKey)).toEqual([chatKeys.roomLinksRoot("w1", "r1"), chatKeys.roomLinksRoot("w1", "r1")]);
+  });
+
+  it("shares a file as a document in the room; no message back is a failure", async () => {
+    const qc = new QueryClient();
+    withTimeline(qc, []);
+    const shared = msg("m2", { kind: "document" });
+    vi.spyOn(chatApi, "shareMessageAsDocument").mockResolvedValueOnce(shared).mockResolvedValueOnce(null);
+    await shareMessageAsDocument(qc, "w1", "r1", "m1");
+    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!).map((item) => item.id)).toEqual(["m2"]);
+    await expect(shareMessageAsDocument(qc, "w1", "r1", "m1")).rejects.toThrow("chat_share_document_failed");
   });
 
   it("leaves a room: gone from the list and its timeline dropped; a refusal throws", async () => {

@@ -140,6 +140,9 @@ describe("labels", () => {
     expect(messagePreviewText(byKind.post, tVi)).toBe("Tin");
     expect(messagePreviewText(byKind.note, tVi)).toBe("Ghi chú");
     expect(messagePreviewText(byKind.reminder, tVi)).toBe("Họp");
+    expect(messagePreviewText(byKind.document, tVi)).toBe("Kế hoạch");
+    expect(messagePreviewText(byKind.document_version, tVi)).toBe("Kế hoạch");
+    expect(messagePreviewText({ ...base, kind: "document" }, tVi)).toBe("hi");
     expect(messagePreviewText({ ...base, body: "![gif:vui](https://media.tenor.com/a.gif)" }, tVi)).toBe("GIF · vui");
     expect(messagePreviewText({ ...base, body: " " }, tVi)).toBe("");
   });
@@ -158,5 +161,8 @@ describe("pendingPreviewText", () => {
     expect(pendingPreviewText({ body: "", file: { uri: "file:///a", name: "báo giá.pdf" } }, tVi)).toBe("báo giá.pdf");
     expect(pendingPreviewText({ body: "", file: { uri: "file:///v", name: "voice.m4a" }, voiceDurationMs: 3_000 }, tVi)).toBe("Tin nhắn thoại");
     expect(pendingPreviewText({ body: "", reminder: { body: "Gửi báo giá", remindAt: "2026-10-18T02:00:00.000Z", repeat: "none" } }, tVi)).toBe("Gửi báo giá");
+    expect(pendingPreviewText({ body: "", poll: { question: "Ăn gì?", options: ["Phở", "Bún"] } }, tVi)).toBe("Ăn gì?");
+    expect(pendingPreviewText({ body: "", note: { body: "Ghi chú" } }, tVi)).toBe("Ghi chú");
+    expect(pendingPreviewText({ body: "", post: { title: "Tin", body: "Nội dung" } }, tVi)).toBe("Tin");
   });
 });

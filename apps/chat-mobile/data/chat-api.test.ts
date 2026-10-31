@@ -222,6 +222,15 @@ const cases: Case[] = [
     read: true,
     fallback: false,
   },
+  {
+    name: "deleteMessageLink ok",
+    call: (c) => c.deleteMessageLink("w1", "m1", "l1"),
+    path: `${W}/chat/messages/m1/links/l1`,
+    method: "DELETE",
+    good: { ok: true },
+    read: true,
+    fallback: false,
+  },
   { name: "deleteFollowUp status", call: (c) => c.deleteFollowUp("w1", "f1"), path: `${W}/chat/follow-ups/f1`, method: "DELETE", good: { status: "ok" }, read: true, fallback: false },
   {
     name: "convertFollowUpToTask",
@@ -395,6 +404,24 @@ const cases: Case[] = [
     fallback: [],
   },
   {
+    name: "listDocuments absent",
+    call: (c) => c.listDocuments("w1", "ke"),
+    path: `${W}/documents?q=ke&limit=30`,
+    method: "GET",
+    good: {},
+    read: [],
+    fallback: [],
+  },
+  {
+    name: "listDocuments blank query",
+    call: (c) => c.listDocuments("w1", "  "),
+    path: `${W}/documents?limit=30`,
+    method: "GET",
+    good: { documents: [] },
+    read: [],
+    fallback: [],
+  },
+  {
     name: "listTasks",
     call: (c) => c.listTasks("w1"),
     path: `${W}/tasks`,
@@ -403,6 +430,7 @@ const cases: Case[] = [
     read: [{ id: "t1", title: "Họp", identifier: "UNI-1" }],
     fallback: [],
   },
+  { name: "listTasks absent", call: (c) => c.listTasks("w1"), path: `${W}/tasks`, method: "GET", good: {}, read: [], fallback: [] },
   {
     name: "linkMessageToTask",
     call: (c) => c.linkMessageToTask("w1", "m1", "t1"),

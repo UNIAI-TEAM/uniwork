@@ -532,6 +532,33 @@ describe("what goes where", () => {
     });
   });
 
+  it("sends a note, a post and a link to a document that already exists", async () => {
+    const qc = new QueryClient();
+    sendMessage.mockResolvedValueOnce(echo("n", { kind: "note" }));
+    sendMessage.mockResolvedValueOnce(echo("p", { kind: "post" }));
+    sendDocumentLink.mockResolvedValueOnce(echo("d", { kind: "document" }));
+    await sendChatMessage(qc, { ...input, body: "nhớ", note: { body: "nhớ" } }, deps);
+    await sendChatMessage(qc, { ...input, body: "Tin", post: { title: "Tin", body: "Nội dung" } }, deps);
+    await sendChatMessage(qc, { ...input, body: "", documentId: "d1", replyToMessageId: "m0" }, deps);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, "w1", "r1", {
+      client_msg_id: expect.any(String),
+      reply_to_message_id: undefined,
+      priority: undefined,
+      note: { body: "nhớ" },
+    });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, "w1", "r1", {
+      client_msg_id: expect.any(String),
+      reply_to_message_id: undefined,
+      priority: undefined,
+      post: { title: "Tin", body: "Nội dung" },
+    });
+    expect(sendDocumentLink).toHaveBeenCalledWith("w1", "r1", {
+      document_id: "d1",
+      client_msg_id: expect.any(String),
+      reply_to_message_id: "m0",
+    });
+  });
+
   it("a message discarded while its file is copied is neither kept nor sent", async () => {
     const qc = new QueryClient();
     files.keep.mockImplementationOnce(async (id, file) => {

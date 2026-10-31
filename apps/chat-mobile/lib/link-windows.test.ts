@@ -72,4 +72,9 @@ describe("taskIdsByMessage", () => {
     expect(Object.fromEntries(map)).toEqual({ a: kept });
     expect(map.get("a")).toBe(kept);
   });
+
+  it("reads a link that names no relation as none", () => {
+    const map = taskIdsByMessage([["a"]], [[{ id: "l1", message_id: "a", target_type: "task", target_id: "t1" }]], new Map());
+    expect(map.get("a")).toEqual([ref("t1", "l1", "")]);
+  });
 });

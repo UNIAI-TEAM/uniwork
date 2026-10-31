@@ -167,7 +167,15 @@ describe("sameRowModel", () => {
 
   it("holds equal rows equal, rebuilt quotes and lists included", () => {
     const a = base();
+    const photo = at("p1", "an", 0);
+    const withAlbum = { ...a, album: [photo] };
+    expect(sameRowModel(withAlbum, { ...withAlbum, album: [photo] })).toBe(true);
+    expect(sameRowModel(withAlbum, { ...withAlbum, album: undefined })).toBe(false);
+    expect(sameRowModel(withAlbum, { ...withAlbum, album: [photo, photo] })).toBe(false);
+    expect(sameRowModel(withAlbum, { ...withAlbum, album: [at("p2", "an", 1)] })).toBe(false);
+    expect(sameRowModel(a, a)).toBe(true);
     expect(sameRowModel(a, { ...a, quote: { ...a.quote! }, taskIds: [task("t1")] })).toBe(true);
+    expect(sameRowModel({ ...a, taskIds: undefined }, { ...a, taskIds: undefined })).toBe(true);
     expect(sameRowModel({ ...a, quote: null }, { ...a, quote: null })).toBe(true);
   });
 
@@ -194,6 +202,9 @@ describe("sameRowModel", () => {
     ["tasks gone", { taskIds: undefined }],
     ["tasks length", { taskIds: [task("t1"), task("t2", "l2")] }],
     ["tasks item", { taskIds: [task("t2", "l2")] }],
+    ["tasks link", { taskIds: [task("t1", "l2")] }],
+    ["tasks relation", { taskIds: [{ taskId: "t1", linkId: "l1", relation: "mentions" }] }],
+    ["tasks hole", { taskIds: [undefined] as unknown as MessageRowModel["taskIds"] }],
   ])("tells a change of %s apart", (_name, change) => {
     const a = base();
     expect(sameRowModel(a, { ...a, ...change })).toBe(false);
