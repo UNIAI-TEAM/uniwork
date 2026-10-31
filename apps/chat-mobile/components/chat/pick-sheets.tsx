@@ -10,6 +10,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { documentPickOptions, taskPickOptions } from "@/data/queries/chat";
+import { FormSheetHeader } from "./form-sheet";
 
 export function DocumentPickSheet({
   wsId,
@@ -25,38 +26,42 @@ export function DocumentPickSheet({
   const { t } = useTranslation();
   const [q, setQ] = useState("");
   const documents = useQuery({ ...documentPickOptions(wsId, q), enabled: visible });
+  const query = q.trim();
+  const rows = documents.data ?? [];
   return (
-    <BottomSheet visible={visible} onClose={onClose} className="px-4">
-      <Text className="mb-3 text-title3 font-display font-bold text-foreground" accessibilityRole="header">
-        {t("chat.document_picker.title")}
-      </Text>
-      <SearchField
-        value={q}
-        onChangeText={setQ}
-        placeholder={t("chat.document_picker.search_placeholder")}
-        accessibilityLabel={t("chat.document_picker.search_label")}
-        className="mb-2"
-      />
-      {documents.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.document_picker.loading")} /> : null}
-      {(documents.data ?? []).map((document) => (
-        <Pressable
-          key={document.id}
-          accessibilityRole="button"
-          accessibilityLabel={document.title}
-          onPress={() => {
-            onPick(document);
-            onClose();
-          }}
-          className="min-h-12 justify-center border-b border-border py-2 active:bg-secondary"
-        >
-          <Text className="text-body text-foreground" numberOfLines={1}>
-            {document.title || t("chat.composer_attach_document")}
+    <BottomSheet visible={visible} onClose={onClose} avoidKeyboard dragFrom="handle" className="px-0">
+      <FormSheetHeader title={t("chat.document_picker.title")} description={t("chat.document_picker.description")} onClose={onClose} />
+      <View className="px-4">
+        <SearchField
+          value={q}
+          onChangeText={setQ}
+          placeholder={t("chat.document_picker.search_placeholder")}
+          accessibilityLabel={t("chat.document_picker.search_label")}
+          className="mb-2"
+        />
+        {documents.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.document_picker.loading")} /> : null}
+        {rows.map((document) => (
+          <Pressable
+            key={document.id}
+            accessibilityRole="button"
+            accessibilityLabel={document.title}
+            onPress={() => {
+              onPick(document);
+              onClose();
+            }}
+            className="min-h-11 justify-center rounded-lg px-3 py-2 active:bg-muted"
+          >
+            <Text className="text-body text-foreground" numberOfLines={1}>
+              {document.title || t("chat.composer_attach_document")}
+            </Text>
+          </Pressable>
+        ))}
+        {!documents.isFetching && rows.length === 0 ? (
+          <Text className="py-3 text-callout text-muted-foreground">
+            {query ? t("chat.document_picker.empty_search_title", { query }) : t("chat.document_picker.empty_title")}
           </Text>
-        </Pressable>
-      ))}
-      {q.trim().length > 0 && documents.data?.length === 0 ? (
-        <Text className="py-3 text-callout text-muted-foreground">{t("chat.document_picker.empty_search_title", { query: q.trim() })}</Text>
-      ) : null}
+        ) : null}
+      </View>
     </BottomSheet>
   );
 }
@@ -80,37 +85,40 @@ export function LinkTaskSheet({
     if (!query) return true;
     return foldedIncludes(task.title, query) || foldedIncludes(task.identifier, query) || foldedIncludes(task.id, query);
   });
+  const query = q.trim();
   return (
-    <BottomSheet visible={message !== null} onClose={onClose} className="px-4">
-      <Text className="mb-3 text-title3 font-display font-bold text-foreground" accessibilityRole="header">
-        {t("chat.link.link_task_title")}
-      </Text>
-      <SearchField
-        value={q}
-        onChangeText={setQ}
-        placeholder={t("chat.link.search_placeholder")}
-        accessibilityLabel={t("chat.link.search_label")}
-        className="mb-2"
-      />
-      {tasks.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.link.loading")} /> : null}
-      {rows.map((task) => (
-        <Pressable
-          key={task.id}
-          accessibilityRole="button"
-          accessibilityLabel={task.identifier ? `${task.identifier} ${task.title}` : task.title}
-          onPress={() => {
-            if (message) onLink(message.id, task.id);
-            onClose();
-          }}
-          className="min-h-12 justify-center border-b border-border py-2 active:bg-secondary"
-        >
-          <Text className="text-body text-foreground" numberOfLines={1}>
-            {task.identifier ? `${task.identifier} · ${task.title}` : task.title}
-          </Text>
-        </Pressable>
-      ))}
-      {q.trim().length > 0 && rows.length === 0 ? <Text className="py-3 text-callout text-muted-foreground">{t("chat.link.empty")}</Text> : null}
-      <View />
+    <BottomSheet visible={message !== null} onClose={onClose} avoidKeyboard dragFrom="handle" className="px-0">
+      <FormSheetHeader title={t("chat.link.link_task_title")} description={t("chat.link.link_task_description")} onClose={onClose} />
+      <View className="px-4 pb-3">
+        <SearchField
+          value={q}
+          onChangeText={setQ}
+          placeholder={t("chat.link.search_placeholder")}
+          accessibilityLabel={t("chat.link.search_label")}
+          className="mb-2"
+        />
+        {tasks.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.link.loading")} /> : null}
+        {rows.map((task) => (
+          <Pressable
+            key={task.id}
+            accessibilityRole="button"
+            accessibilityLabel={task.identifier ? `${task.identifier} ${task.title}` : task.title}
+            onPress={() => {
+              if (message) onLink(message.id, task.id);
+              onClose();
+            }}
+            className="min-h-11 justify-center rounded-lg px-3 py-2 active:bg-muted"
+          >
+            {task.identifier ? <Text className="text-caption text-muted-foreground">{task.identifier}</Text> : null}
+            <Text className="text-body text-foreground" numberOfLines={1}>
+              {task.title}
+            </Text>
+          </Pressable>
+        ))}
+        {!tasks.isFetching && rows.length === 0 ? (
+          <Text className="py-3 text-callout text-muted-foreground">{query ? t("chat.link.empty") : t("chat.link.empty_workspace")}</Text>
+        ) : null}
+      </View>
     </BottomSheet>
   );
 }

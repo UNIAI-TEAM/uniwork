@@ -501,6 +501,7 @@ export function Conversation(props: Props) {
       />
       <ConversationCreateTaskSheet
         sheet={sheet}
+        context={room.title}
         onClose={() => sheets({ type: "close", kind: "createTask" })}
         create={(input) => createTask.mutateAsync(input)}
       />

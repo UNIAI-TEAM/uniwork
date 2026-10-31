@@ -1,20 +1,20 @@
 // The form behind "Tạo việc" in a conversation, laid out like the web composer:
-// a heading for the title, a plain description, then property pills. The task
-// is created only when the person submits, through the chat create-from-message command.
+// a breadcrumb, a borderless title, a plain description, then property pills
+// that open a short list. The task is created only when the person submits.
 import { Ionicons } from "@expo/vector-icons";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { toast } from "@/data/stores/toast-store";
 import type { ConversationSheet } from "@/lib/conversation-sheets";
 import { dateTimeFormat } from "@/lib/locale-format";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 const TITLE_MAX = 200;
@@ -50,43 +50,71 @@ export function taskDraftFromSources(sources: readonly TaskDraftSource[]): {
   return { messageId: anchor.id, title: titleFromMessageBody(anchor.body).slice(0, TITLE_MAX), description };
 }
 
-function Pill({
+function PropertyPill({
   icon,
   label,
-  selected,
+  open,
+  quiet,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  selected: boolean;
+  open: boolean;
+  quiet: boolean;
   onPress: () => void;
 }) {
   const { colorScheme } = useColorScheme();
+  const ink = quiet && !open ? THEME[colorScheme].mutedForeground : THEME[colorScheme].foreground;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ expanded: selected }}
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: open }}
       onPress={onPress}
-      className={cn("min-h-11 flex-row items-center gap-1.5 rounded-full border px-3", selected ? "border-primary bg-primary/10" : "border-border")}
+      className={cn(
+        "min-h-11 max-w-56 flex-row items-center gap-1.5 rounded-full border border-border/80 px-3",
+        open ? "bg-accent" : "bg-background",
+      )}
     >
-      <Ionicons name={icon} size={15} color={selected ? THEME[colorScheme].primary : THEME[colorScheme].mutedForeground} />
-      <Text className="text-caption font-medium text-foreground" numberOfLines={1}>
+      <Ionicons name={icon} size={15} color={ink} />
+      <Text className={cn("text-caption font-medium", quiet && !open ? "text-muted-foreground" : "text-foreground")} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
   );
 }
 
-function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function OptionMenu({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: readonly { id: string; label: string }[];
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const { colorScheme } = useColorScheme();
   return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      className={cn("min-h-11 justify-center rounded-full border px-3", selected ? "border-primary bg-primary/10" : "border-border")}
-    >
-      <Text className={cn("text-caption", selected ? "font-semibold text-primary" : "font-medium text-foreground")}>{label}</Text>
-    </Pressable>
+    <ScrollView className="mx-4 mb-2 max-h-56 rounded-xl border border-border" keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+      {options.map((option) => {
+        const on = option.id === selected;
+        return (
+          <Pressable
+            key={option.id}
+            accessibilityRole="radio"
+            accessibilityLabel={option.label}
+            accessibilityState={{ selected: on }}
+            onPress={() => onSelect(option.id)}
+            className="min-h-11 flex-row items-center justify-between gap-3 px-3"
+          >
+            <Text className={cn("min-w-0 flex-1 text-body", on ? "font-semibold text-foreground" : "text-foreground")} numberOfLines={1}>
+              {option.label}
+            </Text>
+            {on ? <Ionicons name="checkmark" size={18} color={THEME[colorScheme].primary} /> : null}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -96,6 +124,7 @@ export function CreateTaskSheet({
   title,
   description,
   count,
+  context,
   onClose,
   onCreate,
 }: {
@@ -104,6 +133,8 @@ export function CreateTaskSheet({
   title: string;
   description: string;
   count: number;
+  /** The room the task is being made from, shown ahead of the heading the way the web shows the workspace. */
+  context?: string;
   onClose: () => void;
   onCreate: (input: { title: string; description: string; priority: Priority; status: Status; dueDate?: string }) => Promise<void>;
 }) {
@@ -112,21 +143,23 @@ export function CreateTaskSheet({
   const ink = THEME[colorScheme].mutedForeground;
   const [titleValue, setTitleValue] = useState(title);
   const [descriptionValue, setDescriptionValue] = useState(description);
-  const [priority, setPriority] = useState<Priority>("medium");
+  const [priority, setPriority] = useState<Priority>("none");
   const [status, setStatus] = useState<Status>("todo");
   const [due, setDue] = useState("");
   const [openField, setOpenField] = useState<OpenField | null>(null);
   const [saving, setSaving] = useState(false);
-  const dueOk = due.trim() === "" || DUE_DATE.test(due.trim());
+  const dueTrimmed = due.trim();
+  const dueOk = dueTrimmed === "" || DUE_DATE.test(dueTrimmed);
   const ready = titleValue.trim().length > 0 && dueOk && !saving;
   const heading = count > 1 ? t("chat.link.create_task_title_multi", { count }) : t("chat.link.create_task_title");
-  const dueLabel = DUE_DATE.test(due.trim()) ? formatDue(due.trim(), i18n.language) : t("chat.link.due_label");
+  const dueLabel = DUE_DATE.test(dueTrimmed) ? formatDue(dueTrimmed, i18n.language) : t("chat.link.due_label");
+  const place = context?.trim() ?? "";
 
   useEffect(() => {
     if (!visible) return;
     setTitleValue(title);
     setDescriptionValue(description);
-    setPriority("medium");
+    setPriority("none");
     setStatus("todo");
     setDue("");
     setOpenField(null);
@@ -137,14 +170,13 @@ export function CreateTaskSheet({
 
   const create = () => {
     if (!ready) return;
-    const dueDate = due.trim();
     setSaving(true);
     void onCreate({
       title: titleValue.trim().slice(0, TITLE_MAX),
       description: descriptionValue.trim(),
       priority,
       status,
-      ...(dueDate ? { dueDate } : {}),
+      ...(dueTrimmed ? { dueDate: dueTrimmed } : {}),
     })
       .then(onClose)
       .catch(() => setSaving(false));
@@ -152,9 +184,11 @@ export function CreateTaskSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} avoidKeyboard dragFrom="handle" className="px-0">
-      <View className="mb-1 flex-row items-center justify-between gap-2 px-4">
-        <Text className="min-w-0 flex-1 text-body font-medium text-foreground" accessibilityRole="header" numberOfLines={2}>
-          {heading}
+      <View className="mb-2 flex-row items-center justify-between gap-2 px-4">
+        <Text className="min-w-0 flex-1 text-body" accessibilityRole="header" numberOfLines={2}>
+          {place ? <Text className="font-normal text-muted-foreground">{place}</Text> : null}
+          {place ? <Text className="text-muted-foreground">{"  ›  "}</Text> : null}
+          <Text className="font-medium text-foreground">{heading}</Text>
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -181,31 +215,51 @@ export function CreateTaskSheet({
         placeholderTextColor={ink}
         accessibilityLabel={t("chat.link.description_label")}
         multiline
-        className="min-h-20 px-4 py-2 text-body text-foreground"
+        textAlignVertical="top"
+        className="min-h-24 px-4 py-2 text-body text-foreground"
       />
       <View className="flex-row flex-wrap gap-1.5 px-4 py-2">
-        <Pill icon="ellipse-outline" label={t(`tasks.status_${status}`)} selected={openField === "status"} onPress={() => toggle("status")} />
-        <Pill
-          icon="bar-chart-outline"
+        <PropertyPill
+          icon="ellipse-outline"
+          label={t(`tasks.status_${status}`)}
+          open={openField === "status"}
+          quiet={false}
+          onPress={() => toggle("status")}
+        />
+        <PropertyPill
+          icon={priority === "none" ? "remove-outline" : "bar-chart-outline"}
           label={t(`tasks.priority_${priority}`)}
-          selected={openField === "priority"}
+          open={openField === "priority"}
+          quiet={priority === "none"}
           onPress={() => toggle("priority")}
         />
-        <Pill icon="calendar-outline" label={dueLabel} selected={openField === "due"} onPress={() => toggle("due")} />
+        <PropertyPill
+          icon="calendar-outline"
+          label={dueLabel}
+          open={openField === "due"}
+          quiet={!DUE_DATE.test(dueTrimmed)}
+          onPress={() => toggle("due")}
+        />
       </View>
       {openField === "status" ? (
-        <View className="flex-row flex-wrap gap-1.5 px-4 pb-2">
-          {STATUSES.map((item) => (
-            <Choice key={item} label={t(`tasks.status_${item}`)} selected={status === item} onPress={() => setStatus(item)} />
-          ))}
-        </View>
+        <OptionMenu
+          options={STATUSES.map((item) => ({ id: item, label: t(`tasks.status_${item}`) }))}
+          selected={status}
+          onSelect={(id) => {
+            setStatus(id as Status);
+            setOpenField(null);
+          }}
+        />
       ) : null}
       {openField === "priority" ? (
-        <View className="flex-row flex-wrap gap-1.5 px-4 pb-2">
-          {PRIORITIES.map((item) => (
-            <Choice key={item} label={t(`tasks.priority_${item}`)} selected={priority === item} onPress={() => setPriority(item)} />
-          ))}
-        </View>
+        <OptionMenu
+          options={PRIORITIES.map((item) => ({ id: item, label: t(`tasks.priority_${item}`) }))}
+          selected={priority}
+          onSelect={(id) => {
+            setPriority(id as Priority);
+            setOpenField(null);
+          }}
+        />
       ) : null}
       {openField === "due" ? (
         <TextInput
@@ -215,7 +269,11 @@ export function CreateTaskSheet({
           placeholderTextColor={ink}
           accessibilityLabel={t("chat.link.due_label")}
           autoCapitalize="none"
-          className="mx-4 mb-2 min-h-11 rounded-full border border-border px-3 py-2 text-body text-foreground"
+          autoCorrect={false}
+          className={cn(
+            "mx-4 mb-2 min-h-11 rounded-xl border bg-background px-3 py-2 text-body text-foreground",
+            dueOk ? "border-border" : "border-destructive",
+          )}
         />
       ) : null}
       <View className="flex-row items-center justify-end border-t border-border px-4 py-3">
@@ -230,10 +288,12 @@ export function CreateTaskSheet({
 /** The conversation's create-task sheet: open only for that sheet, and say when the task lands or fails. */
 export function ConversationCreateTaskSheet({
   sheet,
+  context,
   onClose,
   create,
 }: {
   sheet: ConversationSheet;
+  context?: string;
   onClose: () => void;
   create: (input: {
     messageId: string;
@@ -253,6 +313,7 @@ export function ConversationCreateTaskSheet({
       title={open?.title ?? ""}
       description={open?.description ?? ""}
       count={open?.count ?? 1}
+      context={context}
       onClose={onClose}
       onCreate={async (input) => {
         if (!open) return;
