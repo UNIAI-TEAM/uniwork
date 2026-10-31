@@ -1,0 +1,30 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race $(go list ./... | grep -v -E "/internal/(service|handler)(/|$)") -count=1 -timeout 50m > /tmp/pr9r1-grest.log 2>&1); rc=$?; tail -25 /tmp/pr9r1-grest.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE" /tmp/pr9r1-grest.log | head -40; echo; echo "GO_REST_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	1.389s
+ok  	github.com/unicomhub/uniwork/server/internal/graph	2.041s
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	15.290s
+ok  	github.com/unicomhub/uniwork/server/internal/linkpreview	1.468s
+ok  	github.com/unicomhub/uniwork/server/internal/logger	1.069s
+ok  	github.com/unicomhub/uniwork/server/internal/mail	9.151s
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	2.272s
+ok  	github.com/unicomhub/uniwork/server/internal/mentions	1.014s
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	4.665s
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	3.063s
+ok  	github.com/unicomhub/uniwork/server/internal/notification	104.680s
+ok  	github.com/unicomhub/uniwork/server/internal/office	8.866s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	7.771s
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	46.291s
+ok  	github.com/unicomhub/uniwork/server/internal/storage	1.657s
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	1.017s
+?   	github.com/unicomhub/uniwork/server/internal/testutil	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/util	1.011s
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	1.009s
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	1.008s
+ok  	github.com/unicomhub/uniwork/server/internal/zipbound	1.748s
+ok  	github.com/unicomhub/uniwork/server/migrations	31.578s
+?   	github.com/unicomhub/uniwork/server/pkg/db/generated	[no test files]
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	1.016s
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	1.016s
+
+GO_REST_EXIT=0
