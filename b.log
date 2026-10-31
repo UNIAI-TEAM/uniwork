@@ -1,0 +1,9 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race ./internal/handler/... -count=1 -timeout 50m -skip '^(TestIsolationMatrix|TestIsolationRealtime|TestIsolationMCP|TestEveryBodyIDFieldHasAReferenceCase)$' > /tmp/pr9r1-ghnd.log 2>&1); rc=$?; tail -25 /tmp/pr9r1-ghnd.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE" /tmp/pr9r1-ghnd.log | head -40; echo; echo "GO_HANDLER_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	532.474s
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.250s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	92.112s
+
+GO_HANDLER_EXIT=0
