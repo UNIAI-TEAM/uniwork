@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY; AI_PROVIDER=fake bash scripts/test-go.sh --race > /tmp/pr9r1-go.log 2>&1; rc=$?; tail -40 /tmp/pr9r1-go.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE" /tmp/pr9r1-go.log | head -40; echo; echo "TEST_GO_EXIT=$rc"; [ $rc -eq 0 ]
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	1.017s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	12.845s	coverage: 59.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	1.015s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	1.011s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	1.323s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	1.016s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	1.416s	coverage: 92.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	1.840s	coverage: 95.2% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	1.400s	coverage: 91.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	2.073s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	14.486s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler	2280.090s	coverage: 83.3% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.241s	coverage: 50.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	91.682s	coverage: 99.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/linkpreview	1.454s	coverage: 90.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	1.073s	coverage: 91.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	4.956s	coverage: 82.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	2.282s	coverage: 58.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mentions	1.017s	coverage: 68.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	13.264s	coverage: 86.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	3.043s	coverage: 88.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	184.444s	coverage: 83.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	9.120s	coverage: 89.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	8.268s	coverage: 87.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	46.151s	coverage: 90.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service	3130.889s	coverage: 79.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	44.760s	coverage: 79.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/storage	1.685s	coverage: 76.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	1.020s	coverage: 86.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	1.017s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	1.010s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	1.010s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/zipbound	1.771s	coverage: 87.9% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	55.750s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	1.022s	coverage: 82.9% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	1.027s	coverage: 85.9% of statements
+coverage 79.2% — raise server/coverage.floor from 74
+
+TEST_GO_EXIT=0
