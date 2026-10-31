@@ -1,0 +1,8 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race ./internal/service/... -count=1 -timeout 50m > /tmp/pr9r1-gsvc.log 2>&1); rc=$?; tail -25 /tmp/pr9r1-gsvc.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE" /tmp/pr9r1-gsvc.log | head -40; echo; echo "GO_SERVICE_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	1380.592s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	21.930s
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+
+GO_SERVICE_EXIT=0
