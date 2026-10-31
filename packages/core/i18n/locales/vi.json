@@ -375,6 +375,21 @@
           "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
           "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước."
         }
+      },
+      "v1_15_0": {
+        "title": "Hỏi UNI đọc tệp đính kèm trong công việc, chat, email và chữ trong PDF; tìm theo nội dung gồm cả PDF",
+        "summary": "Hỏi UNI nay đọc được tệp đính kèm trong công việc, chat và Email Hub mà bạn có quyền mở, và đọc chữ trong tệp PDF theo từng trang; connector MCP cũng đọc được PDF lưu ở Tài liệu. Tìm theo nội dung trong Tài liệu và Hỏi UNI nay gồm cả tệp PDF. Thẻ trích dẫn tệp đính kèm trong câu trả lời không còn báo nhầm là không xem được.",
+        "note": "Chưa đọc được chữ trong PDF quét (chưa có OCR) hoặc PDF có mật khẩu. Với tệp đính kèm, Hỏi UNI chưa đọc ảnh, tệp nén, CSV hay ODT, tệp đính kèm chưa có trong kết quả tìm kiếm và connector MCP chưa đọc được tệp đính kèm. Tệp PDF đã có từ trước chỉ tìm được theo nội dung sau khi được lập chỉ mục lại. Cuộc họp chỉ có bản ghi hình nên không có tệp đính kèm để đọc.",
+        "features": {
+          "c9cfa43f4abc921a0176dd52b7e27ed2cd10a3902": "Hỏi UNI và connector MCP nay đọc được chữ trong tệp PDF lưu ở Tài liệu, theo từng trang. Với PDF quét, PDF có mật khẩu hoặc khi tạm thời không đọc được tệp, câu trả lời vẫn tiếp tục kèm ghi chú rằng chưa đọc được nội dung. Tệp Word, Excel, PowerPoint, OpenDocument, CSV và văn bản vẫn được đọc như trước.",
+          "c74d1fcdf9bb83b2d1d8a3a19217b3997b8ac7fe1": "Hỏi UNI nay đọc được tệp đính kèm trong công việc (kể cả bình luận), tin nhắn chat và email trên Email Hub mà bạn có quyền mở: Word, Excel, PowerPoint, PDF, Markdown, HTML và tệp văn bản. Bạn có thể hỏi về tệp của một công việc, một phòng chat hoặc một thread email cụ thể. Tệp của người đã tắt AI cho nội dung của mình không hiện ra và không được gửi tới AI, kể cả tên tệp."
+        },
+        "improvements": {
+          "c8ceb242787559a7e6bfb8e661e9d6abadf9312c1": "Tìm theo nội dung trong Tài liệu và Hỏi UNI nay gồm cả tệp PDF có lớp chữ. Tệp PDF đọc quá lâu hoặc bị lỗi khi lập chỉ mục sẽ không tìm được theo nội dung."
+        },
+        "fixes": {
+          "c307f724747cfdb7e8c9ee89ba08fa2034a67e560": "Trong câu trả lời của Hỏi UNI, thẻ trích dẫn tệp đính kèm không còn báo nhầm là tài liệu không còn xem được."
+        }
       }
     }
   },
