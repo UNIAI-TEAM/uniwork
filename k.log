@@ -1,0 +1,20 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/office-engine-app exec vitest run 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "OFFICE_ENGINE_TEST_EXIT=$rc"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/apps/office-engine
+
+office-engine bundle written to dist/
+{"fixture":"fresh-production-worker","revision":"3f05956b71ea6408e0487c2071d025ceead8fab5","startedAt":"2026-10-31T19:01:26.248Z","finishedAt":"2026-10-31T19:01:26.519Z","node":"v22.23.4","artifacts":[{"path":"/workspace/apps/office-engine/dist/worker.mjs","bytes":1940,"sha256":"298fb362ee92f1b6293894664b306f6279b2cc18fc613023083575344e3c11c6"},{"path":"/workspace/apps/office-engine/dist/worker-run.mjs","bytes":2760147,"sha256":"3e31ff69c769c3210db0a71c06d4fa6a0b695af2c4ecda015a19830d36a54956"}]}
+
+ Test Files  12 passed (12)
+      Tests  151 passed | 12 skipped (166)
+   Start at  19:01:26
+   Duration  15.05s (transform 1.35s, setup 0ms, import 3.12s, tests 27.62s, environment 1ms)
+
+
+OFFICE_ENGINE_TEST_EXIT=0

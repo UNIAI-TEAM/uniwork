@@ -1,0 +1,43 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec vitest run 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_TEST_EXIT=$rc"
+              [33mheight[39m=[32m"24"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"24"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"m9 18 6-6-6-6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+        [36m</h2>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ meetings/meeting-detail/scheduled/scheduled.test.tsx:180:25
+    178|   it("offers a new link, not a copy, when the secret is gone, and revo…
+    179|     renderSlot(<ScheduledBody />, "lan");
+    180|     expect(await screen.findByText("Agency Ánh Dương")).toBeInTheDocum…
+       |                         ^
+    181|     expect(screen.queryByRole("button", { name: "Sao chép liên kết" })…
+    182|     expect(screen.getByRole("button", { name: /^Tạo liên kết mới thay …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 920 passed (921)
+      Tests  2 failed | 9787 passed (9789)
+   Start at  18:48:03
+   Duration  641.78s (transform 35.43s, setup 184.77s, import 426.41s, tests 934.30s, environment 265.87s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+
+VIEWS_TEST_EXIT=1

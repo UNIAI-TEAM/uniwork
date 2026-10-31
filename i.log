@@ -1,0 +1,63 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; node --test scripts/*.test.mjs 2>&1 | tail -60; rc=${PIPESTATUS[0]}; echo; echo "SCRIPTS_EXIT=$rc"
+  duration_ms: 9954.916561
+  type: 'test'
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 381 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.868987
+  type: 'test'
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 382 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.597899
+  type: 'test'
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 383 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 1.139584
+  type: 'test'
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 384 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 0.697907
+  type: 'test'
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 385 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 0.720287
+  type: 'test'
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 386 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.830373
+  type: 'test'
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 387 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 51.792125
+  type: 'test'
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 388 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 75.453223
+  type: 'test'
+  ...
+1..388
+# tests 396
+# suites 3
+# pass 392
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 120893.609595
+
+SCRIPTS_EXIT=1

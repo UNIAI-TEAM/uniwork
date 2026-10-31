@@ -1,0 +1,13 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm knip 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Your Expo app does not have a 'userInterfaceStyle' setting which can to confusing color scheme behavior. Please set a 'userInterfaceStyle' to remove this warning (recommended 'automatic'). https://docs.expo.dev/develop/user-interface/color-themes
+Unused exports (1)
+SelectionBar  function  apps/chat-mobile/components/chat/selection-bar.tsx:14:17
+Configuration hints (1)
+esbuild    knip.json  Remove from ignoreDependencies
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1
