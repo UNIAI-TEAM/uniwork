@@ -375,6 +375,21 @@
           "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved.",
           "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
         }
+      },
+      "v1_15_0": {
+        "title": "Ask UNI reads files attached to tasks, chat and email and the text of PDFs; content search now covers PDFs",
+        "summary": "Ask UNI can now read files attached to tasks, chat and the Email Hub that you are allowed to open, and reads the text of PDF files page by page; the MCP connector also reads PDFs stored in Documents. Content search in Documents and Ask UNI now covers PDF files. Citation cards for attached files in answers no longer wrongly say the file can't be viewed.",
+        "note": "Scanned PDFs (no OCR yet) and password-protected PDFs can't be read. For attached files, Ask UNI doesn't yet read images, archives, CSV or ODT, attached files don't appear in search results, and the MCP connector can't read attached files. PDF files that already existed are found by their content only after they have been re-indexed. Meetings only have recordings, so there are no attached files to read there.",
+        "features": {
+          "c9cfa43f4abc921a0176dd52b7e27ed2cd10a3902": "Ask UNI and the MCP connector can now read the text of PDF files stored in Documents, page by page. For a scanned or password-protected PDF, or when the file can't be read for the moment, the answer still goes on with a note that its content couldn't be read. Word, Excel, PowerPoint, OpenDocument, CSV and text files are read as before.",
+          "c74d1fcdf9bb83b2d1d8a3a19217b3997b8ac7fe1": "Ask UNI can now read files attached to tasks (including their comments), chat messages and emails in the Email Hub that you are allowed to open: Word, Excel, PowerPoint, PDF, Markdown, HTML and text files. You can ask about the files of one task, chat room or email thread. Files from someone who turned off AI for their content are not listed and never reach the AI, not even their names."
+        },
+        "improvements": {
+          "c8ceb242787559a7e6bfb8e661e9d6abadf9312c1": "Content search in Documents and Ask UNI now covers PDF files that have a text layer. A PDF that takes too long to read or fails while being indexed can't be found by its content."
+        },
+        "fixes": {
+          "c307f724747cfdb7e8c9ee89ba08fa2034a67e560": "In Ask UNI answers, citation cards for attached files no longer wrongly say the document can no longer be viewed."
+        }
       }
     }
   },
