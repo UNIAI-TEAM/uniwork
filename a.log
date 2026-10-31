@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5g7-develop-pr9; git rev-parse HEAD FETCH_HEAD; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+3f05956b71ea6408e0487c2071d025ceead8fab5
+3f05956b71ea6408e0487c2071d025ceead8fab5
+
+SYNCED_EXIT=0

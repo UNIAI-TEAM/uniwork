@@ -1,0 +1,39 @@
+$ for f in scripts/*.test.mjs; do node --test "$f" > /tmp/pr9r2-one.log 2>&1 || { echo "### FAILED FILE $f"; grep -E "^not ok|^# Subtest" /tmp/pr9r2-one.log | grep -B1 "^not ok" | head -20; grep -A25 "^not ok" /tmp/pr9r2-one.log | grep -E "error:|expected|actual|\+ |\- " | head -40 | cut -c1-300; }; done; echo; echo "SCRIPTS_LIST_EXIT=0"
+### FAILED FILE scripts/governance.test.mjs
+# Subtest: the commit-msg hook accepts this repo's whole history
+not ok 6 - the commit-msg hook accepts this repo's whole history
+--
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+not ok 15 - CLAUDE.md lists exactly the packages/core modules no host reaches
+not ok 6 - the commit-msg hook accepts this repo's whole history
+  error: 'spawnSync git ENOBUFS'
+ok 7 - historical message exceptions only allow their immutable commit and subject
+not ok 15 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  error: |-
+    + actual - expected
+    + [
+    +   'analytics',
+    +   'diagnostics',
+    +   'modals',
+    +   'navigation'
+    + ]
+    - []
+  expected:
+  actual:
+### FAILED FILE scripts/mobile-web-copies.test.mjs
+# Subtest: the copies never grow past the ratchet the manifest records
+not ok 2 - the copies never grow past the ratchet the manifest records
+not ok 2 - the copies never grow past the ratchet the manifest records
+  error: "The phone's copies of web code grew to 143319 code characters, past the ratchet's 136671. Move the logic into a pure core module (an endpoint factory, a function taking its dependencies) and import it instead; raise copiedCodeChars in apps/chat-mobile/web-copies.json by hand only in a revi
+  expected: true
+  actual: false
+ok 3 - the ratchet has a dated target below it, and the copies reach it by that date
+### FAILED FILE scripts/mobile-workflows.test.mjs
+# Subtest: mobile-verify runs on every pull request, and on a push that touches what the app reads
+not ok 17 - mobile-verify runs on every pull request, and on a push that touches what the app reads
+not ok 17 - mobile-verify runs on every pull request, and on a push that touches what the app reads
+  error: |-
+    + actual - expected
+    -   'server/internal/handler/document_collections.go',
+
+SCRIPTS_LIST_EXIT=0
