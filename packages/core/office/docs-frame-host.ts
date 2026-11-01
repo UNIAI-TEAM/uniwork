@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at c4b20c542d8837773209301c2871f0ecdf5aa9b7
-// (fork release web-0.1.0-c4b20c5 at c4b20c542 (unchanged since 6799c6765): G5-04 open_refused, UNI-1872 api.saveCopy, UNI-1876 close_requested, and UNI-2264 startAi).
+// web/docs/protocol/host.ts at 0b527f4c11e8ea36debeff08db53f340d429d7e5
+// (fork release web-0.1.0-0b527f4 at 0b527f4c1 (unchanged since 6799c6765): G5-04 open_refused, UNI-1872 api.saveCopy, UNI-1876 close_requested, and UNI-2264 startAi).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */

@@ -583,7 +583,7 @@ describe("useFrameComments: frame avatars (UNI-1986)", () => {
   const AGENT = "01J8X4AGE0N1P2Q3R4S5T6V7W8";
   const ROUTE = `/api/v1/office-frame/documents/${DOC}/avatars/${USER}`;
   const PICTURE = "https://storage.example.test/avatars/an.png?X-Amz-Signature=abc";
-  const AVATAR_BUILD = "0.1.0-c4b20c5";
+  const AVATAR_BUILD = "0.1.0-0b527f4";
   const OLD_BUILD = "0.1.0-b1cbd5d";
   const wire = (over: Record<string, unknown> = {}) => ({
     ...WIRE, id: "c1", document_id: DOC, author_id: USER, author_kind: "human", display_name: "An", avatar_url: PICTURE,
