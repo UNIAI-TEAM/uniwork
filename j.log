@@ -1,0 +1,32 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/ui exec vitest run 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "UI_TEST_EXIT=$rc"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/ui
+
+3:37:34 AM [vite] (client) warning: invalid import "./${name}". A file extension must be included in the static part of the import. For example: import(`./foo/${bar}.js`).
+  Plugin: vite:dynamic-import-vars
+  File: /workspace/packages/ui/components/ui/render-smoke.test.tsx
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /workspace/packages/ui/components/ui/dot-sphere.tsx:183:24
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+
+ Test Files  43 passed (43)
+      Tests  371 passed (371)
+   Start at  03:37:34
+   Duration  10.02s (transform 1.14s, setup 4.39s, import 3.77s, tests 5.28s, environment 11.35s)
+
+
+UI_TEST_EXIT=0

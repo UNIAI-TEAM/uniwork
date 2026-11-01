@@ -1,0 +1,43 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec vitest run 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_TEST_EXIT=$rc"
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ meetings/meeting-detail/scheduled/scheduled.test.tsx:180:25
+    178|   it("offers a new link, not a copy, when the secret is gone, and revo…
+    179|     renderSlot(<ScheduledBody />, "lan");
+    180|     expect(await screen.findByText("Agency Ánh Dương")).toBeInTheDocum…
+       |                         ^
+    181|     expect(screen.queryByRole("button", { name: "Sao chép liên kết" })…
+    182|     expect(screen.getByRole("button", { name: /^Tạo liên kết mới thay …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+ReferenceError: document is not defined
+ ❯ Editor.unmount ../../node_modules/.pnpm/@tiptap+core@3.30.6_@tiptap+pm@3.30.6/node_modules/@tiptap/core/dist/index.js:6253:20
+ ❯ Editor.destroy ../../node_modules/.pnpm/@tiptap+core@3.30.6_@tiptap+pm@3.30.6/node_modules/@tiptap/core/dist/index.js:6619:8
+ ❯ Timeout._onTimeout ../../node_modules/.pnpm/@tiptap+react@3.30.6_@floating-ui+dom@1.8.0_@tiptap+core@3.30.6_@tiptap+pm@3.30.6__@tip_7b6aa87537db8d6708bf92cc72afa302/node_modules/@tiptap/react/dist/index.js:441:19
+ ❯ listOnTimeout node:internal/timers:585:17
+ ❯ processTimers node:internal/timers:521:7
+
+This error originated in "projects/project-detail-page.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed | 920 passed (921)
+      Tests  2 failed | 9787 passed (9789)
+     Errors  1 error
+   Start at  03:25:26
+   Duration  580.86s (transform 29.71s, setup 168.11s, import 382.67s, tests 843.63s, environment 243.67s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+
+VIEWS_TEST_EXIT=1

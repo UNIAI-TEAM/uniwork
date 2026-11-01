@@ -1,0 +1,33 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm typecheck 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "TYPECHECK_EXIT=$rc"
+@uniwork/office-engine:typecheck: cache miss, executing d556ab2db42a72d0
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine-app:typecheck: cache miss, executing 62d9cd60d42d2a2d
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/chat-desktop:typecheck: cache miss, executing b28ec4fd436ea337
+@uniwork/views:typecheck: cache miss, executing aa7a5c9f32525c3a
+@uniwork/chat-desktop:typecheck: 
+@uniwork/chat-desktop:typecheck: > @uniwork/chat-desktop@0.0.0 typecheck /workspace/apps/chat-desktop
+@uniwork/chat-desktop:typecheck: > tsc --noEmit
+@uniwork/chat-desktop:typecheck: 
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:typecheck: cache miss, executing 9e88b44b4a65c05b
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+
+ Tasks:    8 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m46.188s 
+
+
+TYPECHECK_EXIT=0
