@@ -13,41 +13,50 @@ import "encoding/json"
 // the caller's effective access (C-01 §4) and ride along on every document
 // payload the actor may open.
 type DocumentDTO struct {
-	ID                  string                  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	OrganizationID      string                  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
-	WorkspaceID         string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
-	Kind                string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
-	SystemKind          *string                 `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
-	Title               string                  `json:"title" example:"Kế hoạch Q4"`
-	Icon                *string                 `json:"icon,omitempty" example:"📄"`
-	Visibility          string                  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
-	Content             *json.RawMessage        `json:"content,omitempty" description:"ProseMirror JSON đã sanitize; chỉ page"`
-	ContentText         string                  `json:"content_text,omitempty" description:"Văn bản rút từ content phục vụ tìm kiếm/preview" example:"Kế hoạch quý 4"`
-	Revision            string                  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
-	CurrentVersion      int32                   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
-	Position            float64                 `json:"position" description:"Thứ tự trong cây" example:"0"`
-	MyLevel             string                  `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của actor; vắng mặt khi admin_scope và chưa có quyền đọc" example:"edit"`
-	Via                 string                  `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
-	AdminScope          bool                    `json:"admin_scope,omitempty" description:"true = actor là owner/admin workspace trên tài liệu restricted mà họ không phải ACL owner: được quản trị nhưng không tự có quyền đọc; content bị lược bỏ khi my_level thấp hơn view" example:"true"`
-	BreakGlassExpiresAt *string                 `json:"break_glass_expires_at,omitempty" description:"Hạn của grant truy cập khẩn cấp đang đọc tài liệu; chỉ có khi via=break_glass" example:"2026-09-28T09:00:00Z"`
-	File                *DocumentFileDTO        `json:"file,omitempty" description:"Metadata bản file hiện hành; chỉ kind=file"`
-	Breadcrumbs         []DocumentBreadcrumbDTO `json:"breadcrumbs,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha"`
-	OwnerKind           *string                 `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
-	OwnerID             *string                 `json:"owner_id,omitempty" description:"ULID của owner; đọc cùng owner_kind" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt          *string                 `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	ArchivedBy          *string                 `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	PurgeAfter          *string                 `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
-	ShelvedAt           *string                 `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ, chỉ đọc); khác archived_at (thùng rác)" example:"2026-10-17T09:00:00Z"`
-	ShelvedBy           *string                 `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	TemplateMarkedAt    *string                 `json:"template_marked_at,omitempty" description:"Mốc đánh dấu là mẫu văn bản (Mẫu); vắng mặt khi không phải mẫu" example:"2026-10-27T09:00:00Z"`
-	TemplateMarkedBy    *string                 `json:"template_marked_by,omitempty" description:"ULID người/agent đã đánh dấu mẫu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedBy           string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind       string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy           string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind       string                  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt           string                  `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt           string                  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	ID                  string                     `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	OrganizationID      string                     `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID         string                     `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	ParentID            *string                    `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Kind                string                     `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind          *string                    `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
+	Title               string                     `json:"title" example:"Kế hoạch Q4"`
+	Icon                *string                    `json:"icon,omitempty" example:"📄"`
+	Visibility          string                     `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
+	Content             *json.RawMessage           `json:"content,omitempty" description:"ProseMirror JSON đã sanitize; chỉ page"`
+	ContentText         string                     `json:"content_text,omitempty" description:"Văn bản rút từ content phục vụ tìm kiếm/preview" example:"Kế hoạch quý 4"`
+	Revision            string                     `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
+	CurrentVersion      int32                      `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
+	Position            float64                    `json:"position" description:"Thứ tự trong cây" example:"0"`
+	MyLevel             string                     `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của actor; vắng mặt khi admin_scope và chưa có quyền đọc" example:"edit"`
+	Via                 string                     `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
+	AdminScope          bool                       `json:"admin_scope,omitempty" description:"true = actor là owner/admin workspace trên tài liệu restricted mà họ không phải ACL owner: được quản trị nhưng không tự có quyền đọc; content bị lược bỏ khi my_level thấp hơn view" example:"true"`
+	BreakGlassExpiresAt *string                    `json:"break_glass_expires_at,omitempty" description:"Hạn của grant truy cập khẩn cấp đang đọc tài liệu; chỉ có khi via=break_glass" example:"2026-09-28T09:00:00Z"`
+	File                *DocumentFileDTO           `json:"file,omitempty" description:"Metadata bản file hiện hành; chỉ kind=file"`
+	Breadcrumbs         []DocumentBreadcrumbDTO    `json:"breadcrumbs,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha"`
+	OwnerKind           *string                    `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
+	OwnerID             *string                    `json:"owner_id,omitempty" description:"ULID của owner; đọc cùng owner_kind" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt          *string                    `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	ArchivedBy          *string                    `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PurgeAfter          *string                    `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
+	ShelvedAt           *string                    `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ, chỉ đọc); khác archived_at (thùng rác)" example:"2026-10-17T09:00:00Z"`
+	ShelvedBy           *string                    `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	TemplateMarkedAt    *string                    `json:"template_marked_at,omitempty" description:"Mốc đánh dấu là mẫu văn bản (Mẫu); vắng mặt khi không phải mẫu" example:"2026-10-27T09:00:00Z"`
+	TemplateMarkedBy    *string                    `json:"template_marked_by,omitempty" description:"ULID người/agent đã đánh dấu mẫu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	MinutesMeeting      *DocumentMinutesMeetingDTO `json:"minutes_meeting,omitempty" description:"Cuộc họp mà trang này là biên bản (UNI-2288); vắng mặt với mọi tài liệu khác"`
+	CreatedBy           string                     `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind       string                     `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy           string                     `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind       string                     `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt           string                     `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt           string                     `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+}
+
+// DocumentMinutesMeetingDTO identifies the meeting a minutes page belongs to
+// (UNI-2288). Title is present only when the viewer is a human member of the
+// meeting's workspace; omitted for cross-workspace share recipients and agents.
+type DocumentMinutesMeetingDTO struct {
+	ID    string `json:"id" description:"ULID cuộc họp mà trang này là biên bản" example:"01J8X4MTG0N1P2Q3R4S5T6U7V8"`
+	Title string `json:"title,omitempty" description:"Tiêu đề cuộc họp; chỉ có khi người xem là thành viên người của workspace cuộc họp" example:"Giao ban tuần 42"`
 }
 
 // DocumentBreadcrumbDTO is one ancestor entry in DocumentDTO.breadcrumbs.
@@ -230,13 +239,14 @@ type DocumentSummaryDTO struct {
 	// UNI-2045 DOCLIST-UNIFIED: the columns of the unified documents table.
 	// Every field below is additive and optional; a client that does not know
 	// one ignores it.
-	IsEmpty       *bool                    `json:"is_empty,omitempty" description:"Chỉ có trên dòng thư mục của danh sách tài liệu: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem); vắng mặt = không biết" example:"false"`
-	IsOwner       *bool                    `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
-	UpdatedByUser *DocumentEditorSDO       `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
-	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited, commented hoặc owned) và thời điểm"`
-	FavoritedAt   *string                  `json:"favorited_at,omitempty" description:"Chỉ có trên /documents/favorites: thời điểm người gọi gắn sao tài liệu (RFC3339)" example:"2026-10-20T08:00:00Z"`
-	Shared        *DocumentSharedSDO       `json:"shared,omitempty" description:"Chỉ có trên /documents/shared-with-me: ai chia sẻ và khi nào, theo chính share cấp quyền cho người gọi"`
-	ShareSummary  *DocumentShareSummarySDO `json:"share_summary,omitempty" description:"Chỉ có khi shared_by_me=true: tóm tắt các grant còn sống của tài liệu (người, workspace, liên kết) và lần chia sẻ mới nhất"`
+	IsEmpty        *bool                      `json:"is_empty,omitempty" description:"Chỉ có trên dòng thư mục của danh sách tài liệu: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem); vắng mặt = không biết" example:"false"`
+	IsOwner        *bool                      `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
+	UpdatedByUser  *DocumentEditorSDO         `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
+	LastActivity   *DocumentLastActivitySDO   `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited, commented hoặc owned) và thời điểm"`
+	FavoritedAt    *string                    `json:"favorited_at,omitempty" description:"Chỉ có trên /documents/favorites: thời điểm người gọi gắn sao tài liệu (RFC3339)" example:"2026-10-20T08:00:00Z"`
+	Shared         *DocumentSharedSDO         `json:"shared,omitempty" description:"Chỉ có trên /documents/shared-with-me: ai chia sẻ và khi nào, theo chính share cấp quyền cho người gọi"`
+	ShareSummary   *DocumentShareSummarySDO   `json:"share_summary,omitempty" description:"Chỉ có khi shared_by_me=true: tóm tắt các grant còn sống của tài liệu (người, workspace, liên kết) và lần chia sẻ mới nhất"`
+	MinutesMeeting *DocumentMinutesMeetingDTO `json:"minutes_meeting,omitempty" description:"Cuộc họp mà trang này là biên bản (UNI-2288); vắng mặt với mọi tài liệu khác"`
 }
 
 // DocumentEditorSDO is the last editor of a document row, resolved inside the
@@ -301,7 +311,8 @@ type DocumentTreeNodeDTO struct {
 	IsEmpty    *bool                 `json:"is_empty,omitempty" description:"Chỉ có trên thư mục: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem, kể cả khi chỉ lấy cây thư mục)" example:"false"`
 	// EditLock is who is editing this node's document right now (UNI-1645
 	// §3.2); absent when nobody holds the lock. Never carries lock_id.
-	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
+	EditLock       *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
+	MinutesMeeting *DocumentMinutesMeetingDTO  `json:"minutes_meeting,omitempty" description:"Cuộc họp mà trang này là biên bản (UNI-2288); vắng mặt với mọi tài liệu khác"`
 }
 
 // DocumentTreeSDO is GET /workspaces/{ws}/documents/tree.

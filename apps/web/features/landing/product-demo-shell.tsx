@@ -7,6 +7,7 @@ import { Logo } from "@uniwork/ui/brand";
 import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
 import { MODULE_TONES, type ModuleKey } from "@uniwork/views/layout/module-tones";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
@@ -36,10 +37,12 @@ function demoLabel(key: DemoDestination): string {
 }
 
 /** One usable app menu surrounds both the local sandbox and the retained concept scenes. */
-export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, children }: {
+export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, illustrative = false, children }: {
   mode: DemoDestination; onSelect: (key: DemoDestination) => void;
   onCreate: (title: string) => void;
-  watch: boolean; onWatch: () => void; children: ReactNode;
+  watch: boolean; onWatch: () => void;
+  /** Marks the demo data as illustrative in the toolbar; the closing poster states it in its caption instead. */
+  illustrative?: boolean; children: ReactNode;
 }) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -56,7 +59,12 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
     const handleKey = (event: KeyboardEvent) => {
       if (!shell.current?.contains(event.target as Node)) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); search.current?.focus(); }
-      if (event.key === "Escape") { setMenuOpen(false); setSearchOpen(false); shell.current.querySelector<HTMLButtonElement>('[data-action="toggle-demo-menu"]')?.focus(); }
+      if (event.key === "Escape") {
+        // Escape inside the search closes only its results and leaves focus on the input, so the phone field stays expanded and focus never jumps on its own.
+        // preventDefault keeps the query: the input is type=search, so Chromium's native Escape would clear it and fire onChange, which reopens the results.
+        if ((event.target as Element).closest(".product-demo-search")) { event.preventDefault(); setSearchOpen(false); search.current?.focus(); return; }
+        setMenuOpen(false); setSearchOpen(false); shell.current.querySelector<HTMLButtonElement>('[data-action="toggle-demo-menu"]')?.focus();
+      }
       if (menuOpen && event.key === "Tab") {
         const buttons = Array.from(shell.current.querySelectorAll<HTMLButtonElement>('.product-demo-sidebar button:not([tabindex="-1"])'));
         const first = buttons[0], last = buttons.at(-1);
@@ -109,7 +117,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
           <Button variant="ghost" size="icon" data-action="toggle-demo-menu" aria-label={t("landing.workspace.appNavigation")} aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}><PanelLeft aria-hidden /></Button>
           <Button variant="ghost" size="icon" data-action="toggle-demo-sidebar" aria-label={t("landing.lovable.collapse")} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}><PanelLeft aria-hidden /></Button>
           <div className="product-demo-search" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }}>
-            <Search aria-hidden /><Input ref={search} type="search" value={query} aria-label={t("landing.productDemo.search")} placeholder={t("landing.productDemo.search")} onFocus={() => setSearchOpen(true)} onChange={event => { setQuery(event.target.value); setSearchOpen(true); }} onKeyDown={event => {
+            <Search aria-hidden /><Input ref={search} type="search" value={query} aria-label={t("landing.productDemo.search")} placeholder={t("landing.productDemo.search")} onFocus={event => { if (!(event.relatedTarget as Element | null)?.closest(".product-demo-search-results")) setSearchOpen(true); }} onChange={event => { setQuery(event.target.value); setSearchOpen(true); }} onKeyDown={event => {
               if (event.key === "Enter" && matches[0]) { event.preventDefault(); select(matches[0]); search.current?.blur(); }
               if (event.key === "ArrowDown") { event.preventDefault(); shell.current?.querySelector<HTMLButtonElement>(".product-demo-search-results button")?.focus(); }
             }} /><kbd>Ctrl+K</kbd>
@@ -118,6 +126,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
               <Button variant="ghost" onClick={() => setSearchOpen(false)}><X aria-hidden />{t("common.close")}</Button>
             </div>}
           </div>
+          {illustrative && <Badge variant="outline" className="product-demo-illustrative">{t("landing.demo.illustrative")}</Badge>}
           <div className="product-demo-toolbar-actions">
             <Button variant="ghost" size="icon" aria-label={t("ai.title")} onClick={() => select("ask")}><Sparkles aria-hidden /></Button>
             <Button variant="ghost" size="icon" aria-label={t("nav.inbox")} onClick={() => select("inbox")}><Bell aria-hidden /></Button>

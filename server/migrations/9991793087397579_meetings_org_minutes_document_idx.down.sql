@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_meetings_org_minutes_document;

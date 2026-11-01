@@ -107,6 +107,12 @@ export const DocumentBreadcrumbSchema = z.object({
 });
 export type DocumentBreadcrumb = z.infer<typeof DocumentBreadcrumbSchema>;
 
+export const DocumentMinutesMeetingSchema = z.object({
+  id: z.string(),
+  title: z.string().optional().default("").catch(""),
+});
+export type DocumentMinutesMeeting = z.infer<typeof DocumentMinutesMeetingSchema>;
+
 export const DocumentFileSchema = z.object({
   file_id: z.string(),
   version_id: z.string(),
@@ -144,6 +150,7 @@ export const DocumentSchema = z.object({
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
+  minutes_meeting: DocumentMinutesMeetingSchema.nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
   // ARCHIVE-01 (UNI-1845): the "Lưu trữ" state, separate from trash (§0). A
   // shelved row can also be trashed, so the two pairs coexist; drifted values
@@ -434,6 +441,7 @@ export const DocumentSummarySchema = z.object({
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
+  minutes_meeting: DocumentMinutesMeetingSchema.nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
   // ARCHIVE-01: the shelved pair rides every list row (trash rows too, so a
   // restored row can keep its shelved badge - addendum §4, Q-UI3).
@@ -573,6 +581,8 @@ export interface DocumentTreeNode {
   share_scope?: DocumentShareScope | null;
   /** UNI-2055 W6: no document in the folder is visible to this viewer; absent = unknown. */
   is_empty?: boolean;
+  /** UNI-2288: source meeting of a minutes page; absent for ordinary pages. */
+  minutes_meeting?: DocumentMinutesMeeting | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -588,6 +598,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     visibility: z.string().optional().catch(undefined),
     share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
     is_empty: z.boolean().optional().catch(undefined),
+    minutes_meeting: DocumentMinutesMeetingSchema.nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),

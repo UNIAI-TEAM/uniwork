@@ -1246,6 +1246,21 @@ type DriveFileTaskLink struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type DriveFolder struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ConnectionID   string             `json:"connection_id"`
+	DriveFolderID  string             `json:"drive_folder_id"`
+	Name           string             `json:"name"`
+	ParentFolderID pgtype.Text        `json:"parent_folder_id"`
+	RefreshedAt    pgtype.Timestamptz `json:"refreshed_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DriveGrantRevocation struct {
 	GoogleSub            string             `json:"google_sub"`
 	Generation           int64              `json:"generation"`

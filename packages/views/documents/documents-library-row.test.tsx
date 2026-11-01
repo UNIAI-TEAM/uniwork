@@ -9,6 +9,8 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
+import { NavigationProvider } from "../navigation";
+import { fakeNav } from "../test/api-mock";
 import type { DocListScreen } from "./doclist/columns";
 
 // TRASH-01 Area 2 (UNI-1841): the documents table takes the board's six columns
@@ -617,5 +619,55 @@ describe("library row trashed badge (ARCHIVE-01 RAR-02)", () => {
     renderRow(doc("d1", "Kế hoạch Q4", { archived_at: "2026-10-16T03:00:00Z" }));
     expect(screen.getByText("Trong thùng rác")).toBeTruthy();
     expect(screen.queryByText("Đã lưu trữ")).toBeNull();
+  });
+});
+
+describe("minutes source label on a page row (UNI-2288, TV-2288-01)", () => {
+  const workspace: Workspace = { id: "ws1", slug: "team", name: "Đội", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" };
+  const sessionUser: User = {
+    id: "u1",
+    email: "an@acme.vn",
+    display_name: "An",
+    onboarded_at: "2026-08-25T00:00:00Z",
+    email_verified_at: "2026-08-25T00:00:00Z",
+    onboarding_questionnaire: {},
+    locale: "vi",
+  };
+  function renderMinutes(over: Partial<DocumentSummaryRow>, onOpen = vi.fn()) {
+    render(
+      <NavigationProvider value={fakeNav()}>
+      <WorkspaceProvider workspace={workspace} user={sessionUser}>
+        <table>
+          <tbody>
+            <LibraryRowView
+              row={documentRow(doc("m1", "Biên bản", { kind: "page", ...over }))}
+              handlers={{ ...handlers, onOpen }}
+              ladder={specLadder("workspace", { selectable: false })}
+            />
+          </tbody>
+        </table>
+      </WorkspaceProvider>
+      </NavigationProvider>,
+    );
+    return onOpen;
+  }
+
+  it("links the label to the meeting and does not open the row", () => {
+    const onOpen = renderMinutes({ minutes_meeting: { id: "mt1", title: "Họp Q4" } });
+    const link = screen.getByRole("link", { name: /Biên bản họp · Họp Q4/ });
+    expect(link.getAttribute("href")).toBe("/acme/team/meetings/mt1");
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("shows plain text when the meeting title is not visible", () => {
+    renderMinutes({ minutes_meeting: { id: "mt1", title: "" } });
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(document.querySelector("[data-minutes-meeting]")).toBeTruthy();
+  });
+
+  it("draws no label on an ordinary row", () => {
+    renderMinutes({});
+    expect(document.querySelector("[data-minutes-meeting]")).toBeNull();
   });
 });

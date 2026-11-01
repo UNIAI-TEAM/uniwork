@@ -16,10 +16,13 @@ export const DOCUMENT_SOURCE_PARENT_KINDS = [
   "email_thread",
 ] as const;
 export type DocumentSourceParentKind = (typeof DOCUMENT_SOURCE_PARENT_KINDS)[number];
+export type DocumentSourceItemKind = "file" | "page";
 
 export const DocumentSourceFileSchema = z.object({
   id: z.string(),
   source: z.string(),
+  kind: z.string().optional().default("file").catch("file"),
+  document_id: z.string().optional().default("").catch(""),
   parent: z.object({
     kind: z.string(),
     id: z.string(),
@@ -42,8 +45,9 @@ export const DocumentSourceFileSchema = z.object({
   // row the server did not vouch for.
   can_save: z.boolean().optional().default(false),
 });
-export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "parent"> & {
+export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "kind" | "parent"> & {
   source: DocumentSourceKind;
+  kind?: DocumentSourceItemKind | (string & {});
   parent: { kind: DocumentSourceParentKind; id: string; title: string; message_id?: string };
 };
 

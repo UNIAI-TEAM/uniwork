@@ -191,6 +191,7 @@ func (h *handlers) ListDriveFolders(w http.ResponseWriter, r *http.Request) {
 		folders = append(folders, sdo.DriveFolderGroupDTO{
 			ID:        row.ID,
 			Name:      row.Name,
+			ParentID:  row.ParentID,
 			FileCount: row.FileCount,
 		})
 	}
@@ -341,9 +342,10 @@ func (h *handlers) NameDriveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, sdo.DriveFolderNamedSDO{
-		DriveFolder: sdo.DriveFolderRefDTO{
-			ID:   res.DriveFolder.ID,
-			Name: res.DriveFolder.Name,
+		DriveFolder: sdo.DriveFolderNamedDTO{
+			ID:       res.DriveFolder.ID,
+			Name:     res.DriveFolder.Name,
+			ParentID: res.DriveFolder.ParentID,
 		},
 		UpdatedCount: res.UpdatedCount,
 	})
@@ -510,6 +512,7 @@ func toDriveFileLinkReceiptDTO(v *service.DriveFileLinkReceiptView) *sdo.DriveFi
 		WorkspaceID:        v.WorkspaceID,
 		ExternalFileID:     v.ExternalFileID,
 		DriveID:            v.DriveID,
+		DriveFolder:        toDriveFolderRefDTO(v.DriveFolder),
 		Name:               v.Name,
 		MimeType:           v.MimeType,
 		IconKind:           v.IconKind,

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import type { DriveTaskProposal } from "@uniwork/core/drive";
@@ -39,6 +39,7 @@ vi.mock("@uniwork/ui/hooks/use-mobile", () => ({
 const { t } = initI18n();
 
 const QUERY_WAIT_OPTIONS = { timeout: 5000 } as const;
+const PINNED_NOW = new Date("2026-10-29T10:00:00Z");
 
 const defaultUser: User = {
   id: "u1",
@@ -293,6 +294,8 @@ function defaultMockRoutes(path: string) {
 
 describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)", () => {
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(PINNED_NOW);
     await setLocale("vi");
     isMobileState.value = false;
     toastNeutral.mockReset();
@@ -301,6 +304,10 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     requestMock.mockImplementation(async (path: string) => defaultMockRoutes(path));
     resetAuthStoreForTests();
     setSessionUser(defaultUser);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders loading state when opened with proposalId before proposal loads, then renders ready items, basis lines, blocked-by badge, assignee access notice, and prior creations row", async () => {
