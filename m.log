@@ -1,0 +1,30 @@
+$ tail -n 60 /tmp/pr10r1-server.log /tmp/pr10r1-web.log; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; true
+==> /tmp/pr10r1-server.log <==
+03:20:46.408 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+03:20:46.408 INF local storage adapter ready dir=/tmp/uniwork-uploads
+03:20:46.411 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/11/01 03:20:46 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+03:20:46.412 INF mail: log mode, messages are printed component=server
+03:20:46.412 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+03:20:46.412 INF ai gateway enabled component=server provider=fake
+03:20:47.309 INF mail: outbox worker started component=server tick=5s
+03:20:47.309 INF listening component=server port=19180 swagger=http://localhost:19180/swagger/index.html
+03:20:51.443 INF ai: call usage_event_id=01M6AHZJZ6WHQRWCV6HD5PQDJX capability=meeting_summarization latency_ms=0
+
+==> /tmp/pr10r1-web.log <==
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::14100
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 14100
+}
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1
