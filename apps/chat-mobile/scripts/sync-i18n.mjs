@@ -49,6 +49,12 @@ const TABS_PATHS = [
   "settings.notifications.push_section",
   // M3 (UNI-1834): a task card under a message names its status as the tasks do.
   ...["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((status) => `tasks.status_${status}`),
+  // The chat task card names the assignee the way the board card does, and its priority mark.
+  "tasks.unassigned",
+  "tasks.create.title_placeholder",
+  "tasks.create.description_placeholder",
+  "tasks.create.creating",
+  ...["none", "low", "medium", "high", "urgent"].map((priority) => `tasks.priority_${priority}`),
 ];
 
 // ADR 0049 (spec §5.3): the phone's own sign-in screens say what the web's do — the provider buttons and their

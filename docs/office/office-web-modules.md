@@ -372,7 +372,7 @@ as off. The host (`officeModuleCapabilities`) grants `uniworkAi`, `aiStart`
 to a module with AI panels (`officeModuleSpec(m).ai`: all six modules) and only
 as far as that grant; a view-only user keeps the AI panel (it still cannot
 save). Without the grant the frame hides every AI entry. The host no longer
-sends the `ai` capability, and the protocol vendored at `0.1.0-c4b20c5`
+sends the `ai` capability, and the protocol vendored at `0.1.0-c4b20c5` (unchanged at `0.1.0-0b527f4`)
 (`packages/core/office/docs-frame-protocol.ts`) has no `ai` capability (ADR 0051).
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
@@ -476,7 +476,27 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, `c4b20c542` (`0.1.0-c4b20c5`, the REPIN-11 pin of UNI-2289: fork main
+All six modules are pinned to one fork commit, `0b527f4c1` (`0.1.0-0b527f4`, the REPIN-12 pin of UNI-923: fork main
+`0b527f4c1`, the build of the UniWork Office app `1.0.0-beta.12`, so the web frames and the app run the same genoffice code). What
+it brings to the web over `0.1.0-c4b20c5`, all inside the frames: genoffice wave 3 Sheets (UNI-2296: legacy `.xls` pictures,
+merges, column widths and row heights carried into the saved workbook, absolute OPC targets, styles without `xfId`, spell check,
+the outline gutter, `add_chart` formula ranges), Docs (UNI-2297: rotated floating shapes and outline width, compare on the
+paragraph mark, Word-like picture move and resize), PDF and Markdown (UNI-2298: the calibrated measure tool and the attachments panel's list of embedded files; Markdown table wrap, `[[#` heading
+links, asset names with a colon) and the dependency bump (UNI-2283). Not part of the web: PDF Reduce file size and the
+attachment Add/Export dialogs (desktop only; the frame turns them off itself with `pdfReduceSize: false` and
+`pdfAttachmentsWrite: false` and its stubs answer not-available), ODF slices 2a and 3 (UNI-2279: CLI conversion and OS file
+associations; the web has no ODF module), the skill copies (UNI-2299) and the zip download (UNI-2300), all in the desktop shell.
+The host changes nothing else: `web/docs/protocol` is identical to `c4b20c542`, so every `protocolSha256` stays and only the
+three vendored headers name `0b527f4c1`; every pin keeps its CSP and documents; the genoffice tool extract
+(`docs/office/g5g6g7/genoffice-tools.md` §3) generated at `0b527f4c1` equals the `c4b20c542` block but for its rev line, so it
+stays at `c4b20c542`. The avatar route list holds `0.1.0-0b527f4`. Built on linux/arm64 (the Sheets wasm is the arm64 line
+`9b321cac...81f6` of the fork's checksum file), published at `web-0.1.0-0b527f4` (`dist-web-0.1.0-0b527f4.tar.gz`, sha256
+`aa5069be...6755`), and written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>`. The build log
+measures (files, unpacked, gzip, initial download): `docs` 46, 17.92, 12.00, 6.11 MiB; `pdf` 229, 17.50, 8.07, 2.99 MiB;
+`markdown` 90, 9.02, 2.85, 3.92 MiB; `html` 7, 2.69, 0.82, 2.67 MiB; `slides` 21, 7.28, 2.73, 5.03 MiB; `sheets` 219, 30.20,
+8.52, 6.57 MiB.
+
+The pin before it, kept for the history: `c4b20c542` (`0.1.0-c4b20c5`, the REPIN-11 pin of UNI-2289: fork main
 `c4b20c542`, whose frame protocol no longer has the `ai` capability (BYOK is gone from the frame; UniWork AI, `uniworkAi`, is
 the only AI, and the host stopped sending `ai`). It also carries the fork main work merged since `0.1.0-8d73c6b`: ODF slice 1
 (UNI-2279), compact ribbon set B (UNI-2277), skills X4 and X5 (UNI-2282) and PDF wave 2 (UNI-2284), so every bundle changes for
@@ -490,7 +510,7 @@ goldens stay at `0.1.0-8d73c6b`: from this pin on, CI no longer checks that they
 decision on UNI-2289), so a re-pin needs no re-capture. The G7-06 job and its goldens remain for a manual run on a Linux harness
 (`job.mjs --update-goldens`, then the four checks).
 
-The pin before it, kept for the history: `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276; the one-shot writers and the
+Before it: `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276; the one-shot writers and the
 web Slides frame; built on linux/arm64 with the Sheets wasm arm64 line `24e30396...a1d`, sha256 `8396201c...09de`), replacing
 the next one.
 

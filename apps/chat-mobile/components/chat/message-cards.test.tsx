@@ -248,6 +248,22 @@ describe("MessageContent › cards", () => {
     expect(screen.queryByText(viText("chat.ai.highlights"))).toBeNull();
   });
 
+  it("opens a document the reader can see, and names nothing about one they cannot", async () => {
+    const { unmount } = await show({
+      kind: "document",
+      document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: true },
+    });
+    expect(screen.getByText("Kế hoạch")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("link", { name: "Kế hoạch" }));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/acme/hq/documents/d1");
+    await unmount();
+
+    await show({ kind: "document", document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: false } });
+    expect(screen.queryByText("Kế hoạch")).toBeNull();
+    expect(screen.getByText(viText("chat.document_locked_title"))).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: viText("chat.document_request_access") })).toBeOnTheScreen();
+  });
+
   it("hands a voice message to its player", async () => {
     await show({ kind: "voice", voice: { url: "https://s/v.m4a", url_expires_at: "2099-01-01T00:00:00Z", duration_ms: 42_000 } });
     expect(screen.getByTestId("voice-play")).toBeOnTheScreen();
@@ -271,7 +287,7 @@ describe("MessageContent › a kind this build does not know", () => {
   });
 
   it("covers a known kind that arrives without its block, in an own bubble", async () => {
-    for (const kind of ["file", "voice", "poll", "note", "post", "reminder"]) {
+    for (const kind of ["file", "voice", "poll", "note", "post", "reminder", "document", "document_version"]) {
       const { unmount } = await show({ kind }, true);
       expect(screen.getByText(viText("chat.mobile.open_on_web"))).toBeOnTheScreen();
       await unmount();
@@ -279,7 +295,7 @@ describe("MessageContent › a kind this build does not know", () => {
   });
 
   it("lists the views that are buttons of their own", () => {
-    expect([...INTERACTIVE_VIEWS].sort()).toEqual(["file", "image", "poll", "unsupported", "voice"]);
+    expect([...INTERACTIVE_VIEWS].sort()).toEqual(["call-summary", "document", "file", "image", "poll", "unsupported", "voice"]);
   });
 });
 

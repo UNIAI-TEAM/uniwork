@@ -6,6 +6,7 @@
 // repeating (@uniwork/core/chat/send-retry), both shared with the web.
 import { mergeOptimisticMessages, type ServerLikeChatMessage } from "@uniwork/core/chat/optimistic-merge";
 import { pendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 
 export type SendStatus = "sending" | "queued" | "failed";
@@ -34,6 +35,13 @@ export interface PendingSend {
   voiceDurationMs?: number;
   /** Set for a reminder message: no body, the reminder beside it (chat-create-reminder-dialog.tsx). */
   reminder?: { body: string; remindAt: string; repeat: ReminderRepeat };
+  /** A poll, a note or a post, as the web's composer sends them. `body` is the preview until the echo lands. */
+  poll?: { question: string; options: string[] };
+  note?: { body: string };
+  post?: { title: string; body: string };
+  priority?: ComposerMessagePriority;
+  /** A document that already exists, shared into the room. */
+  documentId?: string;
   createdAt: number;
   status: SendStatus;
   /** Rounds that failed for this message's own reason (lib/delivery-failure.ts); past the cap it fails. */

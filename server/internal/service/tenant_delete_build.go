@@ -217,6 +217,8 @@ func (c *PrivacyDeletionConsumer) erase(ctx context.Context, row db.DataSubjectR
 	return tx.Commit(ctx)
 }
 
+// deleteTenantTables deliberately takes no folder-graph lock; any rare Drive
+// row-lock cycle aborts one side with 40P01 and relies on outbox retry.
 func deleteTenantTables(ctx context.Context, tx pgx.Tx, orgID string) (int64, error) {
 	allowed := map[string]bool{}
 	for _, name := range tenantDeleteTables() {

@@ -4,9 +4,12 @@ import { ApiError } from "@uniwork/core/api";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Document } from "@uniwork/core/types/document";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
 import "../test/lazy-document-editor";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import { DocumentWorkspace } from "./document-workspace";
 
 const { t } = initI18n();
@@ -25,13 +28,34 @@ function ReactiveWorkspace() {
   return query.data ? <DocumentWorkspace wsId="ws1" doc={query.data} libraryHref="/acme/doi/documents" refetch={query.refetch} /> : null;
 }
 
+const workspace: Workspace = {
+  id: "ws1",
+  slug: "doi",
+  name: "Đội",
+  organization_id: "o1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
+const sessionUser = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+
 function mountWorkspace() {
   const push = vi.fn();
   const adapter: NavigationAdapter = {
     push, replace: vi.fn(), back: vi.fn(), pathname: "/acme/doi/documents/d1",
     searchParams: new URLSearchParams(), getShareableUrl: (path) => path,
   };
-  return { push, ...render(wrap(<NavigationProvider value={adapter}><ReactiveWorkspace /></NavigationProvider>)) };
+  return {
+    push,
+    ...render(
+      wrap(
+        <NavigationProvider value={adapter}>
+          <WorkspaceProvider workspace={workspace} user={sessionUser}>
+            <ReactiveWorkspace />
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    ),
+  };
 }
 
 const findBody = () => screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
@@ -311,5 +335,45 @@ describe("page metadata lifecycle", () => {
     saveAndLeave();
     await waitFor(() => expect(push).toHaveBeenCalledOnce());
     expect(patches()).toHaveLength(2);
+  });
+
+  it("renders minutes_meeting on the page header as a link when title is present and plain text when title is empty (UNI-2288)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        return Promise.resolve({
+          document: { ...doc, minutes_meeting: { id: "m1", title: "Giao ban tuần 42" } },
+        });
+      }
+      return Promise.resolve(path.endsWith("/members") ? { members: [] } : { comments: [] });
+    });
+    const { push, unmount } = mountWorkspace();
+    const namedLabel = t("documents.page_ui.minutes_source_named", { title: "Giao ban tuần 42" });
+    const link = await screen.findByRole("link", { name: namedLabel });
+    expect(link).toHaveAttribute("href", "/acme/doi/meetings/m1");
+    fireEvent.click(link);
+    expect(push).toHaveBeenCalledWith("/acme/doi/meetings/m1");
+    unmount();
+
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        return Promise.resolve({
+          document: { ...doc, minutes_meeting: { id: "m2", title: "" } },
+        });
+      }
+      return Promise.resolve(path.endsWith("/members") ? { members: [] } : { comments: [] });
+    });
+    mountWorkspace();
+    const plainLabel = t("documents.page_ui.minutes_source");
+    expect(await screen.findByText(plainLabel)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: plainLabel })).toBeNull();
+  });
+
+  it("shows the minutes source label as plain text outside a workspace context (UNI-2288)", () => {
+    render(
+      <DocumentMinutesSourceLink minutesMeeting={{ id: "m1", title: "Giao ban tuần 42" }} />,
+    );
+    const label = t("documents.page_ui.minutes_source_named", { title: "Giao ban tuần 42" });
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

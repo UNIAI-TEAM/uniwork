@@ -39,6 +39,7 @@ import {
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { docAccessLevel } from "./doclist/access";
 import { DocNameCell, DocPersonCell } from "./doclist/cells";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
@@ -150,12 +151,17 @@ export function LibraryRowView({
   const currentWorkspace = useOptionalWorkspace()?.workspace;
   const doc = row.type === "document" ? row.doc : null;
   const myFolder = isMyFolder(doc);
-  const title = (myFolder ? t("documents.home.my_folder.label") : rowTitle(row)) || t("documents.detail.untitled");
+  const source = row.type === "source" ? row.source : null;
+  const minutesBaseTitle = source?.kind === "page" ? (source.parent.title || source.name) : "";
+  const rawTitle = myFolder
+    ? t("documents.home.my_folder.label")
+    : source?.kind === "page" && minutesBaseTitle
+      ? t("documents.home.row.minutes_named", { title: minutesBaseTitle })
+      : rowTitle(row);
+  const title = rawTitle || t("documents.detail.untitled");
   const format = rowFormat(row);
   const folder = isFolderRow(row);
-  const source = row.type === "source" ? row.source : null;
   const sourceLinked = source ? sourceParentLinked(source.parent) : false;
-
   // The agreed optional list fields (SV-1..SV-6); each reads undefined until the schema parses it.
   const fields = doc ? docListRowFields(doc) : {};
   // SV-6 names the editor with their photo; without it the member list does both (a photo-less SV-6 editor draws the initial).
@@ -211,11 +217,17 @@ export function LibraryRowView({
     else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id, doc);
     else if (row.type === "source") {
-      // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
-      // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.
+      // U-SRC1 + UNI-1869 + UNI-2288: a minutes page opens the document page; a
+      // file opens view-only where the row can (the module frame for an Office
+      // format), else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
-      if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
-      else handlers.onDownloadSource(row.source.id);
+      if (open === "page" && row.source.document_id) {
+        handlers.onOpen(row.source.document_id);
+      } else if (open === "office" && handlers.onViewSource) {
+        handlers.onViewSource(row.source);
+      } else {
+        handlers.onDownloadSource(row.source.id);
+      }
     }
   };
 
@@ -275,7 +287,7 @@ export function LibraryRowView({
   const resolvedSearchPath = doc ? (handlers.searchPath?.(doc) ?? null) : null;
   const nameCell = (
     <DocNameCell
-      kind={folder ? "folder" : (doc?.kind ?? "file")}
+      kind={folder ? "folder" : (doc?.kind ?? (source?.kind === "page" ? "page" : "file"))}
       format={folder ? "folder" : format}
       title={title}
       searchPath={resolvedSearchPath}
@@ -381,6 +393,8 @@ export function LibraryRowView({
             {nameCell}
           </button>
         )}
+        {/* Outside the button (no link inside a button); under the name, past the type icon. */}
+        <DocumentMinutesSourceLink minutesMeeting={doc?.minutes_meeting} className="mt-0.5 ml-9 flex w-fit" />
       </td>
     ),
     access: (

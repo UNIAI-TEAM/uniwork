@@ -79,9 +79,14 @@ describe("sourceLinkLabelKey", () => {
 });
 
 describe("sourceOpenAction", () => {
-  const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name" | "can_open_in_app">> = {}) =>
-    ({ name: "f", mime_type: "", extension: "", can_open_in_app: false, ...over }) as DocumentSourceFile;
+  const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name" | "can_open_in_app" | "kind" | "document_id">> = {}) =>
+    ({ name: "f", mime_type: "", extension: "", can_open_in_app: false, kind: "file", document_id: "", ...over }) as DocumentSourceFile;
 
+  it("opens a UniNote minutes page when kind is page and document_id is present, and falls back when document_id is empty", () => {
+    expect(sourceOpenAction(file({ kind: "page", document_id: "doc1" }))).toBe("page");
+    expect(sourceOpenAction(file({ kind: "page", document_id: "" }))).toBe("download");
+    expect(sourceOpenAction(file({ kind: "file", document_id: "doc1" }))).toBe("download");
+  });
   it("opens an Office format in the view-only frame when the server vouches for it (can_open_in_app)", () => {
     // UNI-1869: a module frame opens the source; the flag alone is not enough —
     // a module must exist for the extension (officeModuleForFormat), so a

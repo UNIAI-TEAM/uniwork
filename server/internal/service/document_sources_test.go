@@ -377,20 +377,44 @@ func sourceService(t *testing.T, env *docStorageEnv) (*DocumentSourceService, *m
 func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
-	svc, _ := sourceService(t, env)
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	meetingsSvc := NewMeetingService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{}, nil, MeetingRuntime{})
+	meetingsSvc.Docs = env.svc
+	meetingsSvc.files = env.fs
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chat, Meetings: meetingsSvc})
 	tn := env.tn
 	taskA := s.task(tn, tn.wsA)
 	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
 	want := map[string]bool{}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		want["task:"+s.attachment(tn, tn.wsA, taskA, "", "file.pdf")] = true
 		want["chat:"+s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "file.pdf", false)] = true
+		pageDoc, err := env.svc.CreatePage(s.ctx, human(tn.owner), tn.wsA, CreatePageInput{
+			Title: "Biên bản " + util.NewID(), Visibility: documentVisibilityWorkspace,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mID := util.NewID()
+		s.exec(`INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, status, room_name, created_by, host_user_id, minutes_document_id)
+			VALUES ($1, $2, $3, $4, now() - interval '2 hours', now() - interval '1 hour', 'ENDED', $5, $6, $6, $7)`,
+			mID, tn.wsA, tn.orgID, "Họp "+mID[20:], "lk-pg-"+mID, tn.owner.ID, pageDoc.Document.ID)
+		want["meeting:minutes:"+mID] = true
+		recID := util.NewID()
+		recFileID := s.readyFile(tn.orgID, "rec-"+recID[20:]+".pdf", "application/pdf")
+		s.exec(`INSERT INTO meeting_recordings (id, meeting_id, organization_id, egress_id, status, file_id, started_by, ended_at)
+			VALUES ($1, $2, $3, $4, 'COMPLETE', $5, $6, now())`,
+			recID, mID, tn.orgID, "egress-pg-"+recID, recFileID, tn.owner.ID)
+		want["meeting:"+recID] = true
 	}
 	seen := map[string]bool{}
 	cursor := ""
 	var last *DocumentSourceItem
-	for pages := 0; pages < 10; pages++ {
-		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: cursor, Limit: 4})
+	for range 15 {
+		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: cursor, Limit: 3})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -411,7 +435,7 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 		cursor = page.NextCursor
 	}
 	if len(seen) != len(want) {
-		t.Fatalf("paged %d files, want %d", len(seen), len(want))
+		t.Fatalf("paged %d sources, want %d", len(seen), len(want))
 	}
 	for id := range want {
 		if !seen[id] {
@@ -797,6 +821,240 @@ func TestDocumentSourceChatParentIncludesMessageID(t *testing.T) {
 	if item.Parent.MessageID != "" {
 		t.Fatalf("task parent MessageID = %q, want empty", item.Parent.MessageID)
 	}
+}
+
+// UNI-2288 (D2, D3, D4): live meeting minutes appear in DocumentSourceService.List
+// with kind="page", document_id, and name = the meeting title; a minutes row is
+// listed iff the page is live in the meeting's workspace and
+// DocumentService.LevelFor(viewer, page) >= view (parity across every access
+// path); Open, ViewSource and Save refuse meeting:minutes:<id> with ErrNotFound.
+func TestDocumentSourceMeetingMinutesParityWithLevelFor(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := newSourceSceneOn(t, env)
+	tn := env.tn
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	// FileService is deliberately NOT wired on meetingsSvc, proving
+	// enabled(DocumentSourceMeeting) is true when meetings.Docs != nil alone.
+	meetingsSvc := NewMeetingService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{}, nil, MeetingRuntime{})
+	meetingsSvc.Docs = env.svc
+	svc := NewDocumentSourceService(DocumentSourceDeps{
+		Documents: env.svc, Tasks: tasks, Chat: chat, Meetings: meetingsSvc,
+	})
+
+	seedMeetingWithDoc := func(wsID, title, docID string) string {
+		t.Helper()
+		id := util.NewID()
+		s.exec(`INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, status, room_name, created_by, host_user_id, minutes_document_id)
+			VALUES ($1, $2, $3, $4, now() - interval '2 hours', now() - interval '1 hour', 'ENDED', $5, $6, $6, $7)`,
+			id, wsID, tn.orgID, title, "lk-min-"+id, tn.aclOwner.ID, docID)
+		return id
+	}
+
+	// 1. Create a minutes page owned by tn.aclOwner in wsA, initially workspace-visible.
+	pageView, err := env.svc.CreatePage(s.ctx, human(tn.aclOwner), tn.wsA, CreatePageInput{
+		Title:      "Biên bản: Giao ban tuần 42",
+		Visibility: documentVisibilityWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(minutes): %v", err)
+	}
+	docID := pageView.Document.ID
+	meetingTitle := "Giao ban tuần 42.pdf"
+	meetingID := seedMeetingWithDoc(tn.wsA, meetingTitle, docID)
+	sourceID := "meeting:minutes:" + meetingID
+
+	// Also seed ameeting in wsA whose minutes_document_id points at a workspace-visible page in wsB (cross-workspace).
+	foreignPage, err := env.svc.CreatePage(s.ctx, human(tn.owner), tn.wsB, CreatePageInput{
+		Title:      "Biên bản workspace B",
+		Visibility: documentVisibilityWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(foreignPage): %v", err)
+	}
+	crossWSMeetingID := seedMeetingWithDoc(tn.wsA, "Họp chéo workspace", foreignPage.Document.ID)
+	crossWSSourceID := "meeting:minutes:" + crossWSMeetingID
+
+	// Seed a task PDF attachment so ?type=page vs ?type=pdf can be compared.
+	taskA := s.task(tn, tn.wsA)
+	pdfSourceID := "task:" + s.attachment(tn, tn.wsA, taskA, "", "report.pdf")
+
+	assertParity := func(step string, viewer db.User, wantListed bool) *DocumentSourceItem {
+		t.Helper()
+		doc, err := env.f.q.GetDocumentByID(s.ctx, docID)
+		if err != nil {
+			t.Fatalf("%s: GetDocumentByID: %v", step, err)
+		}
+		lvl, err := env.svc.LevelFor(s.ctx, human(viewer), doc)
+		if err != nil {
+			t.Fatalf("%s: LevelFor: %v", step, err)
+		}
+		levelReadable := !doc.ArchivedAt.Valid && doc.WorkspaceID == tn.wsA && lvl.AtLeast(DocumentLevelView)
+		if levelReadable != wantListed {
+			t.Fatalf("%s (%s): LevelFor=%q (archived=%v) -> readable=%v, want %v",
+				step, viewer.DisplayName, lvl, doc.ArchivedAt.Valid, levelReadable, wantListed)
+		}
+		for _, srcFilter := range []string{"", DocumentSourceMeeting} {
+			page, err := svc.List(s.ctx, human(viewer), tn.wsA, DocumentSourceFilter{Source: srcFilter, Limit: 100})
+			if err != nil {
+				t.Fatalf("%s (%s, source=%q): List: %v", step, viewer.DisplayName, srcFilter, err)
+			}
+			var found *DocumentSourceItem
+			for i := range page.Items {
+				if page.Items[i].ID == crossWSSourceID {
+					t.Fatalf("%s (%s): listed cross-workspace minutes row %s", step, viewer.DisplayName, crossWSSourceID)
+				}
+				if page.Items[i].ID == sourceID {
+					it := page.Items[i]
+					found = &it
+				}
+			}
+			if (found != nil) != wantListed {
+				t.Fatalf("%s (%s, source=%q): listed=%v, want %v (parity with LevelFor=%q)",
+					step, viewer.DisplayName, srcFilter, found != nil, wantListed, lvl)
+			}
+			if found != nil && srcFilter == DocumentSourceMeeting {
+				return found
+			}
+		}
+		return nil
+	}
+
+	// Case 1: workspace-visible page -> listed for owner, plain member, and workspace admin.
+	got := assertParity("workspace-visible (aclOwner)", tn.aclOwner, true)
+	if got == nil || got.Kind != DocumentKindPage || got.DocumentID != docID || got.Name != meetingTitle ||
+		got.Parent.Kind != "meeting" || got.Parent.ID != meetingID || got.Parent.Title != meetingTitle ||
+		got.MimeType != "" || got.Extension != "" || got.SizeBytes != 0 || got.CanOpenInApp || got.CanSave {
+		t.Fatalf("minutes source item = %+v", got)
+	}
+	assertParity("workspace-visible (member)", tn.member, true)
+	assertParity("workspace-visible (wsAdmin)", tn.wsAdmin, true)
+	assertParity("workspace-visible (orgOwner)", tn.owner, true)
+
+	// ?type=page, ?type=pdf, ?type=page&type=pdf, and q search on the meeting title.
+	pageOnly, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: []string{"page"}})
+	if err != nil || len(pageOnly.Items) != 1 || pageOnly.Items[0].ID != sourceID {
+		t.Fatalf("?type=page = %+v, %v; want only %s", pageOnly.Items, err, sourceID)
+	}
+	pdfOnly, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: []string{"pdf"}})
+	if err != nil || len(pdfOnly.Items) != 1 || pdfOnly.Items[0].ID != pdfSourceID {
+		t.Fatalf("?type=pdf = %+v, %v; want only %s (even though meeting title ends in .pdf)", pdfOnly.Items, err, pdfSourceID)
+	}
+	bothTypes, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: []string{"page", "pdf"}})
+	if err != nil || len(bothTypes.Items) != 2 {
+		t.Fatalf("?type=page&type=pdf = %+v, %v; want 2 items", bothTypes.Items, err)
+	}
+	searched, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Q: "giao ban tuan 42"})
+	if err != nil || len(searched.Items) != 1 || searched.Items[0].ID != sourceID {
+		t.Fatalf("q='giao ban tuan 42' = %+v, %v; want %s", searched.Items, err, sourceID)
+	}
+
+	// D4: Open, ViewSource and Save refuse meeting:minutes:<id> with ErrNotFound.
+	if _, err := svc.Open(s.ctx, human(tn.aclOwner), tn.wsA, sourceID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Open(%s) = %v, want ErrNotFound", sourceID, err)
+	}
+	if _, _, err := svc.ViewSource(s.ctx, human(tn.aclOwner), tn.wsA, sourceID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ViewSource(%s) = %v, want ErrNotFound", sourceID, err)
+	}
+	if _, err := svc.Save(s.ctx, human(tn.aclOwner), tn.wsA, sourceID, SaveSourceFileInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Save(%s) = %v, want ErrNotFound", sourceID, err)
+	}
+
+	// Case 2, 3, 7: restricted page -> listed for its owner (tn.aclOwner),
+	// hidden for a plain member (tn.member) and hidden for workspace admins (tn.wsAdmin, tn.owner) with no grant.
+	restricted := documentVisibilityRestricted
+	cur, err := env.svc.GetDocument(s.ctx, human(tn.aclOwner), docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.svc.UpdateDocument(s.ctx, human(tn.aclOwner), docID, UpdateDocumentInput{
+		Revision: cur.Document.Revision, Visibility: &restricted,
+	}); err != nil {
+		t.Fatalf("UpdateDocument(restricted): %v", err)
+	}
+	assertParity("restricted (aclOwner)", tn.aclOwner, true)
+	assertParity("restricted (plain member)", tn.member, false)
+	assertParity("restricted (wsAdmin without grant)", tn.wsAdmin, false)
+	assertParity("restricted (orgOwner without grant)", tn.owner, false)
+
+	// Case 4: user share on restricted page -> listed for recipient, hidden after revoke.
+	docRow, _ := env.f.q.GetDocumentByID(s.ctx, docID)
+	userShare := env.f.share(t, docRow, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+	assertParity("restricted + user share (member)", tn.member, true)
+	assertParity("restricted + user share (wsAdmin still ungranted)", tn.wsAdmin, false)
+	env.f.revoke(t, userShare, tn.aclOwner.ID)
+	assertParity("restricted after user share revoked (member)", tn.member, false)
+
+	// Case 5: organization share on restricted page -> listed for member and wsAdmin, hidden after revoke.
+	orgShare := env.f.share(t, docRow, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+	assertParity("restricted + org share (member)", tn.member, true)
+	assertParity("restricted + org share (wsAdmin)", tn.wsAdmin, true)
+	env.f.revoke(t, orgShare, tn.aclOwner.ID)
+	assertParity("restricted after org share revoked (member)", tn.member, false)
+	assertParity("restricted after org share revoked (wsAdmin)", tn.wsAdmin, false)
+
+	// Case 6: workspace share on restricted page -> listed for member and wsAdmin, hidden after revoke.
+	wsShare := env.f.share(t, docRow, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelView, tn.aclOwner.ID)
+	assertParity("restricted + workspace share (member)", tn.member, true)
+	assertParity("restricted + workspace share (wsAdmin)", tn.wsAdmin, true)
+	env.f.revoke(t, wsShare, tn.aclOwner.ID)
+	assertParity("restricted after workspace share revoked (member)", tn.member, false)
+	assertParity("restricted after workspace share revoked (wsAdmin)", tn.wsAdmin, false)
+
+	// Case 8: workspace admin with a live break-glass grant -> listed; hidden again once revoked.
+	bg, _, err := env.svc.GrantDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, "Kiểm tra biên bản cuộc họp khẩn cấp")
+	if err != nil {
+		t.Fatalf("GrantDocumentBreakGlass: %v", err)
+	}
+	assertParity("restricted + live break-glass (wsAdmin)", tn.wsAdmin, true)
+	assertParity("restricted + live break-glass (member still hidden)", tn.member, false)
+	if err := env.svc.RevokeDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, bg.Grant.ID); err != nil {
+		t.Fatalf("RevokeDocumentBreakGlass: %v", err)
+	}
+	assertParity("restricted after break-glass revoked (wsAdmin)", tn.wsAdmin, false)
+
+	// Case 9: page moved into aclOwner's My Folder -> listed for aclOwner, hidden for
+	// ungranted foreign viewers, and listed for a foreign workspace admin with a live
+	// break-glass grant (RB1-2 parity with LevelFor).
+	bgForeignMF, _, err := env.svc.GrantDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, "Kiểm tra biên bản trong My Folder")
+	if err != nil {
+		t.Fatalf("GrantDocumentBreakGlass(before My Folder move): %v", err)
+	}
+	mf, _, err := env.svc.EnsureMyFolder(s.ctx, human(tn.aclOwner), tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder: %v", err)
+	}
+	cur, err = env.svc.GetDocument(s.ctx, human(tn.aclOwner), docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.svc.MoveDocument(s.ctx, human(tn.aclOwner), docID, MoveDocumentInput{
+		ParentID: mf.Document.ID, Revision: cur.Document.Revision, IdempotencyKey: util.NewID(),
+	}); err != nil {
+		t.Fatalf("MoveDocument(into My Folder): %v", err)
+	}
+	assertParity("inside My Folder (aclOwner)", tn.aclOwner, true)
+	assertParity("inside My Folder (foreign member)", tn.member, false)
+	assertParity("inside My Folder + live break-glass (foreign wsAdmin)", tn.wsAdmin, true)
+	assertParity("inside My Folder (foreign orgOwner without grant)", tn.owner, false)
+	if err := env.svc.RevokeDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, bgForeignMF.Grant.ID); err != nil {
+		t.Fatalf("RevokeDocumentBreakGlass(inside My Folder): %v", err)
+	}
+	assertParity("inside My Folder after break-glass revoked (foreign wsAdmin)", tn.wsAdmin, false)
+
+	// Case 10: trashed page -> hidden even for owner; restored -> listed again.
+	if _, err := env.svc.ArchiveDocument(s.ctx, human(tn.aclOwner), docID, ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatalf("ArchiveDocument: %v", err)
+	}
+	assertParity("trashed (aclOwner)", tn.aclOwner, false)
+	assertParity("trashed (member)", tn.member, false)
+	if _, err := env.svc.RestoreDocument(s.ctx, human(tn.aclOwner), docID, ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatalf("RestoreDocument: %v", err)
+	}
+	assertParity("restored (aclOwner)", tn.aclOwner, true)
+	assertParity("restored (foreign member)", tn.member, false)
 }
 
 // ParentID keeps only the files held by one task (its comments included), room,

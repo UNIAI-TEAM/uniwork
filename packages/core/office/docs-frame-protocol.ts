@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at c4b20c542d8837773209301c2871f0ecdf5aa9b7
-// (fork release web-0.1.0-c4b20c5 at c4b20c542: the 6799c6765 contract without the `ai` capability, UNI-2289: Capability and CAPABILITY_KEYS no longer name it).
+// web/docs/protocol/types.ts at 0b527f4c11e8ea36debeff08db53f340d429d7e5
+// (fork release web-0.1.0-0b527f4 at 0b527f4c1, the UniWork Office app beta.12 build: unchanged since c4b20c542, the 6799c6765 contract without the `ai` capability, UNI-2289: Capability and CAPABILITY_KEYS no longer name it).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */

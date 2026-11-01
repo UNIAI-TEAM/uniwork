@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
@@ -125,12 +126,16 @@ func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 			return
 		}
 		if isFolder {
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			fBody := map[string]any{
 				"id":       extID,
 				"name":     folderName,
 				"mimeType": "application/vnd.google-apps.folder",
 				"trashed":  false,
-			})
+			}
+			if len(parents) > 0 {
+				fBody["parents"] = parents
+			}
+			_ = json.NewEncoder(w).Encode(fBody)
 			return
 		}
 		body := map[string]any{
@@ -782,10 +787,12 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("NameDriveFolder with peer connection = %d, want 404", namePeerConnRes.StatusCode)
 	}
 
-	// Simulate user picking fld-http-1 in Picker -> Google returns 200 folder metadata.
+	// Simulate user picking fld-http-1 in Picker -> Google returns 200 folder metadata with parent "fld-http-parent" (which is still 404).
 	e.mu.Lock()
 	delete(e.googleError, "fld-http-1")
 	e.googleFolders["fld-http-1"] = "Thư mục Thiết kế"
+	e.googleParents["fld-http-1"] = []string{"fld-http-parent"}
+	e.googleError["fld-http-parent"] = http.StatusNotFound
 	e.mu.Unlock()
 
 	nameOKRes, nameOKOut := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
@@ -795,8 +802,8 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("NameDriveFolder 200 = %d %v", nameOKRes.StatusCode, nameOKOut)
 	}
 	dfObj, _ := nameOKOut["drive_folder"].(map[string]any)
-	if dfObj["id"] != "fld-http-1" || dfObj["name"] != "Thư mục Thiết kế" || nameOKOut["updated_count"] != float64(2) {
-		t.Fatalf("NameDriveFolder response = %+v, want id=fld-http-1 name=Thư mục Thiết kế updated_count=2", nameOKOut)
+	if dfObj["id"] != "fld-http-1" || dfObj["name"] != "Thư mục Thiết kế" || dfObj["parent_id"] != "fld-http-parent" || nameOKOut["updated_count"] != float64(2) {
+		t.Fatalf("NameDriveFolder response = %+v, want id=fld-http-1 name=Thư mục Thiết kế parent_id=fld-http-parent updated_count=2", nameOKOut)
 	}
 	if _, hasOldKey := nameOKOut["updated_files"]; hasOldKey {
 		t.Fatalf("NameDriveFolder response must not contain updated_files: %+v", nameOKOut)
@@ -830,7 +837,8 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 	if !ok || namedDF["id"] != "fld-http-1" || namedDF["name"] != "Thư mục Thiết kế" {
 		t.Fatalf("detail ext-http-fldr-1 drive_folder after naming = %+v, want {id:fld-http-1, name:Thư mục Thiết kế}", namedFileObj["drive_folder"])
 	}
-	// Check aggregate GET /drive-folders after naming and with drive_connection_id filter.
+	// Check aggregate GET /drive-folders after naming and with drive_connection_id filter:
+	// Because fld-http-parent is not yet named, fld-http-1 sits at root (parent_id: nil).
 	foldersAfterRes, foldersAfterOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+ownerConn, e.ownerTk, nil)
 	if foldersAfterRes.StatusCode != http.StatusOK {
 		t.Fatalf("ListDriveFolders after naming = %d %v", foldersAfterRes.StatusCode, foldersAfterOut)
@@ -840,10 +848,37 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("len(folders) after naming = %d, want 2", len(afterGroups))
 	}
 	ag0 := afterGroups[0].(map[string]any)
-	if ag0["id"] != "fld-http-1" || ag0["name"] != "Thư mục Thiết kế" || ag0["file_count"] != float64(2) {
-		t.Fatalf("folders[0] after naming = %+v, want name=Thư mục Thiết kế", ag0)
+	if ag0["id"] != "fld-http-1" || ag0["name"] != "Thư mục Thiết kế" || ag0["parent_id"] != nil || ag0["file_count"] != float64(2) {
+		t.Fatalf("folders[0] after naming = %+v, want name=Thư mục Thiết kế parent_id=nil", ag0)
 	}
 
+	// Now user also names ancestor fld-http-parent (0 direct files):
+	e.mu.Lock()
+	delete(e.googleError, "fld-http-parent")
+	e.googleFolders["fld-http-parent"] = "Kho Tài liệu Chung"
+	e.mu.Unlock()
+	nameParentRes, nameParentOut := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-parent/name", e.ownerTk, map[string]any{
+		"drive_connection_id": ownerConn,
+	})
+	if nameParentRes.StatusCode != http.StatusOK || nameParentOut["updated_count"] != float64(0) {
+		t.Fatalf("NameDriveFolder ancestor = %d %v, want 200 updated_count=0", nameParentRes.StatusCode, nameParentOut)
+	}
+	treeNestedRes, treeNestedOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+ownerConn, e.ownerTk, nil)
+	if treeNestedRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFolders nested = %d %v", treeNestedRes.StatusCode, treeNestedOut)
+	}
+	nestedGroups := jsonArrayAt(t, treeNestedOut, "folders")
+	if len(nestedGroups) != 3 {
+		t.Fatalf("len(nestedGroups) = %d, want 3: %v", len(nestedGroups), treeNestedOut)
+	}
+	ng0 := nestedGroups[0].(map[string]any)
+	ng1 := nestedGroups[1].(map[string]any)
+	if ng0["id"] != "fld-http-parent" || ng0["parent_id"] != nil || ng0["file_count"] != float64(0) {
+		t.Fatalf("nestedGroups[0] = %+v, want fld-http-parent root count=0", ng0)
+	}
+	if ng1["id"] != "fld-http-1" || ng1["parent_id"] != "fld-http-parent" || ng1["file_count"] != float64(2) {
+		t.Fatalf("nestedGroups[1] = %+v, want fld-http-1 parent=fld-http-parent count=2", ng1)
+	}
 	// Foreign connection_id query on GET /drive-folders -> 404.
 	badFilterRes, _ := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+peerConn, e.ownerTk, nil)
 	if badFilterRes.StatusCode != http.StatusNotFound {
@@ -917,5 +952,84 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		if byAliasOut["total_count"] != byConnOut["total_count"] || len(jsonArrayAt(t, byAliasOut, "files")) != len(jsonArrayAt(t, byConnOut, "files")) {
 			t.Fatalf("ListDriveFiles drive_connection_id=%s = %+v, want match connection_id = %+v", cid, byAliasOut, byConnOut)
 		}
+	}
+}
+
+// TestToDriveFileLinkReceiptAndFolderDTOsUnit (UNI-2291) verifies without a database
+// that handler DTO mappers serialize parent_id on folder groups/named responses and
+// drive_folder on link receipts.
+func TestToDriveFileLinkReceiptAndFolderDTOsUnit(t *testing.T) {
+	t.Parallel()
+
+	folderName := "spark"
+	parentID := "fld-a"
+	item := toDriveFileLinkItemDTO(service.DriveFileLinkItemResult{
+		ExternalFileID: "ext-1",
+		Outcome:        service.DriveFileLinkOutcomeLinked,
+		File: &service.DriveFileLinkReceiptView{
+			ID:             "df-1",
+			WorkspaceID:    "ws-1",
+			ExternalFileID: "ext-1",
+			DriveFolder: &service.DriveFolderRefView{
+				ID:   "fld-b",
+				Name: &folderName,
+			},
+			Name:         "Doc",
+			MimeType:     "application/vnd.google-apps.document",
+			IconKind:     "google_doc",
+			SharingState: "private",
+			WebViewLink:  "https://docs.google.com/document/d/ext-1/edit",
+			OpenURL:      "https://docs.google.com/document/d/ext-1/edit",
+			ViewerAccess: "granted",
+		},
+	})
+	rawItem, err := json.Marshal(sdo.DriveFileLinkResultsSDO{Results: []sdo.DriveFileLinkItemDTO{item}})
+	if err != nil {
+		t.Fatalf("marshal link results: %v", err)
+	}
+	var parsedLink map[string]any
+	if err := json.Unmarshal(rawItem, &parsedLink); err != nil {
+		t.Fatalf("unmarshal link results: %v", err)
+	}
+	res0 := parsedLink["results"].([]any)[0].(map[string]any)
+	file0 := res0["file"].(map[string]any)
+	df0, ok := file0["drive_folder"].(map[string]any)
+	if !ok || df0["id"] != "fld-b" || df0["name"] != "spark" {
+		t.Fatalf("link receipt drive_folder = %+v, want {id:fld-b, name:spark}", file0["drive_folder"])
+	}
+
+	idA := "fld-a"
+	idB := "fld-b"
+	nameA := "UNC-AI_Factory"
+	listSDO := sdo.DriveFolderListSDO{
+		Folders: []sdo.DriveFolderGroupDTO{
+			{ID: &idA, Name: &nameA, ParentID: nil, FileCount: 0},
+			{ID: &idB, Name: &folderName, ParentID: &parentID, FileCount: 3},
+			{ID: nil, Name: nil, ParentID: nil, FileCount: 1},
+		},
+	}
+	rawList, err := json.Marshal(listSDO)
+	if err != nil {
+		t.Fatalf("marshal folder list: %v", err)
+	}
+	var parsedList map[string]any
+	if err := json.Unmarshal(rawList, &parsedList); err != nil {
+		t.Fatalf("unmarshal folder list: %v", err)
+	}
+	folders := parsedList["folders"].([]any)
+	if len(folders) != 3 {
+		t.Fatalf("len(folders) = %d, want 3", len(folders))
+	}
+	f0 := folders[0].(map[string]any)
+	f1 := folders[1].(map[string]any)
+	f2 := folders[2].(map[string]any)
+	if f0["id"] != "fld-a" || f0["parent_id"] != nil || f0["file_count"] != float64(0) {
+		t.Fatalf("f0 = %+v", f0)
+	}
+	if f1["id"] != "fld-b" || f1["parent_id"] != "fld-a" || f1["file_count"] != float64(3) {
+		t.Fatalf("f1 = %+v", f1)
+	}
+	if f2["id"] != nil || f2["parent_id"] != nil || f2["file_count"] != float64(1) {
+		t.Fatalf("f2 = %+v", f2)
 	}
 }

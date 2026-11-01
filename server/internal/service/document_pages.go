@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -52,6 +54,17 @@ type DocumentCrumb struct {
 	Icon  string
 }
 
+// DocumentMinutesMeeting identifies the meeting a minutes page belongs to
+// (UNI-2288). Title is populated only when the viewer is a human who passes
+// the meeting's read gate (WorkspaceService.RequireMember on the meeting's
+// workspace, matching MeetingService.authorize at service/meeting.go:195-208);
+// for any other viewer (a cross-workspace share recipient or an agent) Title
+// is empty and omitted on the wire.
+type DocumentMinutesMeeting struct {
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
+}
+
 // DocumentView is what the page commands answer (DocumentSDO): the row, the
 // caller's level and path, the ancestors the caller may read and, for a file
 // document, its current version (set by GetDocument and the file restore).
@@ -63,6 +76,9 @@ type DocumentView struct {
 	// BreakGlassExpiresAt is when the live emergency grant this view was read
 	// through ends; zero unless Access.Via is break_glass (DOC-05).
 	BreakGlassExpiresAt time.Time
+	// MinutesMeeting identifies the meeting this page is the minutes of
+	// (UNI-2288); nil for every other document.
+	MinutesMeeting *DocumentMinutesMeeting
 }
 
 // CreatePageInput is POST /workspaces/{ws}/documents with kind page or
@@ -608,8 +624,15 @@ func (s *DocumentService) GetDocument(ctx context.Context, actor Actor, document
 	if err != nil {
 		return DocumentView{}, err
 	}
+	mm, err := s.minutesMeetingForDocument(ctx, s.q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
 	s.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessView, nil)
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file, BreakGlassExpiresAt: expires}, nil
+	return DocumentView{
+		Document: doc, Access: access, Breadcrumbs: crumbs, File: file,
+		BreakGlassExpiresAt: expires, MinutesMeeting: mm,
+	}, nil
 }
 
 // currentFileInfo is the `file` block of a file document: its current
@@ -737,7 +760,92 @@ func (s *DocumentService) documentView(ctx context.Context, q *db.Queries, actor
 	if err != nil {
 		return DocumentView{}, err
 	}
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, BreakGlassExpiresAt: expires}, nil
+	var mm *DocumentMinutesMeeting
+	if access.Level.AtLeast(DocumentLevelView) {
+		if mm, err = s.minutesMeetingForDocument(ctx, q, actor, doc); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	return DocumentView{
+		Document: doc, Access: access, Breadcrumbs: crumbs,
+		BreakGlassExpiresAt: expires, MinutesMeeting: mm,
+	}, nil
+}
+
+// minutesMeetingForDocument resolves the meeting a single page is the minutes
+// of (nil for folders, files and non-minutes pages).
+func (s *DocumentService) minutesMeetingForDocument(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (*DocumentMinutesMeeting, error) {
+	if doc.Kind != DocumentKindPage {
+		return nil, nil
+	}
+	byID, err := s.minutesMeetingsForDocumentsQ(ctx, q, actor, doc.OrganizationID, []string{doc.ID}, false)
+	if err != nil {
+		return nil, err
+	}
+	return byID[doc.ID], nil
+}
+
+// minutesMeetingsForDocuments resolves the meeting each page in pageIDs is the
+// minutes of, in one batched query (UNI-2288). Short-circuits with zero DB
+// queries when pageIDs is empty. On list/tree enrichment, a non-refusal error
+// from the meeting-workspace title gate leaves that workspace's titles absent,
+// retains the rows, and logs the failure with IDs and correlation_id (RB1-3).
+func (s *DocumentService) minutesMeetingsForDocuments(ctx context.Context, actor Actor, organizationID string, pageIDs []string) (map[string]*DocumentMinutesMeeting, error) {
+	return s.minutesMeetingsForDocumentsQ(ctx, s.q, actor, organizationID, pageIDs, true)
+}
+
+func (s *DocumentService) minutesMeetingsForDocumentsQ(ctx context.Context, q *db.Queries, actor Actor, organizationID string, pageIDs []string, tolerateTitleGateErr bool) (map[string]*DocumentMinutesMeeting, error) {
+	if len(pageIDs) == 0 || organizationID == "" {
+		return nil, nil
+	}
+	rows, err := q.ListMinutesMeetingsByDocumentIDs(ctx, db.ListMinutesMeetingsByDocumentIDsParams{
+		OrganizationID: organizationID,
+		DocumentIds:    pageIDs,
+	})
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	wsMember := make(map[string]bool, 1)
+	if actor.Kind == audit.KindHuman && validActor(actor) && s.ws != nil {
+		for _, r := range rows {
+			if _, seen := wsMember[r.WorkspaceID]; seen {
+				continue
+			}
+			_, merr := s.ws.RequireMemberQ(ctx, q, r.WorkspaceID, actor.ID)
+			if merr != nil && !isGateRefusal(merr) {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return nil, ctxErr
+				}
+				if errors.Is(merr, context.Canceled) || errors.Is(merr, context.DeadlineExceeded) || !tolerateTitleGateErr {
+					return nil, merr
+				}
+				corrID := audit.CorrelationID(ctx)
+				if corrID == "" {
+					corrID = telemetry.TraceID(ctx)
+				}
+				slog.WarnContext(ctx, "documents: meeting minutes title gate failed",
+					"organization_id", organizationID,
+					"workspace_id", r.WorkspaceID,
+					"user_id", actor.ID,
+					"correlation_id", corrID,
+					"error", merr,
+				)
+			}
+			wsMember[r.WorkspaceID] = merr == nil
+		}
+	}
+	out := make(map[string]*DocumentMinutesMeeting, len(rows))
+	for _, r := range rows {
+		if _, exists := out[r.DocumentID]; exists {
+			continue
+		}
+		m := &DocumentMinutesMeeting{ID: r.MeetingID}
+		if wsMember[r.WorkspaceID] {
+			m.Title = r.MeetingTitle
+		}
+		out[r.DocumentID] = m
+	}
+	return out, nil
 }
 
 // documentBreadcrumbs walks up from doc's parent and stops at the first

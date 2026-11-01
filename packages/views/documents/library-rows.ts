@@ -45,12 +45,16 @@ export function rowFormat(row: LibraryRow): string {
     if ((DOCUMENT_FILE_FORMATS as readonly string[]).includes(format)) return format;
     return fileExtension(row.doc.title) || "file";
   }
+  if (row.source.kind === "page") return "page";
   return row.source.extension?.toLowerCase() || fileExtension(row.source.name) || "file";
 }
 
 /** A file document's or a source file's size; pages, folders and unknown sizes say nothing. */
 export function rowSizeBytes(row: LibraryRow): number | null {
-  if (row.type === "source") return row.source.size_bytes ?? null;
+  if (row.type === "source") {
+    if (row.source.kind === "page") return null;
+    return row.source.size_bytes ?? null;
+  }
   return row.doc.kind === "file" && (row.doc.size_bytes ?? 0) > 0 ? (row.doc.size_bytes ?? null) : null;
 }
 

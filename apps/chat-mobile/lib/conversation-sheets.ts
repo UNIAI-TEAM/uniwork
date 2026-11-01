@@ -10,7 +10,7 @@ export type ConversationSheet =
   | { kind: "actions"; message: TimelineMessage }
   /** Every reaction, for one message. */
   | { kind: "emoji"; message: TimelineMessage }
-  | { kind: "forward"; messageId: string }
+  | { kind: "forward"; messageId: string; messageIds?: readonly string[] }
   | { kind: "report"; messageId: string; senderId: string; name: string }
   /** The long-press menu of a link in a message. */
   | { kind: "link"; url: string }
@@ -18,7 +18,14 @@ export type ConversationSheet =
   | { kind: "image"; photo: { id: string; url: string; name: string } }
   /** The sticker and GIF picker. */
   | { kind: "expressions" }
-  | { kind: "reminder" };
+  | { kind: "reminder" }
+  | { kind: "poll" }
+  | { kind: "note" }
+  | { kind: "post" }
+  | { kind: "documents" }
+  | { kind: "linkTask"; message: TimelineMessage }
+  /** The create-task form, prefilled from one message or a selection. */
+  | { kind: "createTask"; messageId: string; title: string; description: string; count: number };
 
 type ConversationSheetKind = ConversationSheet["kind"];
 

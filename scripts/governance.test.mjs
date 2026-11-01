@@ -166,7 +166,9 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // main -> develop sync merge (#496).
   // Shared history cannot be rewritten; pin both SHA and subject so a new
   // commit cannot reuse an exempt subject to escape this check.
-  const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
+  // The log outgrew execFileSync's 1 MiB default buffer (ENOBUFS) once a long
+  // feature history was merged rather than squashed.
+  const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
     .split("\n")
     .filter(Boolean)
     .map(line => { const [sha, subject] = line.split("\0"); return { sha, subject }; });

@@ -10,25 +10,24 @@
 // conversation scrolled up shows "N new" to jump back down, where one's own
 // send always lands too.
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
-import wallDotsLight from "@/assets/chat-wall-dots-light.png";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { deliveredToAllAt, furthestReadAt, isMessageSeenByPeer, seenByMembers } from "@uniwork/core/chat/read-receipt-utils";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ImageBackground, View } from "react-native";
+import { View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { haptics } from "@/components/ui/haptics";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import type { ChatApi } from "@/data/chat-api";
-import type { SendInput } from "@/data/mutations/messages";
+import { useCreateTask, useDeleteMessage, useLinkTask, useShareAsDocument, type SendInput } from "@/data/mutations/messages";
+import { toast } from "@/data/stores/toast-store";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { readDraft, useDraftStore } from "@/data/stores/draft-store";
 import { draftKey } from "@/lib/drafts";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
-import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
+import { linkWindows, taskIdsByMessage as readTaskIds, type MessageTaskRef } from "@/lib/link-windows";
 import { conversationSheetReducer, NO_SHEET } from "@/lib/conversation-sheets";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
@@ -39,6 +38,7 @@ import { layoutTimeline } from "@/lib/timeline-layout";
 import { firstUnreadMessageId, type UnreadSnapshot } from "@/lib/unread-divider";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
+import { ConversationCreateTaskSheet, taskDraftFromSources } from "./create-task-sheet";
 import { ConnectionBanner } from "./connection-banner";
 import { ConversationLoadError, ConversationSkeleton } from "./conversation-states";
 import { EmojiSheet } from "./emoji-sheet";
@@ -57,14 +57,16 @@ import { ConversationTyping } from "./room-typing";
 import { useArrivalAnnouncements } from "./use-arrival-announcements";
 import { LiveRegion } from "@/components/ui/live-region";
 import { useSendFailureFeedback } from "./use-send-failure-feedback";
+import { ChatWall } from "./chat-wall";
+import { NoteSheet, PollSheet, PostSheet } from "./compose-sheets";
+import { DocumentPickSheet, LinkTaskSheet } from "./pick-sheets";
+import { ConversationSelection } from "./selection-bar";
 import { useMessageActions } from "./use-message-actions";
 import { useStableHandlers } from "./use-stable-handlers";
 import { TimelineList } from "./timeline-list";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
 
-// The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
-const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
 const NO_PHOTOS: ViewerPhoto[] = [];
 
 type ChatMessageLink = Awaited<ReturnType<ChatApi["listRoomMessageLinks"]>>[number];
@@ -107,6 +109,7 @@ export function Conversation(props: Props) {
   const { chat, roomId, threadRootId, room, messages } = props;
   const { t } = useTranslation();
   const [sheet, sheets] = useReducer(conversationSheetReducer, NO_SHEET);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const actionMessage = sheet.kind === "actions" ? sheet.message : null;
   // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts).
   const composerDraftKey = draftKey(chat.userId, chat.wsId, roomId, threadRootId);
@@ -120,6 +123,10 @@ export function Conversation(props: Props) {
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
   const openLink = useOpenLink();
   const { wsId, userId } = chat;
+  const createTask = useCreateTask(wsId, roomId);
+  const linkTask = useLinkTask(wsId, roomId);
+  const shareDocument = useShareAsDocument(wsId, roomId);
+  const removeMessage = useDeleteMessage(wsId, roomId, userId);
   const { colorScheme } = useColorScheme();
 
   // One pass over the messages per change: rows newest first (the inverted list's order), runs, albums and the
@@ -238,8 +245,12 @@ export function Conversation(props: Props) {
         sheets({ type: "open", sheet: { kind: "link", url } });
       },
       onJumpToMessage: jumpTo.onJumpToMessage,
+      onCreateSummaryTask: (messageId, title) => {
+        sheets({ type: "open", sheet: { kind: "createTask", messageId, title, description: "", count: 1 } });
+      },
+      selection: selected.size > 0 ? selected : undefined,
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, openLink, jumpTo],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, openLink, jumpTo, sheets, selected],
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
@@ -247,7 +258,7 @@ export function Conversation(props: Props) {
   // whose key just changed keeps the cards its messages had until its answer comes (readTaskIds).
   const windows = useMemo(() => linkWindows(messages.flatMap((m) => (m.record ? [m.id] : []))), [messages]);
   const answers = useQueries({ queries: windows.map((ids) => roomLinksOptions(wsId, roomId, ids)), combine: windowAnswers });
-  const previousTaskIds = useRef<ReadonlyMap<string, readonly string[]>>(new Map());
+  const previousTaskIds = useRef<ReadonlyMap<string, readonly MessageTaskRef[]>>(new Map());
   const taskIdsByMessage = useMemo(() => {
     const next = readTaskIds(windows, answers, previousTaskIds.current);
     previousTaskIds.current = next;
@@ -267,7 +278,15 @@ export function Conversation(props: Props) {
     setLatestSignal((n) => n + 1);
     actions.send(input);
   };
-  const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
+  const send = (body: string, priority?: "important" | "urgent") =>
+    enqueue({ body, replyToMessageId: takeReply(), threadRootId, ...(priority ? { priority } : {}) });
+  const toggleSelected = (message: TimelineMessage) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(message.id)) next.delete(message.id);
+      else next.add(message.id);
+      return next;
+    });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
   // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom.
   // iOS hears them queued; Android reads the line from the live region drawn below.
@@ -328,6 +347,7 @@ export function Conversation(props: Props) {
     onPressPending: (message: TimelineMessage) => sheets({ type: "open", sheet: { kind: "actions", message } }),
     onToggleReaction: (message: TimelineMessage, emoji: string) => react(message.id, emoji),
     onReply: replyTo,
+    onToggleSelect: toggleSelected,
   });
 
   const renderMessage = useCallback(
@@ -352,7 +372,7 @@ export function Conversation(props: Props) {
       ) : (
         <View className="flex-1 bg-chat-wall">
           {!threadRootId ? <PinnedBar messages={messages} onJump={props.onQuoteJump} /> : null}
-          <ImageBackground source={WALL_DOTS[colorScheme]} resizeMode="repeat" style={{ flex: 1 }}>
+          <ChatWall room={room.room} scheme={colorScheme}>
             <TimelineList
               rows={rows}
               renderMessage={renderMessage}
@@ -367,9 +387,37 @@ export function Conversation(props: Props) {
               unread={unreadLine}
             />
             {!atLatest || props.onJumpToLatest ? <JumpToLatest count={newCount} onPress={jumpToLatest} /> : null}
-          </ImageBackground>
+          </ChatWall>
         </View>
       )}
+      {selected.size > 0 ? (
+        <ConversationSelection
+          messages={messages}
+          selected={selected}
+          userId={userId}
+          onReply={(message) => {
+            setSelected(new Set());
+            replyTo(message);
+          }}
+          onForward={(ids) => {
+            const first = ids[0];
+            if (!first) return;
+            setSelected(new Set());
+            sheets({ type: "open", sheet: { kind: "forward", messageId: first, messageIds: ids } });
+          }}
+          onCreateTask={(sources) => {
+            const draft = taskDraftFromSources(sources);
+            if (!draft) return;
+            setSelected(new Set());
+            sheets({ type: "open", sheet: { kind: "createTask", ...draft, count: sources.length } });
+          }}
+          onDelete={(ids) => {
+            setSelected(new Set());
+            void Promise.all(ids.map((id) => removeMessage.mutateAsync(id))).catch(() => toast.error(t("chat.message_list.delete_failed")));
+          }}
+          onClear={() => setSelected(new Set())}
+        />
+      ) : (
       <Composer
         draftKey={composerDraftKey}
         candidates={room.candidates}
@@ -397,7 +445,26 @@ export function Conversation(props: Props) {
         }
         onOpenExpressions={() => sheets({ type: "open", sheet: { kind: "expressions" } })}
         onOpenReminder={() => sheets({ type: "open", sheet: { kind: "reminder" } })}
+        onOpenPoll={
+          !threadRootId && room.room?.kind !== "dm" && room.room?.member_permissions?.allow_create_polls !== false
+            ? () => sheets({ type: "open", sheet: { kind: "poll" } })
+            : undefined
+        }
+        onOpenNote={
+          !threadRootId && room.room?.member_permissions?.allow_create_notes !== false
+            ? () => sheets({ type: "open", sheet: { kind: "note" } })
+            : undefined
+        }
+        onOpenPost={
+          !threadRootId && room.room?.member_permissions?.allow_create_notes !== false
+            ? () => sheets({ type: "open", sheet: { kind: "post" } })
+            : undefined
+        }
+        onOpenDocuments={
+          !threadRootId && room.room?.can_send_document === true ? () => sheets({ type: "open", sheet: { kind: "documents" } }) : undefined
+        }
       />
+      ) }
       <ExpressionSheet
         wsId={wsId}
         visible={sheet.kind === "expressions"}
@@ -410,6 +477,39 @@ export function Conversation(props: Props) {
         onCreate={(input) =>
           enqueue({ body: "", reminder: { body: input.body.trim(), remindAt: input.remindAt.toISOString(), repeat: input.repeat } })
         }
+      />
+      <PollSheet
+        visible={sheet.kind === "poll"}
+        onClose={() => sheets({ type: "close", kind: "poll" })}
+        onCreate={(input) => enqueue({ body: input.question, poll: input, replyToMessageId: takeReply() })}
+      />
+      <NoteSheet
+        visible={sheet.kind === "note"}
+        onClose={() => sheets({ type: "close", kind: "note" })}
+        onCreate={(body) => enqueue({ body, note: { body }, replyToMessageId: takeReply() })}
+      />
+      <PostSheet
+        visible={sheet.kind === "post"}
+        onClose={() => sheets({ type: "close", kind: "post" })}
+        onCreate={(input) => enqueue({ body: input.title, post: input, replyToMessageId: takeReply() })}
+      />
+      <DocumentPickSheet
+        wsId={wsId}
+        visible={sheet.kind === "documents"}
+        onClose={() => sheets({ type: "close", kind: "documents" })}
+        onPick={(document) => enqueue({ body: document.title, documentId: document.id, replyToMessageId: takeReply() })}
+      />
+      <ConversationCreateTaskSheet
+        sheet={sheet}
+        context={room.title}
+        onClose={() => sheets({ type: "close", kind: "createTask" })}
+        create={(input) => createTask.mutateAsync(input)}
+      />
+      <LinkTaskSheet
+        wsId={wsId}
+        message={sheet.kind === "linkTask" && sheet.message.record ? sheet.message.record : null}
+        onClose={() => sheets({ type: "close", kind: "linkTask" })}
+        onLink={(messageId, taskId) => void linkTask.mutateAsync({ messageId, taskId }).catch(() => toast.error(t("chat.link.link_error")))}
       />
       <MessageActionsSheet
         message={actionMessage}
@@ -424,6 +524,9 @@ export function Conversation(props: Props) {
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? followUpOf(actionMessage.id) : null}
         {...actions.sheet}
+        onSelect={(message) => setSelected(new Set([message.id]))}
+        onLinkTask={(message) => sheets({ type: "open", sheet: { kind: "linkTask", message } })}
+        onShareAsDocument={(message) => void shareDocument.mutateAsync(message.id).catch(() => toast.error(t("common.error")))}
       />
       <ReportSheet
         wsId={wsId}
@@ -444,6 +547,7 @@ export function Conversation(props: Props) {
       <ForwardSheet
         chat={chat}
         messageId={sheet.kind === "forward" ? sheet.messageId : null}
+        messageIds={sheet.kind === "forward" ? sheet.messageIds : undefined}
         onClose={() => sheets({ type: "close", kind: "forward" })}
       />
       <LinkSheet url={sheet.kind === "link" ? sheet.url : null} onClose={() => sheets({ type: "close", kind: "link" })} />

@@ -32,6 +32,7 @@ import {
   type CreateDocumentBody,
   type CreateDocumentFileMeta,
 } from "./documents";
+import { getDocumentTree, listDocuments } from "./documents-collections";
 import {
   commitDocumentVersion,
   createDocumentVersion,
@@ -913,5 +914,66 @@ describe("documents endpoints", () => {
     ]);
     expect(form.get("visibility")).toBe("workspace");
     expect(form.has("workspace_level")).toBe(false);
+  });
+
+  // ---- UNI-2288: minutes_meeting on document detail, tree, and list ---------
+
+  it("parses minutes_meeting with and without title on getDocument, patchDocument, getDocumentTree and listDocuments, and degrades malformed values", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ minutes_meeting: { id: "m1", title: "Giao ban" } }) }),
+    );
+    expect((await getDocument("d1"))?.minutes_meeting).toEqual({ id: "m1", title: "Giao ban" });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ minutes_meeting: { id: "m1" } }) }),
+    );
+    expect((await getDocument("d1"))?.minutes_meeting).toEqual({ id: "m1", title: "" });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ minutes_meeting: { id: "m1", title: 99 } }) }),
+    );
+    expect((await patchDocument("d1", { revision: "41", title: "t" }))?.minutes_meeting).toEqual({ id: "m1", title: "" });
+
+    for (const bad of ["bad", { title: "x" }, 123, []]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ minutes_meeting: bad }) }));
+      expect((await getDocument("d1"))?.minutes_meeting).toBeUndefined();
+    }
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          { id: "n1", title: "Biên bản", kind: "page", position: 0, minutes_meeting: { id: "m1", title: "Giao ban" }, children: [] },
+          { id: "n2", title: "Biên bản ẩn", kind: "page", position: 1, minutes_meeting: { id: "m2" }, children: [] },
+          { id: "n3", title: "Lỗi", kind: "page", position: 2, minutes_meeting: "bad", children: [] },
+          { id: "n4", title: "Thiếu id", kind: "page", position: 3, minutes_meeting: { title: "x" }, children: [] },
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    expect(tree.documents.map((n) => n.minutes_meeting)).toEqual([
+      { id: "m1", title: "Giao ban" },
+      { id: "m2", title: "" },
+      undefined,
+      undefined,
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          docBody({ id: "d1", minutes_meeting: { id: "m1", title: "Giao ban" } }),
+          docBody({ id: "d2", minutes_meeting: { id: "m2" } }),
+          docBody({ id: "d3", minutes_meeting: "bad" }),
+          docBody({ id: "d4", minutes_meeting: { title: "x" } }),
+        ],
+        next_cursor: null,
+      }),
+    );
+    const list = await listDocuments("w1");
+    expect(list.documents.map((d) => d.minutes_meeting)).toEqual([
+      { id: "m1", title: "Giao ban" },
+      { id: "m2", title: "" },
+      undefined,
+      undefined,
+    ]);
   });
 });

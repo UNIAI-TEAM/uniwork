@@ -1,3 +1,18 @@
+-- name: LockDriveFolderGraph :exec
+-- Serializes Drive folder-graph mutations, workspace folder-name synchronization,
+-- and file unlink/prune within a workspace transaction (D-LOCK, RB2-1, RB2-3).
+SELECT pg_advisory_xact_lock(
+  hashtextextended('drive_folder_graph:' || sqlc.arg('workspace_id')::text, 0)
+);
+
+-- name: TryLockDriveFolderGraph :one
+-- Non-blocking variant of LockDriveFolderGraph used by opportunistic metadata
+-- refresh on GET/list request paths so a busy workspace graph lock is skipped
+-- without waiting (D-LOCK, D-BUSY, RB2-1, RB3-3, RB3-4).
+SELECT pg_try_advisory_xact_lock(
+  hashtextextended('drive_folder_graph:' || sqlc.arg('workspace_id')::text, 0)
+) AS locked;
+
 -- name: LockDriveFileWorkspaceExternal :exec
 -- Serializes Link operations for the same (workspace_id, external_file_id) pair
 -- within a transaction (spec §7.2 step 3).
@@ -112,6 +127,7 @@ WHERE id = sqlc.arg('id')
     OR metadata_refreshed_at < now() - interval '10 minutes'
   )
 RETURNING *;
+
 -- name: RebindDriveFile :one
 UPDATE drive_files
 SET connection_id = sqlc.arg('connection_id'),
@@ -476,24 +492,70 @@ WHERE organization_id = sqlc.arg('organization_id')
 RETURNING id;
 
 -- name: GetWorkspaceDriveFolderName :one
-SELECT drive_folder_name
-FROM drive_files
+SELECT COALESCE(
+  (SELECT df.name
+   FROM drive_folders df
+   WHERE df.organization_id = sqlc.arg('organization_id')
+     AND df.workspace_id = sqlc.arg('workspace_id')
+     AND df.drive_folder_id = sqlc.arg('drive_folder_id')::text
+   LIMIT 1),
+  (SELECT f.drive_folder_name
+   FROM drive_files f
+   WHERE f.organization_id = sqlc.arg('organization_id')
+     AND f.workspace_id = sqlc.arg('workspace_id')
+     AND f.drive_folder_id = sqlc.arg('drive_folder_id')::text
+     AND f.drive_folder_name IS NOT NULL
+     AND f.unlinked_at IS NULL
+   LIMIT 1),
+  ''
+)::text AS drive_folder_name;
+
+-- name: UpsertDriveFolder :one
+INSERT INTO drive_folders (
+  id, organization_id, workspace_id, connection_id,
+  drive_folder_id, name, parent_folder_id, refreshed_at,
+  created_by, created_by_kind
+) VALUES (
+  sqlc.arg('id'),
+  sqlc.arg('organization_id'),
+  sqlc.arg('workspace_id'),
+  sqlc.arg('connection_id'),
+  sqlc.arg('drive_folder_id'),
+  sqlc.arg('name'),
+  sqlc.narg('parent_folder_id'),
+  sqlc.arg('refreshed_at'),
+  sqlc.arg('created_by'),
+  sqlc.arg('created_by_kind')
+)
+ON CONFLICT (workspace_id, drive_folder_id) DO UPDATE
+SET connection_id = EXCLUDED.connection_id,
+    name = EXCLUDED.name,
+    parent_folder_id = EXCLUDED.parent_folder_id,
+    refreshed_at = EXCLUDED.refreshed_at,
+    updated_at = now()
+WHERE drive_folders.organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: ListWorkspaceDriveFolders :many
+SELECT drive_folder_id, name, parent_folder_id
+FROM drive_folders
 WHERE organization_id = sqlc.arg('organization_id')
-  AND workspace_id = sqlc.arg('workspace_id')
-  AND drive_folder_id = sqlc.arg('drive_folder_id')::text
-  AND drive_folder_name IS NOT NULL
-  AND unlinked_at IS NULL
-LIMIT 1;
+  AND workspace_id = sqlc.arg('workspace_id');
 
 -- name: ListMyDriveFolders :many
 SELECT f.drive_folder_id,
-       COALESCE(max(f.drive_folder_name), '')::text AS drive_folder_name,
+       COALESCE(max(df.name), max(f.drive_folder_name), '')::text AS drive_folder_name,
+       COALESCE(max(df.parent_folder_id), '')::text AS parent_folder_id,
        count(*)::bigint AS file_count
 FROM drive_file_access va
 JOIN drive_files f
   ON f.id = va.drive_file_id
  AND f.organization_id = va.organization_id
  AND f.workspace_id = va.workspace_id
+LEFT JOIN drive_folders df
+  ON df.workspace_id = f.workspace_id
+ AND df.organization_id = f.organization_id
+ AND df.drive_folder_id = f.drive_folder_id
 WHERE va.organization_id = sqlc.arg('organization_id')
   AND va.workspace_id = sqlc.arg('workspace_id')
   AND va.user_id = sqlc.arg('viewer_user_id')
@@ -503,8 +565,32 @@ GROUP BY f.drive_folder_id
 ORDER BY
   CASE
     WHEN f.drive_folder_id IS NULL THEN 2
-    WHEN max(f.drive_folder_name) IS NULL THEN 1
+    WHEN COALESCE(max(df.name), max(f.drive_folder_name)) IS NULL THEN 1
     ELSE 0
   END ASC,
-  lower(COALESCE(max(f.drive_folder_name), '')) ASC,
+  lower(COALESCE(max(df.name), max(f.drive_folder_name), '')) ASC,
   COALESCE(f.drive_folder_id, '') ASC;
+
+-- name: ListActiveDriveFileIDsByFolderIDs :many
+SELECT id
+FROM drive_files
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = ANY(sqlc.arg('drive_folder_ids')::text[])
+  AND unlinked_at IS NULL
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+
+-- name: ListActiveWorkspaceDriveFolderIDs :many
+SELECT DISTINCT drive_folder_id::text AS drive_folder_id
+FROM drive_files
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id IS NOT NULL
+  AND unlinked_at IS NULL;
+
+-- name: DeleteWorkspaceDriveFoldersByIDs :exec
+DELETE FROM drive_folders
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = ANY(sqlc.arg('drive_folder_ids')::text[]);

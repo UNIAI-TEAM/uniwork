@@ -106,15 +106,16 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 		tags: []string{"drive"}, sdi: sdi.RebindDriveFileSDI{}, sdo: sdo.DriveFileSDO{}, auth: true,
 	})
 	d.Post("/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name", h.NameDriveFolder, apiOp{
-		summary: "Name a Google Drive parent folder in the workspace",
-		description: "Đọc tên thư mục Google Drive qua `files.get(driveFolderID)` bằng kết nối `active` của chính người gọi (sau khi người gọi chọn thư mục đó trong Google Picker) " +
-			"và cập nhật `drive_folder_name` cho mọi tệp đang liên kết trong workspace có cùng `drive_folder_id` (UNI-2221). " +
+		summary: "Name a Google Drive folder in the workspace",
+		description: "Đọc tên và thư mục cha của thư mục Google Drive qua `files.get(driveFolderID)` bằng kết nối `active` của chính người gọi (sau khi người gọi chọn thư mục đó trong Google Picker), " +
+			"lưu cây thư mục vào `drive_folders` (gồm các tầng cha còn đọc được) và cập nhật `drive_folder_name` cho mọi tệp đang liên kết trong workspace có cùng `drive_folder_id` (UNI-2221, UNI-2291). " +
 			"Trả 404 `drive_folder_not_found` khi Google trả 404 hoặc 403 (hoặc tên thư mục rỗng), 422 `drive_folder_not_folder` khi mục được chọn không phải thư mục hoặc đã nằm trong thùng rác, và các mã lỗi `auth_failed`, `drive_unavailable` mà không làm thay đổi dữ liệu đã lưu.",
 		tags: []string{"drive"}, sdi: sdi.NameDriveFolderSDI{}, sdo: sdo.DriveFolderNamedSDO{}, auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/drive-folders", h.ListDriveFolders, apiOp{
-		summary: "List caller's Google Drive parent folder groups",
-		description: "Danh sách nhóm thư mục cha trên Google Drive gom theo các tệp đang hoạt động mà người gọi có dòng `drive_file_access` trong workspace (UNI-2221). " +
+		summary: "List caller's Google Drive folder tree",
+		description: "Danh sách các nút cây thư mục trên Google Drive gom theo các tệp đang hoạt động mà người gọi có dòng `drive_file_access` trong workspace (kèm các thư mục cha trên đường dẫn của các tệp đó; UNI-2221, UNI-2291). " +
+			"Mỗi nút có `parent_id` (chỉ đặt khi nút cha cũng có mặt trong danh sách; thư mục cha chưa biết thì `parent_id: null` nằm ở gốc) và `file_count` số tệp trực tiếp trong thư mục đó. " +
 			"Sắp xếp theo thư mục đã có tên (A–Z), thư mục chưa có tên (theo `id`), và cuối cùng là nhóm tệp không có thư mục cha (`id: null`). Không phân trang.",
 		tags: []string{"drive"}, sdi: sdi.ListDriveFoldersSDI{}, sdo: sdo.DriveFolderListSDO{}, auth: true,
 	})

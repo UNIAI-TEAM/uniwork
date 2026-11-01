@@ -129,11 +129,13 @@ export function MemberSafetySheet({
   person,
   onClose,
   onMessage,
+  onNickname,
 }: {
   wsId: string;
   person: SafetyPerson | null;
   onClose: () => void;
   onMessage: (person: SafetyPerson) => void;
+  onNickname?: (person: SafetyPerson) => void;
 }) {
   const { t } = useTranslation();
   const status = useQuery(blockStatusOptions(wsId, person?.userId ?? "")).data;
@@ -145,6 +147,9 @@ export function MemberSafetySheet({
         ...(status?.blocked_me || blockedByMe
           ? []
           : [{ key: "message", icon: "chatbubble-outline" as const, label: t("mobile.safety.message"), onPress: () => onMessage(person) }]),
+        ...(onNickname
+          ? [{ key: "nickname", icon: "pencil-outline" as const, label: t("chat.nickname_action"), onPress: () => onNickname(person) }]
+          : []),
         {
           key: "report",
           icon: "flag-outline",

@@ -282,21 +282,30 @@ ORDER BY p.sort_at DESC, p.id COLLATE "C" DESC;
 
 -- name: ListDocumentSourceMeetingFiles :many
 -- Meetings' read gate for a member (MeetingService.authorize): any member of
--- the meeting's workspace. Only complete recordings whose bytes are a ready
--- FileService file; legacy egress rows (file_id NULL) are not servable by the
--- meeting domain either. AI summaries/minutes are text rows, not files.
--- Supported by idx_meeting_recordings_org_complete.
+-- the meeting's workspace. Branch 1 lists complete recordings whose bytes are
+-- a ready FileService file; legacy egress rows (file_id NULL) are not servable
+-- by the meeting domain either. Branch 2 (UNI-2288) lists live meeting minutes
+-- pages (liveMinutesPage in service/meeting_minutes.go:93-105) when
+-- include_pages is true and row_id is NULL (lookup() for Open/Save/ViewSource
+-- passes row_id and include_pages=false so minutes rows stay 404 there),
+-- gated by the same permission + content-readable predicate as ListDocumentsPage
+-- (queries/document_search.sql:40-61,137-164) fed by DocumentService.documentListScope
+-- (service/document_search.go:399-470).
+-- Supported by idx_meeting_recordings_org_complete and idx_meetings_ws_start.
 WITH base AS (
   SELECT
     rec.id AS id,
     ('meeting:' || rec.id)::text AS source_id,
+    'file'::text AS kind,
+    ''::text AS document_id,
     COALESCE(rec.ended_at, rec.started_at) AS sort_at,
     mt.id::text AS parent_id,
     mt.title::text AS parent_title,
     f.original_filename AS name,
     COALESCE(f.content_type, '')::text AS mime_type,
     COALESCE(f.size_bytes, 0)::bigint AS size_bytes,
-    rec.started_by AS started_by,
+    rec.started_by::text AS owner_id,
+    'member'::text AS owner_kind,
     (f.original_filename COLLATE "vi-x-icu")::text AS name_key,
     COALESCE(eu.display_name COLLATE "vi-x-icu", '')::text AS editor_key,
     (NULLIF(btrim(eu.display_name), '') IS NULL)::boolean AS editor_null
@@ -304,15 +313,107 @@ WITH base AS (
   JOIN meetings mt ON mt.id = rec.meeting_id AND mt.organization_id = rec.organization_id
   JOIN files f ON f.id = rec.file_id AND f.status = 'ready'
   LEFT JOIN users eu ON eu.id = rec.started_by
-  WHERE rec.organization_id = sqlc.arg(organization_id)::text
+  WHERE NOT sqlc.arg(recordings_disabled)::boolean
+    AND rec.organization_id = sqlc.arg(organization_id)::text
     AND mt.organization_id = sqlc.arg(organization_id)::text
     AND mt.workspace_id = sqlc.arg(workspace_id)::text
     AND rec.status = 'COMPLETE'
     AND rec.file_id IS NOT NULL
     AND (sqlc.narg(row_id)::text IS NULL OR rec.id = sqlc.narg(row_id)::text)
     AND (sqlc.narg(parent_id)::text IS NULL OR mt.id = sqlc.narg(parent_id)::text)
+  UNION ALL
+  SELECT
+    ('minutes:' || mt.id)::text AS id,
+    ('meeting:minutes:' || mt.id)::text AS source_id,
+    'page'::text AS kind,
+    doc.id::text AS document_id,
+    doc.updated_at AS sort_at,
+    mt.id::text AS parent_id,
+    mt.title::text AS parent_title,
+    mt.title::text AS name,
+    ''::text AS mime_type,
+    0::bigint AS size_bytes,
+    doc.updated_by::text AS owner_id,
+    doc.updated_by_kind::text AS owner_kind,
+    (mt.title COLLATE "vi-x-icu")::text AS name_key,
+    COALESCE(eu.display_name COLLATE "vi-x-icu", '')::text AS editor_key,
+    (NULLIF(btrim(eu.display_name), '') IS NULL)::boolean AS editor_null
+  FROM meetings mt
+  JOIN documents doc
+    ON doc.id = mt.minutes_document_id
+   AND doc.organization_id = mt.organization_id
+   AND doc.workspace_id = mt.workspace_id
+  LEFT JOIN users eu ON eu.id = doc.updated_by AND doc.updated_by_kind = 'human'
+  WHERE sqlc.narg(row_id)::text IS NULL
+    AND sqlc.arg(include_pages)::boolean
+    AND mt.organization_id = sqlc.arg(organization_id)::text
+    AND mt.workspace_id = sqlc.arg(workspace_id)::text
+    AND doc.organization_id = sqlc.arg(organization_id)::text
+    AND doc.workspace_id = sqlc.arg(workspace_id)::text
+    AND mt.minutes_document_id IS NOT NULL
+    AND (sqlc.narg(parent_id)::text IS NULL OR mt.id = sqlc.narg(parent_id)::text)
+    AND doc.archived_at IS NULL
+    AND doc.kind = 'page'
+    AND doc.owner_id IS NULL
+    -- Same permission + content-readable predicate as ListDocumentsPage
+    -- (server/pkg/db/queries/document_search.sql:40-61,137-164), fed by
+    -- DocumentService.documentListScope (server/internal/service/document_search.go:399-470).
+    AND ((sqlc.arg(see_all)::boolean
+          AND (doc.system_kind IS NULL OR doc.system_kind <> 'my_folder' OR doc.acl_owner_id = sqlc.arg(viewer_id)::text)
+          AND (doc.acl_owner_id = sqlc.arg(viewer_id)::text
+               OR (doc.visibility = 'workspace' AND doc.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+               OR EXISTS (
+                    SELECT 1 FROM document_break_glass_grants g
+                    WHERE g.organization_id = doc.organization_id
+                      AND g.workspace_id = doc.workspace_id
+                      AND g.document_id = doc.id
+                      AND g.actor_id = sqlc.arg(viewer_id)::text
+                      AND g.actor_kind = 'human'
+                      AND g.revoked_at IS NULL
+                      AND g.expires_at > now())
+               OR NOT EXISTS (
+                    SELECT 1 FROM uw_my_folder_foreign_ids(
+                      sqlc.arg(viewer_id)::text, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text, sqlc.arg(max_level)::int
+                    ) mfs WHERE mfs.document_id = doc.id)))
+         OR (sqlc.arg(member_visible)::boolean AND doc.visibility = 'workspace'
+             AND doc.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+         OR (sqlc.arg(acl_owner)::boolean AND doc.acl_owner_id = sqlc.arg(viewer_id)::text)
+         OR (sqlc.arg(allow_shares)::boolean AND EXISTS (
+              SELECT 1 FROM document_shares s
+              WHERE s.organization_id = doc.organization_id
+                AND s.workspace_id = doc.workspace_id
+                AND s.document_id = doc.id
+                AND s.revoked_at IS NULL
+                AND s.level = ANY(sqlc.arg(share_levels)::text[])
+                AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(viewer_id)::text)
+                     OR (s.principal_type = 'organization' AND s.principal_id = doc.organization_id)
+                     OR (s.principal_type = 'workspace'
+                         AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
+    AND (NOT sqlc.arg(see_all)::boolean
+         OR doc.visibility <> 'restricted'
+         OR (doc.acl_owner_id IS NOT NULL AND doc.acl_owner_id = sqlc.arg(viewer_id)::text)
+         OR EXISTS (
+              SELECT 1 FROM document_shares rs
+              WHERE rs.organization_id = doc.organization_id
+                AND rs.workspace_id = doc.workspace_id
+                AND rs.document_id = doc.id
+                AND rs.revoked_at IS NULL
+                AND rs.level = ANY(sqlc.arg(share_levels)::text[])
+                AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(viewer_id)::text)
+                     OR (rs.principal_type = 'organization' AND rs.principal_id = doc.organization_id)
+                     OR (rs.principal_type = 'workspace'
+                         AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+         OR EXISTS (
+              SELECT 1 FROM document_break_glass_grants g
+              WHERE g.organization_id = doc.organization_id
+                AND g.workspace_id = doc.workspace_id
+                AND g.document_id = doc.id
+                AND g.actor_id = sqlc.arg(viewer_id)::text
+                AND g.actor_kind = 'human'
+                AND g.revoked_at IS NULL
+                AND g.expires_at > now()))
 ), page AS (
-  SELECT id, source_id, sort_at, parent_id, parent_title, name, mime_type, size_bytes, started_by, name_key, editor_key, editor_null
+  SELECT id, source_id, kind, document_id, sort_at, parent_id, parent_title, name, mime_type, size_bytes, owner_id, owner_kind, name_key, editor_key, editor_null
   FROM base
   WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
     -- requested direction; an editor-less row (editor_null) is always last.
@@ -339,10 +440,11 @@ WITH base AS (
       OR (sort_at <= sqlc.narg(cursor_at)::timestamptz
         AND (sort_at, source_id COLLATE "C") < (sqlc.narg(cursor_at)::timestamptz, sqlc.narg(cursor_id)::text COLLATE "C")))
     AND (sqlc.narg(q)::text IS NULL OR uw_fold_search(name) LIKE '%' || sqlc.narg(q)::text || '%')
-    AND CASE sqlc.arg(type_mode)::text
-      WHEN 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY(sqlc.arg(type_exts)::text[])
-      WHEN 'image' THEN mime_type LIKE 'image/%'
-      WHEN 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY(sqlc.arg(type_exts)::text[]))
+    AND CASE
+      WHEN kind = 'page' THEN sqlc.arg(include_pages)::boolean
+      WHEN sqlc.arg(type_mode)::text = 'ext' THEN lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY(sqlc.arg(type_exts)::text[])
+      WHEN sqlc.arg(type_mode)::text = 'image' THEN mime_type LIKE 'image/%'
+      WHEN sqlc.arg(type_mode)::text = 'other' THEN NOT (lower(COALESCE(substring(name FROM '\.([A-Za-z0-9]+)$'), '')) = ANY(sqlc.arg(type_exts)::text[]))
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
@@ -369,6 +471,8 @@ WITH base AS (
 SELECT
   p.source_id::text AS source_id,
   p.id::text AS row_id,
+  p.kind::text AS kind,
+  p.document_id::text AS document_id,
   p.sort_at AS sort_at,
   'meeting'::text AS parent_kind,
   p.parent_id AS parent_id,
@@ -377,14 +481,15 @@ SELECT
   p.name::text AS name,
   p.mime_type AS mime_type,
   p.size_bytes AS size_bytes,
-  p.started_by::text AS owner_id,
-  'member'::text AS owner_kind,
-  COALESCE(su.display_name, '')::text AS owner_name,
+  p.owner_id::text AS owner_id,
+  p.owner_kind::text AS owner_kind,
+  COALESCE(su.display_name, ag.name, '')::text AS owner_name,
   p.name_key AS name_key,
   p.editor_key AS editor_key,
   p.editor_null AS editor_null
 FROM page p
-LEFT JOIN users su ON su.id = p.started_by
+LEFT JOIN users su ON su.id = p.owner_id
+LEFT JOIN agents ag ON ag.id = p.owner_id AND ag.organization_id = sqlc.arg(organization_id)::text
 ORDER BY p.sort_at DESC, p.id COLLATE "C" DESC;
 
 -- name: ListDocumentSourceEmailFiles :many

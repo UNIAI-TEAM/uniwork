@@ -9,6 +9,7 @@ import { createShortcutChord, shortcutMatchesEvent } from "@uniwork/core/shortcu
 import { isImeComposing } from "@uniwork/core/utils";
 import { PAGE_SAVE_REQUEST_EVENT } from "../editor/extensions/page-events";
 import { DocumentShelvedBadge } from "./document-shelved-banner";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import { DocumentPageIcon } from "./document-page-icon";
 import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
@@ -101,9 +102,18 @@ export function DocumentPageHeader({ wsId, doc, editable, shelved = false, title
           }}
         />
       ) : <h1 className="break-words text-display-sm font-semibold tracking-tight sm:text-display">{(myFolder ? t("documents.home.my_folder.label") : doc.title) || t("documents.detail.untitled")}</h1>}
-      {time || comments.data || shelved ? (
+      {doc.minutes_meeting?.id || time || comments.data || shelved ? (
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
           {shelved ? <DocumentShelvedBadge /> : null}
+          {doc.minutes_meeting?.id ? (
+            <>
+              {/* Label and separator wrap as one unit: the dot never dangles at a line end. */}
+              <span className="inline-flex min-w-0 max-w-full items-center gap-x-2">
+                <DocumentMinutesSourceLink minutesMeeting={doc.minutes_meeting} />
+                {time || comments.data ? <span aria-hidden className="shrink-0">·</span> : null}
+              </span>
+            </>
+          ) : null}
           {time ? <time dateTime={doc.updated_at} title={date?.toLocaleString(i18n.language)}>
             {author ? t("documents.page_ui.updated_by", { time, name: author }) : t("documents.page_ui.updated_at", { time })}
           </time> : null}

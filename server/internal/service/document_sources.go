@@ -118,9 +118,8 @@ func NewDocumentSourceService(d DocumentSourceDeps) *DocumentSourceService {
 type DocumentSourceFilter struct {
 	Source string
 	// Types is the repeated ?type= filter (UNI-2113), OR-ed: the extensions of
-	// every value. "page" is a list type sources cannot hold, so it adds none
-	// (a page-only pick is an empty page, never the whole set); a value no
-	// list accepts is a validation error. Nil is no constraint.
+	// every value, plus "page" for live meeting minutes pages (UNI-2288); a
+	// value no list accepts is a validation error. Nil is no constraint.
 	Types  []string
 	Q      string
 	Cursor string
@@ -156,6 +155,8 @@ type DocumentSourceOwner struct {
 type DocumentSourceItem struct {
 	ID           string
 	Source       string
+	Kind         string
+	DocumentID   string
 	Parent       DocumentSourceParent
 	Name         string
 	MimeType     string
@@ -192,6 +193,7 @@ type documentSourceQuery struct {
 	q                            pgtype.Text
 	typeMode                     string
 	typeExts                     []string
+	includePages                 bool
 	limit                        int32
 	rowID                        pgtype.Text
 	parentID                     pgtype.Text
@@ -219,6 +221,7 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 	if dq.typeMode, dq.typeExts, err = documentSourceTypeFilter(f.Types); err != nil {
 		return DocumentSourcePage{}, err
 	}
+	dq.includePages = documentSourceIncludesPages(f.Types)
 	if q := strings.TrimSpace(f.Q); q != "" {
 		if len([]rune(q)) > 200 {
 			return DocumentSourcePage{}, Invalid("q tối đa 200 ký tự")
@@ -255,7 +258,11 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		dq.sort = sortArgs(f.Sort, DocumentSortCursor{}, nil, "")
 	}
 	if len(dq.typeExts) == 0 {
-		sources = nil
+		if dq.includePages && slices.Contains(sources, DocumentSourceMeeting) {
+			sources = []string{DocumentSourceMeeting}
+		} else {
+			sources = nil
+		}
 	}
 	var all []DocumentSourceItem
 	for _, src := range sources {
@@ -432,7 +439,7 @@ func (s *DocumentSourceService) enabled(src string) bool {
 	case DocumentSourceTask:
 		return s.tasks != nil
 	case DocumentSourceMeeting:
-		return s.meetings != nil && s.meetings.FileServiceEnabled()
+		return s.meetings != nil && (s.meetings.FileServiceEnabled() || s.meetings.Docs != nil)
 	case DocumentSourceEmail:
 		return s.email != nil && s.email.Enabled()
 	}
@@ -470,18 +477,62 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 			rows = append(rows, db.ListDocumentSourceChatFilesRow(r))
 		}
 	case DocumentSourceMeeting:
-		got, err := s.q.ListDocumentSourceMeetingFiles(ctx, db.ListDocumentSourceMeetingFilesParams{
-			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
-			RowLimit: dq.limit, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID, ParentID: dq.parentID,
-			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
-			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
-		})
+		includePages := dq.includePages && !dq.rowID.Valid && s.meetings.Docs != nil
+		if !s.meetings.FileServiceEnabled() && !includePages {
+			return nil, nil
+		}
+		params := db.ListDocumentSourceMeetingFilesParams{
+			OrganizationID:     dq.orgID,
+			RecordingsDisabled: !s.meetings.FileServiceEnabled(),
+			WorkspaceID:        dq.workspaceID,
+			RowID:              dq.rowID,
+			ParentID:           dq.parentID,
+			IncludePages:       includePages,
+			ViewerID:           dq.viewerID,
+			ShareLevels:        []string{},
+			MaxLevel:           subtreeMaxLevel(),
+			ShareWorkspaces:    []string{},
+			SortCursorID:       dq.sort.id,
+			SortKey:            dq.sort.key,
+			SortDesc:           dq.sort.desc,
+			SortCursorAt:       dq.sort.at,
+			SortCursorNum:      dq.sort.num,
+			SortCursorText:     dq.sort.text,
+			SortCursorNull:     dq.sort.null,
+			CursorAt:           dq.cursorAt,
+			CursorID:           dq.cursorID,
+			Q:                  dq.q,
+			TypeMode:           dq.typeMode,
+			TypeExts:           dq.typeExts,
+			RowLimit:           dq.limit,
+		}
+		if includePages {
+			scope, err := s.docs.documentListScopeForWorkspace(ctx, s.q, Human(dq.viewerID), dq.workspaceID, db.Workspace{
+				ID:             dq.workspaceID,
+				OrganizationID: dq.orgID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			params.SeeAll = scope.seeAll
+			params.MemberVisible = scope.memberVisible
+			params.AclOwner = scope.aclOwner
+			params.AllowShares = scope.allowShares
+			params.ShareLevels = shareLevelsFor(DocumentLevelView)
+			if scope.shareWorkspaces != nil {
+				params.ShareWorkspaces = scope.shareWorkspaces
+			}
+		}
+		got, err := s.q.ListDocumentSourceMeetingFiles(ctx, params)
 		if err != nil {
 			return nil, err
 		}
+		policy := s.docs.documentFilePolicy()
+		out := make([]DocumentSourceItem, 0, len(got))
 		for _, r := range got {
-			rows = append(rows, db.ListDocumentSourceChatFilesRow(r))
+			out = append(out, documentSourceMeetingItem(r, policy))
 		}
+		return out, nil
 	case DocumentSourceEmail:
 		got, err := s.q.ListDocumentSourceEmailFiles(ctx, db.ListDocumentSourceEmailFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
@@ -506,10 +557,39 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	return out, nil
 }
 
+func documentSourceMeetingItem(r db.ListDocumentSourceMeetingFilesRow, docPolicy files.Policy) DocumentSourceItem {
+	if r.Kind == DocumentKindPage {
+		item := DocumentSourceItem{
+			ID:         r.SourceID,
+			Source:     DocumentSourceMeeting,
+			Kind:       DocumentKindPage,
+			DocumentID: r.DocumentID,
+			Name:       r.Name,
+			UpdatedAt:  r.SortAt.Time.UTC(),
+			Parent:     DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
+			rowID:      r.RowID,
+			nameKey:    r.NameKey,
+			editorKey:  r.EditorKey,
+			editorNull: r.EditorNull,
+		}
+		if r.OwnerID != "" {
+			item.Owner = &DocumentSourceOwner{ID: r.OwnerID, Kind: documentSourceOwnerKind(r.OwnerKind), Name: r.OwnerName}
+		}
+		return item
+	}
+	return documentSourceItem(DocumentSourceMeeting, db.ListDocumentSourceChatFilesRow{
+		SourceID: r.SourceID, RowID: r.RowID, SortAt: r.SortAt,
+		ParentKind: r.ParentKind, ParentID: r.ParentID, ParentTitle: r.ParentTitle, ParentRef: r.ParentRef,
+		Name: r.Name, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
+		OwnerID: r.OwnerID, OwnerKind: r.OwnerKind, OwnerName: r.OwnerName,
+		NameKey: r.NameKey, EditorKey: r.EditorKey, EditorNull: r.EditorNull,
+	}, docPolicy)
+}
+
 func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow, docPolicy files.Policy) DocumentSourceItem {
 	ext := documentSourceExtension(r.Name)
 	item := DocumentSourceItem{
-		ID: r.SourceID, Source: src, Name: r.Name, MimeType: r.MimeType, Extension: ext,
+		ID: r.SourceID, Source: src, Kind: DocumentKindFile, Name: r.Name, MimeType: r.MimeType, Extension: ext,
 		SizeBytes: r.SizeBytes, UpdatedAt: r.SortAt.Time.UTC(), CanOpenInApp: documentSourceAppExts[ext],
 		CanSave: documentSourceSaveable(docPolicy, ext, r.MimeType, r.SizeBytes),
 		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
@@ -648,6 +728,12 @@ func documentSourceTypeFilter(types []string) (string, []string, error) {
 		}
 	}
 	return "ext", exts, nil
+}
+
+// documentSourceIncludesPages reports whether the ?type= filter includes
+// UniNote pages (meeting minutes in the meeting source, UNI-2288).
+func documentSourceIncludesPages(types []string) bool {
+	return len(types) == 0 || slices.Contains(types, DocumentTypePage)
 }
 
 func documentSourceExtension(name string) string {

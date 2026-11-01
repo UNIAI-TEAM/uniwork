@@ -19,11 +19,11 @@ const known = { documentId: DOC, routeKnown: true };
 const unknown = { documentId: DOC, routeKnown: false };
 
 describe("frameKnowsAvatarRoute (the version gate)", () => {
-  it("only the avatar build (0.1.0-c4b20c5) is listed: a listed build gets the route, an unlisted one still gets `\"\"`", () => {
+  it("only the avatar build (0.1.0-0b527f4) is listed: a listed build gets the route, an unlisted one still gets `\"\"`", () => {
     // A later re-pin to a fork bundle that keeps the avatar loader adds its version to AVATAR_ROUTE_FRAME_VERSIONS.
-    expect(AVATAR_ROUTE_FRAME_VERSIONS).toEqual(["0.1.0-c4b20c5"]);
-    expect(frameKnowsAvatarRoute("0.1.0-c4b20c5")).toBe(true);
-    expect(frameAvatarContext(DOC, "0.1.0-c4b20c5").routeKnown).toBe(true);
+    expect(AVATAR_ROUTE_FRAME_VERSIONS).toEqual(["0.1.0-0b527f4"]);
+    expect(frameKnowsAvatarRoute("0.1.0-0b527f4")).toBe(true);
+    expect(frameAvatarContext(DOC, "0.1.0-0b527f4").routeKnown).toBe(true);
     expect(frameKnowsAvatarRoute("0.1.0-d57e60f")).toBe(false);
     expect(frameAvatarContext(DOC, "0.1.0-d57e60f").routeKnown).toBe(false);
     expect(frameKnowsAvatarRoute("")).toBe(false);
@@ -31,7 +31,7 @@ describe("frameKnowsAvatarRoute (the version gate)", () => {
 
   it("a listed build rewrites a human with a picture to the route, an unlisted build leaves `\"\"`", () => {
     const picture = "https://storage.example.test/avatars/an.png";
-    expect(frameAvatarUrl(frameAvatarContext(DOC, "0.1.0-c4b20c5"), "human", USER, picture)).toBe(PATH);
+    expect(frameAvatarUrl(frameAvatarContext(DOC, "0.1.0-0b527f4"), "human", USER, picture)).toBe(PATH);
     expect(frameAvatarUrl(frameAvatarContext(DOC, "0.1.0-d57e60f"), "human", USER, picture)).toBe("");
   });
 

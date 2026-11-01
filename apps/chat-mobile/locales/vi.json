@@ -1090,6 +1090,9 @@
     "document_open_in_documents": "Mở trong Tài liệu",
     "document_no_access": "Không có quyền truy cập",
     "document_request_access": "Yêu cầu quyền truy cập",
+    "document_locked_title": "Bạn chưa mở được tài liệu này",
+    "document_access_sent": "Đã gửi yêu cầu. Bạn sẽ nhận thông báo khi người quản lý trả lời.",
+    "document_access_failed": "Chưa gửi được yêu cầu. Hãy thử lại.",
     "document_share_as_document": "Chia sẻ dạng tài liệu",
     "document_shared_with_count_one": "Đã chia sẻ với {{count}} người",
     "document_shared_with_count_other": "Đã chia sẻ với {{count}} người",
@@ -1449,6 +1452,13 @@
       "assignee_label": "Người nhận",
       "assignee_none": "Chưa gán",
       "due_label": "Hạn",
+      "due_placeholder": "YYYY-MM-DD",
+      "priority_label": "Độ ưu tiên",
+      "priority_none": "Không ưu tiên",
+      "priority_low": "Thấp",
+      "priority_medium": "Trung bình",
+      "priority_high": "Cao",
+      "priority_urgent": "Khẩn cấp",
       "sync_thread": "Đồng bộ thread với bình luận của việc",
       "sync_thread_hint": "Trả lời trong thread thành bình luận của việc và ngược lại.",
       "search_label": "Tìm việc",
@@ -1935,7 +1945,18 @@
     "status_in_review": "Đang review",
     "status_done": "Hoàn thành",
     "status_blocked": "Đang chặn",
-    "status_cancelled": "Đã hủy"
+    "status_cancelled": "Đã hủy",
+    "unassigned": "Chưa giao",
+    "create": {
+      "title_placeholder": "Tiêu đề issue",
+      "description_placeholder": "Thêm mô tả…",
+      "creating": "Đang tạo…"
+    },
+    "priority_none": "Không ưu tiên",
+    "priority_low": "Thấp",
+    "priority_medium": "Trung bình",
+    "priority_high": "Cao",
+    "priority_urgent": "Khẩn cấp"
   },
   "invitations": {
     "list_title": "Lời mời đang chờ bạn",

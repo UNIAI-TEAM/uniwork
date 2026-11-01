@@ -539,6 +539,9 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
+	if err := s.attachListMinutesMeetings(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
 	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
@@ -969,6 +972,9 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 		return DocumentListPage{}, err
 	}
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	if err := s.attachListMinutesMeetings(ctx, actor, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
 	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
