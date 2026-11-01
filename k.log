@@ -1,0 +1,26 @@
+$ cd "$(git rev-parse --show-toplevel)"; export GIT_INDEX_FILE=/tmp/pr10r2-shots.idx; rm -f $GIT_INDEX_FILE; n=0; for f in $(find /tmp/pr10r2-office-results -name "*.png" | sort); do name=$(echo "${f#/tmp/pr10r2-office-results/}" | tr "/" "_"); git update-index --add --cacheinfo 100644,$(git hash-object -w "$f"),"$name"; n=$((n+1)); done; echo "SHOTS=$n"; t=$(git write-tree); c=$(echo "pr10-repin-1101 r2 office screenshots at $(git rev-parse --short HEAD)" | git commit-tree $t); git push -q origin $c:refs/test-results/pr10-repin-1101/shots-r2 2>&1 | tail -2; rc=${PIPESTATUS[0]}; git ls-tree --name-only $c | head -80; unset GIT_INDEX_FILE; echo; echo "SHOTS_PUSH_EXIT=$rc"
+SHOTS=22
+office-docs-avatars-web-fr-0d6de-der-the-unchanged-frame-CSP_avatars-in-comment-panel.png
+office-docs-web-open-edit--137ec-rsion-and-survives-a-reopen_01-opened-in-frame.png
+office-docs-web-open-edit--137ec-rsion-and-survives-a-reopen_02-saved.png
+office-docs-web-open-edit--137ec-rsion-and-survives-a-reopen_03-reopened.png
+office-docs-web-open-edit--87b1a-rame-keeps-editing-the-copy_04-save-as-copy.png
+office-docs-web-open-edit--98d02-P-and-is-stored-in-the-docx_05-image-inserted.png
+office-docs-web-open-edit--bf6c9-t-uploads-UNI-1847-SAVE-01-_05-first-save-named.png
+office-docs-web-open-edit--fb09a-here-then-uploads-UNI-1960-_05-first-save-folder.png
+office-markdown-assets-web-09abd--stored-as-a-document-asset_01-md-relative-picture.png
+office-markdown-assets-web-09abd--stored-as-a-document-asset_02-md-pasted-picture-reopened.png
+office-markdown-web-bundle-63900-and-the-handshake-completes_01-opened-in-markdown-frame.png
+office-modules-web-html-mo-180be-ure-not-an-endless-skeleton_03-html-bundle-missing.png
+office-modules-web-html-mo-65938-and-the-handshake-completes_01-html-opened.png
+office-modules-web-html-mo-e1906-e-is-saved-as-a-new-version_02-html-saved.png
+office-modules-web-pdf-mod-53acf-ure-not-an-endless-skeleton_03-pdf-bundle-missing.png
+office-modules-web-pdf-mod-cc883-and-the-handshake-completes_01-pdf-opened.png
+office-modules-web-pdf-mod-ed601-ailure-at-once-and-says-why_04-pdf-script-blocked.png
+office-modules-web-sheets--28140-ure-not-an-endless-skeleton_03-sheets-bundle-missing.png
+office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version_02-sheets-saved.png
+office-modules-web-sheets--76344-and-the-handshake-completes_01-sheets-opened.png
+office-modules-web-slides--4ea01-ure-not-an-endless-skeleton_03-slides-bundle-missing.png
+office-modules-web-slides--c8a03-and-the-handshake-completes_01-slides-opened.png
+
+SHOTS_PUSH_EXIT=0
