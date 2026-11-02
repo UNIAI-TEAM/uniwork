@@ -126,7 +126,7 @@ Không dùng REA hay reverse engineering, scrape, gọi private API của ClickU
 
 - Đặt trong `internal/service` (ví dụ `askuni_agent.go`), không trong `internal/ai`.
 - Mỗi vòng là một `gateway.Complete`: lượt đầu render prompt, các lượt sau là `ToolResultTurn`; lượt cuối là câu trả lời chữ.
-- Giới hạn mỗi lượt hỏi (run): tối đa **4 vòng tool**, ngân sách token cho cả run (ước lượng bắt đầu: 60k vào, 4k ra), kết quả mỗi tool tối đa 64 KB, giới hạn đồng thời theo tổ chức như UniWork AI.
+- Giới hạn mỗi lượt hỏi (run): tối đa **6 vòng tool** (ban đầu 4; nâng lên 6 ngày 2026-11-02, UNI-2307, vì soạn tệp từ tệp đính kèm của công việc cần 5 vòng), ngân sách token cho cả run (ước lượng bắt đầu: 60k vào, 4k ra), kết quả mỗi tool tối đa 64 KB, giới hạn đồng thời theo tổ chức như UniWork AI.
 - Rate limit 20 câu/phút/người giữ nguyên (đếm theo câu hỏi); thêm giới hạn số vòng/phút/tổ chức.
 - Metering: mỗi vòng có `MeterKey = "ask-uni:<run_id>:<round>"`; run id đi qua log, metric, usage row.
 - Model trả sai định dạng ở lượt cuối: thử lại một lần với lời nhắc định dạng; vẫn sai thì lưu một câu trả lời lỗi có mã để người dùng thấy đã tốn gì.

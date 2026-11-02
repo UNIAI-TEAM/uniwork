@@ -405,7 +405,7 @@ func lastToolOf(req provider.CompletionRequest) string {
 	return ""
 }
 
-func TestAskAgentStopsAfterFourToolRounds(t *testing.T) {
+func TestAskAgentStopsAfterSixToolRounds(t *testing.T) {
 	s, fake, ua, w := agentAskFixture(t)
 	agentTask(t, s, ua, w, "Banner Tết")
 	var reqs []provider.CompletionRequest
@@ -417,19 +417,21 @@ func TestAskAgentStopsAfterFourToolRounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Four tool rounds, the answer round, and its one format retry.
-	if fake.Calls != 6 {
-		t.Fatalf("provider calls %d, want 6", fake.Calls)
+	// Six tool rounds, the answer round, and its one format retry. Six, so
+	// a draft from a task's attachment fits: search, get_task,
+	// list_attachments, get_attachment, then create_office_document.
+	if fake.Calls != 8 {
+		t.Fatalf("provider calls %d, want 8", fake.Calls)
 	}
-	for i, req := range reqs[:4] {
+	for i, req := range reqs[:6] {
 		if strings.Contains(lastToolOf(req), "Tool budget reached") {
 			t.Fatalf("call %d is a tool round and must not carry the note", i)
 		}
 	}
-	if tool := lastToolOf(reqs[4]); !strings.HasSuffix(tool, agentBudgetNote) {
+	if tool := lastToolOf(reqs[6]); !strings.HasSuffix(tool, agentBudgetNote) {
 		t.Fatalf("the answer round's last tool result must end with the note:\n%s", tool)
 	}
-	if tool := lastToolOf(reqs[5]); !strings.Contains(tool, "Tool budget reached") {
+	if tool := lastToolOf(reqs[7]); !strings.Contains(tool, "Tool budget reached") {
 		t.Fatalf("the final request's last tool result lacks the note:\n%s", tool)
 	}
 	if res.Message.Notice.String != ai.NoticeAgentFailed || res.Message.Content != "" || len(res.Citations) != 0 {

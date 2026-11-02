@@ -42,8 +42,9 @@ var askNarrated = map[string]string{
 // eval.
 const (
 	// askAgentMaxToolRounds caps the tool rounds: the call after the last one
-	// is the answer round.
-	askAgentMaxToolRounds = 4
+	// is the answer round. Six fit a draft from a task's attachment: search,
+	// get_task, list_attachments, get_attachment, then the proposal.
+	askAgentMaxToolRounds = 6
 	// askAgentMaxCallsPerRound caps the tool calls one reply may run; the
 	// rest are answered "error: too_many_calls", unrun.
 	askAgentMaxCallsPerRound = 6
